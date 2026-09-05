@@ -2,4 +2,4 @@
 
 Milestone corrente: bootstrap domain-core v0.1.0.
 
-La repository è stata inizializzata localmente e il domain core v0.1.0 è verificato. La pubblicazione GitHub resta subordinata alla riautenticazione della GitHub CLI e alla verifica CI remota.
+La repository è pubblica su GitHub, il domain core v0.1.0 è verificato e la CI è verde su Python 3.12, 3.13 e 3.14. La Release `v0.1.0` è stata pubblicata.

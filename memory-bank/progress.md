@@ -14,4 +14,6 @@
 
 ## Da completare
 
-- Creazione del repository GitHub e Release `v0.1.0`: richiede token GitHub valido.
+- Repository pubblico creato su `giulios123/italian-energy-core`.
+- `main` e tag `v0.1.0` pubblicati; CI verde su Python 3.12, 3.13 e 3.14.
+- GitHub Release `v0.1.0` pubblicata.
