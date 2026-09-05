@@ -29,7 +29,7 @@ dev = [
   "hypothesis>=6.120,<7",
   "mypy>=1.13,<2",
   "pre-commit>=4.0,<5",
-  "pytest>=8.3,<9",
+  "pytest>=9.0.3,<10",
   "pytest-cov>=6,<7",
   "ruff>=0.9,<1",
 ]
