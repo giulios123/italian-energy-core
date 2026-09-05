@@ -1,0 +1,22 @@
+.venv/
+.python-version
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.hypothesis/
+
+# Local confidential material
+private/*
+!private/README.md
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
