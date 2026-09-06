@@ -19,8 +19,10 @@ class Currency(StrEnum):
 class RateUnit(StrEnum):
     EUR_PER_KWH = "EUR/kWh"
     EUR_PER_MWH = "EUR/MWh"
+    EUR_PER_KVARH = "EUR/kvarh"
     EUR_PER_KW_DAY = "EUR/kW/day"
     EUR_PER_KW_MONTH = "EUR/kW/month"
+    EUR_PER_KW_YEAR = "EUR/kW/year"
     EUR_PER_DAY = "EUR/day"
     EUR_PER_MONTH = "EUR/month"
     EUR_PER_YEAR = "EUR/year"

@@ -11,3 +11,5 @@ repos:
       - id: mypy
         additional_dependencies:
           - pydantic>=2.10,<3
+          - hypothesis>=6.120,<7
+          - pytest>=9.0.3,<10

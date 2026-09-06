@@ -41,6 +41,15 @@ class ChargeRule(DomainModel):
     conditions: tuple[str, ...] = ()
     provenance: tuple[Provenance, ...] = ()
 
+    @model_validator(mode="after")
+    def validate_signed_value(self) -> Self:
+        amount = self.value.amount
+        if self.discount and amount > 0:
+            raise ValueError("discount value must be non-positive")
+        if not self.discount and amount < 0:
+            raise ValueError("charge value must be non-negative")
+        return self
+
 
 class FixedTariff(DomainModel):
     kind: Literal["fixed"] = "fixed"
@@ -62,6 +71,16 @@ class FixedTariff(DomainModel):
             raise ValueError("tariff price bands must be unique")
         if "ALL" in bands and len(bands) > 1:
             raise ValueError("ALL cannot be mixed with named tariff bands")
+        return self
+
+    @model_validator(mode="after")
+    def validate_charge_groups(self) -> Self:
+        for rule in (*self.fixed_charges, *self.additional_charges):
+            if rule.discount:
+                raise ValueError("fixed and additional charges cannot be discounts")
+        for rule in self.discounts:
+            if not rule.discount:
+                raise ValueError("discount rules must have discount=true")
         return self
 
 
@@ -91,6 +110,16 @@ class IndexedTariff(DomainModel):
             raise ValueError("tariff formula bands must be unique")
         if "ALL" in bands and len(bands) > 1:
             raise ValueError("ALL cannot be mixed with named tariff bands")
+        return self
+
+    @model_validator(mode="after")
+    def validate_charge_groups(self) -> Self:
+        for rule in (*self.fixed_charges, *self.additional_charges):
+            if rule.discount:
+                raise ValueError("fixed and additional charges cannot be discounts")
+        for rule in self.discounts:
+            if not rule.discount:
+                raise ValueError("discount rules must have discount=true")
         return self
 
 

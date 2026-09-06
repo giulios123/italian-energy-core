@@ -1,0 +1,18 @@
+{
+  "fixture_id": "billing-004-domestic-bt-resident-synthetic",
+  "description": "Synthetic domestic BT resident bill; no customer or POD data.",
+  "contract_id": "contract-004",
+  "period": {
+    "start": "2026-01-01",
+    "end": "2026-02-01"
+  },
+  "components": [
+    {"reconciliation_key": "energy", "amount": "10.00"},
+    {"reconciliation_key": "network", "amount": "2.00"},
+    {"reconciliation_key": "threshold", "amount": "0.10"},
+    {"reconciliation_key": "vat", "amount": "1.21"},
+    {"reconciliation_key": "bonus", "amount": "-1.00"}
+  ],
+  "total": "12.31",
+  "currency": "EUR"
+}

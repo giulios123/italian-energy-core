@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Stato: `v0.1.0` — domain core. Il pricing, il billing, gli importer ARERA e i motori di confronto vengono introdotti soltanto attraverso spec successive.
+> Stato: `v0.4.0` locale, non pubblicata — domain core, pricing fixed/indexed e Billing Engine data-driven implementati e verificati localmente. Il ruleset pubblico Q2 2026 e il verificatore golden privato sono presenti; il golden domestico passa con gli elementi di dettaglio collegati alla bolletta.
 
 ## Obiettivi
 
@@ -26,12 +26,12 @@ pip install italian-energy
 ## Architettura
 
 - `domain/`: value object, entità, provenance e risultati immutabili;
-- `pricing/`: contratto del Pricing Engine;
-- `billing/`: contratto del Billing Engine;
+- `pricing/`: contratto del Pricing Engine e evaluator fixed/indexed deterministici;
+- `billing/`: contratto e Billing Engine regolatorio con riconciliazione esplicita;
 - `comparison/`: confronto deterministico;
 - `recommendation/`: interpretazione separata dai costi;
 - `market/`: indici e dati di mercato;
-- `arera/`: confine per futuri importer, senza parser nella v0.1.
+- `arera/`: confine per futuri importer, senza parser nella v0.4.
 
 Le spec sono normative. Gli ADR registrano decisioni architetturali. Il Memory Bank descrive lo stato corrente e non sostituisce le spec.
 
@@ -47,7 +47,12 @@ uv run ruff format --check .
 uv run mypy src tests
 uv run pytest --cov=italian_energy --cov-branch
 pre-commit run --all-files
+uv run python scripts/verify_private_golden.py
 ```
+
+Il verificatore golden usa soltanto il materiale in `private/` e non pubblica
+documenti o identificativi. Le regole normative restano nel fixture pubblico;
+prezzi e importi del caso reale restano privati.
 
 ## Licenza
 
