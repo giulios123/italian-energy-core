@@ -51,13 +51,13 @@
       "residential": true,
       "rules": [
         {
-          "code": "network_energy",
-          "description": "Tariffa rete, distribuzione, trasporto, misura e perequazione per energia",
+          "code": "network_energy_may",
+          "description": "Tariffa rete, distribuzione, trasporto e misura per energia - maggio 2026",
           "category": "network",
           "quota": "consumption",
           "validity": {
             "start": "2026-05-01",
-            "end": "2026-07-01"
+            "end": "2026-06-01"
           },
           "kind": "linear",
           "basis": "per_kwh",
@@ -73,6 +73,37 @@
               "retrieved_at": "2026-09-06T23:08:00+02:00",
               "effective_period": {
                 "start": "2026-05-01",
+                "end": "2026-06-01"
+              },
+              "dataset_version": "2026",
+              "sha256": "b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b",
+              "url": "https://www.arera.it/fileadmin/area_operatori/prezzi_e_tariffe/Corrispettivi_libero_elettrico_domestico_2026.xlsx"
+            }
+          ]
+        },
+        {
+          "code": "network_energy_june",
+          "description": "Tariffa rete, distribuzione, trasporto e misura per energia - giugno 2026",
+          "category": "network",
+          "quota": "consumption",
+          "validity": {
+            "start": "2026-06-01",
+            "end": "2026-07-01"
+          },
+          "kind": "linear",
+          "basis": "per_kwh",
+          "value": {
+            "amount": "0.01473",
+            "unit": "EUR/kWh"
+          },
+          "status": "verified",
+          "provenance": [
+            {
+              "source": "ARERA",
+              "source_identifier": "Corrispettivi_libero_elettrico_domestico_2026.xlsx",
+              "retrieved_at": "2026-09-06T23:08:00+02:00",
+              "effective_period": {
+                "start": "2026-06-01",
                 "end": "2026-07-01"
               },
               "dataset_version": "2026",
@@ -82,18 +113,18 @@
           ]
         },
         {
-          "code": "system_charges_energy",
-          "description": "Oneri generali di sistema ASOS e ARIM",
+          "code": "system_asos_may",
+          "description": "Oneri generali di sistema ASOS - maggio 2026",
           "category": "system_charges",
           "quota": "consumption",
           "validity": {
             "start": "2026-05-01",
-            "end": "2026-07-01"
+            "end": "2026-06-01"
           },
           "kind": "linear",
           "basis": "per_kwh",
           "value": {
-            "amount": "0.030295",
+            "amount": "0.028657",
             "unit": "EUR/kWh"
           },
           "status": "verified",
@@ -104,6 +135,99 @@
               "retrieved_at": "2026-09-06T23:08:00+02:00",
               "effective_period": {
                 "start": "2026-05-01",
+                "end": "2026-06-01"
+              },
+              "dataset_version": "2026",
+              "sha256": "b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b",
+              "url": "https://www.arera.it/fileadmin/area_operatori/prezzi_e_tariffe/Corrispettivi_libero_elettrico_domestico_2026.xlsx"
+            }
+          ]
+        },
+        {
+          "code": "system_asos_june",
+          "description": "Oneri generali di sistema ASOS - giugno 2026",
+          "category": "system_charges",
+          "quota": "consumption",
+          "validity": {
+            "start": "2026-06-01",
+            "end": "2026-07-01"
+          },
+          "kind": "linear",
+          "basis": "per_kwh",
+          "value": {
+            "amount": "0.028657",
+            "unit": "EUR/kWh"
+          },
+          "status": "verified",
+          "provenance": [
+            {
+              "source": "ARERA",
+              "source_identifier": "Corrispettivi_libero_elettrico_domestico_2026.xlsx",
+              "retrieved_at": "2026-09-06T23:08:00+02:00",
+              "effective_period": {
+                "start": "2026-06-01",
+                "end": "2026-07-01"
+              },
+              "dataset_version": "2026",
+              "sha256": "b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b",
+              "url": "https://www.arera.it/fileadmin/area_operatori/prezzi_e_tariffe/Corrispettivi_libero_elettrico_domestico_2026.xlsx"
+            }
+          ]
+        },
+        {
+          "code": "system_arim_may",
+          "description": "Oneri generali di sistema ARIM - maggio 2026",
+          "category": "system_charges",
+          "quota": "consumption",
+          "validity": {
+            "start": "2026-05-01",
+            "end": "2026-06-01"
+          },
+          "kind": "linear",
+          "basis": "per_kwh",
+          "value": {
+            "amount": "0.001638",
+            "unit": "EUR/kWh"
+          },
+          "status": "verified",
+          "provenance": [
+            {
+              "source": "ARERA",
+              "source_identifier": "Corrispettivi_libero_elettrico_domestico_2026.xlsx",
+              "retrieved_at": "2026-09-06T23:08:00+02:00",
+              "effective_period": {
+                "start": "2026-05-01",
+                "end": "2026-06-01"
+              },
+              "dataset_version": "2026",
+              "sha256": "b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b",
+              "url": "https://www.arera.it/fileadmin/area_operatori/prezzi_e_tariffe/Corrispettivi_libero_elettrico_domestico_2026.xlsx"
+            }
+          ]
+        },
+        {
+          "code": "system_arim_june",
+          "description": "Oneri generali di sistema ARIM - giugno 2026",
+          "category": "system_charges",
+          "quota": "consumption",
+          "validity": {
+            "start": "2026-06-01",
+            "end": "2026-07-01"
+          },
+          "kind": "linear",
+          "basis": "per_kwh",
+          "value": {
+            "amount": "0.001638",
+            "unit": "EUR/kWh"
+          },
+          "status": "verified",
+          "provenance": [
+            {
+              "source": "ARERA",
+              "source_identifier": "Corrispettivi_libero_elettrico_domestico_2026.xlsx",
+              "retrieved_at": "2026-09-06T23:08:00+02:00",
+              "effective_period": {
+                "start": "2026-06-01",
                 "end": "2026-07-01"
               },
               "dataset_version": "2026",

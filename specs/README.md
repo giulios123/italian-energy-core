@@ -11,7 +11,7 @@ Le specifiche sono il contratto normativo del progetto. Una funzionalità rileva
 | 001 | Domain Core v0.1 | Implementata in `v0.1.0` |
 | 002 | Fixed Pricing | Implementata localmente in `v0.2.0` (non pubblicata) |
 | 003 | Indexed Pricing | Implementata localmente in `v0.3.0` (non pubblicata) |
-| 004 | Billing / Golden Bill | Fixture e verificatore locali; golden privata bloccata per dettaglio sorgente insufficiente; `v0.4.0` non pubblicata |
+| 004 | Billing / Golden Bill | Fixture, verificatore e golden privata verificati localmente; `v0.4.0` non pubblicata |
 | 005 | ARERA Importer | Pianificata |
 | 006 | Comparison Engine | Pianificata |
 

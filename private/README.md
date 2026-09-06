@@ -10,3 +10,6 @@ coordinate bancarie, QR code o URL personali.
 
 Un PDF sorgente non sanitizzato può restare qui per la sola consultazione locale,
 ma non è mai una fixture pubblica né un input da aggiungere allo staging Git.
+Se il PDF rimanda a una pagina privata di elementi di dettaglio, conservarne
+soltanto il digest nel JSON sanitizzato e lasciare il documento fuori dal
+repository.

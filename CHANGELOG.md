@@ -19,12 +19,11 @@
 ### Verification boundary
 
 - Test, branch coverage, Ruff, format e mypy passano localmente.
-- Il verificatore del golden privato è intenzionalmente rosso: il documento
-  disponibile espone solo riepiloghi e non consente di associare tutte le chiavi
-  del ruleset alle voci osservate entro `0,01 EUR`. Servono gli elementi di
-  dettaglio del fornitore; la copertura normativa domestica non è quindi
-  dichiarata verificata.
-- Nessun commit, tag, push o release pubblica è incluso.
+- Il verificatore del golden privato passa usando la pagina collegata di elementi
+  di dettaglio, mantenuta fuori dal repository. La riconciliazione è esatta sulle
+  chiavi e resta entro `0,01 EUR` per voce e totale.
+- Il lavoro è consolidato localmente; tag, push e release pubblica restano
+  successivi ai gate GitHub.
 
 ## [0.3.0] - 2026-09-06 (locale, non pubblicata)
 

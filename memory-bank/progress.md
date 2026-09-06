@@ -22,14 +22,13 @@
 - Ruff check/format, mypy strict e pre-commit passano localmente.
 - Wheel, sdist e smoke install della `v0.4.0` passano localmente.
 - `git diff --check` è pulito.
-- La verifica privata è eseguibile ma fallisce correttamente sulle chiavi non
-  riconciliate: il documento disponibile è un riepilogo e non fornisce gli
-  elementi di dettaglio necessari. Nessuna copertura normativa domestica viene
-  dichiarata.
+- La verifica privata passa usando gli elementi di dettaglio collegati alla
+  bolletta: il percorso completo produce una Bill stabile e riconcilia tutte le
+  chiavi entro 0,01 EUR per voce e totale.
 
 ## Da completare
 
-- Ottenere dal fornitore gli elementi di dettaglio della stessa bolletta/offerta,
-  sanitizzarli e rieseguire il golden senza inventare partite mancanti.
-- Nessun commit, tag, push o GitHub Release di `v0.4.0` è incluso senza
-  autorizzazione separata.
+- Completare i gate di pubblicazione: nuovo commit, PR, CI sui Python supportati,
+  merge in `main` e tag/release `v0.4.0`.
+- Il consolidamento locale è presente sulla branch `codex/close-v0.4`; restano
+  push, CI, merge e GitHub Release.

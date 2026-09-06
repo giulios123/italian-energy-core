@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Stato: `v0.4.0` locale, non pubblicata — domain core, pricing fixed/indexed e Billing Engine data-driven implementati e verificati localmente. Il ruleset pubblico Q2 2026 e il verificatore golden privato sono presenti; la release resta bloccata perché la bolletta disponibile non contiene il dettaglio necessario alla riconciliazione per voce.
+> Stato: `v0.4.0` locale, non pubblicata — domain core, pricing fixed/indexed e Billing Engine data-driven implementati e verificati localmente. Il ruleset pubblico Q2 2026 e il verificatore golden privato sono presenti; il golden domestico passa con gli elementi di dettaglio collegati alla bolletta.
 
 ## Obiettivi
 
@@ -51,8 +51,8 @@ uv run python scripts/verify_private_golden.py
 ```
 
 Il verificatore golden usa soltanto il materiale in `private/` e non pubblica
-documenti o identificativi. In assenza degli elementi di dettaglio del fornitore
-deve fallire in modo esplicito, senza adattare aliquote o importi osservati.
+documenti o identificativi. Le regole normative restano nel fixture pubblico;
+prezzi e importi del caso reale restano privati.
 
 ## Licenza
 

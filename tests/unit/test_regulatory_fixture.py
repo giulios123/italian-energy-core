@@ -72,10 +72,18 @@ def test_public_domestic_ruleset_calculates_an_independent_synthetic_bill() -> N
             ConsumptionBucket(
                 interval=TimeInterval(
                     start=datetime(2026, 5, 1, tzinfo=ROME),
+                    end=datetime(2026, 6, 1, tzinfo=ROME),
+                ),
+                energy=EnergyQuantity(kwh=Decimal("50")),
+                granularity=Granularity.MONTH,
+            ),
+            ConsumptionBucket(
+                interval=TimeInterval(
+                    start=datetime(2026, 6, 1, tzinfo=ROME),
                     end=datetime(2026, 7, 1, tzinfo=ROME),
                 ),
-                energy=EnergyQuantity(kwh=Decimal("100")),
-                granularity=Granularity.BILLING_PERIOD,
+                energy=EnergyQuantity(kwh=Decimal("50")),
+                granularity=Granularity.MONTH,
             ),
         ),
     )
@@ -108,8 +116,12 @@ def test_public_domestic_ruleset_calculates_an_independent_synthetic_bill() -> N
     assert result.reconciliation is None
     assert [component.reconciliation_key for component in result.bill.breakdown.components] == [
         "energy:ALL",
-        "network_energy",
-        "system_charges_energy",
+        "network_energy_may",
+        "network_energy_june",
+        "system_asos_may",
+        "system_asos_june",
+        "system_arim_may",
+        "system_arim_june",
         "network_fixed",
         "network_power",
         "excise",

@@ -107,6 +107,9 @@ non fa parte dell'API runtime.
 - Crediti e pass-through negativi sono ammessi soltanto quando dichiarati come tali.
 - La riconciliazione a `0,01 EUR` per voce e totale è stabile rispetto all'ordine degli
   input e non muta gli oggetti frozen.
+- Se l'oracle documenta righe mensili già arrotondate, il ruleset può esprimere
+  la stessa regola con finestre mensili distinte; ogni finestra resta una componente
+  autonoma e non si introducono correzioni manuali al parametro.
 - Il golden oracle reale è privato e sanitizzato; nessun POD, PDF o dato personale
   entra nel repository pubblico. Un PDF sorgente non sanitizzato può essere
   conservato soltanto localmente in `private/` e non è un fixture accettabile.
