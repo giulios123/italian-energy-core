@@ -8,6 +8,7 @@ from italian_energy.domain.base import DomainModel
 from italian_energy.domain.consumption import ConsumptionProfile
 from italian_energy.domain.costs import PricingResult
 from italian_energy.domain.market import MarketData
+from italian_energy.domain.money import RoundingPolicy
 from italian_energy.domain.offer import Contract
 from italian_energy.domain.regulatory import RegulatoryParameter
 from italian_energy.domain.time import DatePeriod
@@ -17,6 +18,7 @@ class PricingRequest(DomainModel):
     contract: Contract
     consumption: ConsumptionProfile
     period: DatePeriod
+    rounding_policy: RoundingPolicy
     market_data: MarketData | None = None
     regulatory_parameters: tuple[RegulatoryParameter, ...] = ()
 

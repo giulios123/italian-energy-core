@@ -1,7 +1,9 @@
 # Open questions
 
-- Quale arrotondamento applicare per componente nelle Spec 002–004?
-- Quali parametri ARERA e quali versioni dataset saranno verificati?
-- Come gestire profili più aggregati della granularità dell’indice?
-- Quale bolletta sanitizzata e quale tolleranza usare per il golden test?
+- Quali parametri ARERA/fiscali e quali versioni dataset potranno essere marcati
+  `VERIFIED` nella Spec 005 senza ampliare il core?
+- Quali "elementi di dettaglio" della stessa offerta e bolletta sono disponibili
+  per associare separatamente energia F1/F23, rete, oneri, quota fissa, potenza,
+  accisa, IVA e partite esterne? Senza questo dettaglio il golden deve restare
+  bloccato.
 - Quale formato raw/versioning mantenere per gli snapshot ARERA?
