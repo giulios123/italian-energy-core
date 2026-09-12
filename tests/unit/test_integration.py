@@ -247,7 +247,7 @@ def test_manifest_is_canonical_and_matches_package_identity() -> None:
     assert tuple(item.value for item in CORE_MANIFEST.capabilities) == CORE_CAPABILITIES
     assert tuple(sorted(CORE_CAPABILITIES)) == CORE_CAPABILITIES
     assert CoreCapability.HISTORICAL_PORTAL_COMPARISON in CORE_MANIFEST.capabilities
-    assert "current_portal_comparison" not in CORE_CAPABILITIES
+    assert CoreCapability.CURRENT_PORTAL_COMPARISON in CORE_MANIFEST.capabilities
     assert CORE_MANIFEST.schema_ids == tuple(sorted(CORE_MANIFEST.schema_ids))
     assert tuple(item.value for item in CORE_MANIFEST.schema_ids) == CORE_SCHEMA_IDS
 
@@ -263,6 +263,11 @@ def test_manifest_exposes_only_integration_schema_ids() -> None:
         CoreSchemaId.RECOMMENDATION_PREFERENCES,
         CoreSchemaId.HISTORICAL_RECOMMENDATION_REQUEST,
         CoreSchemaId.RECOMMENDATION,
+        CoreSchemaId.CURRENT_CATALOG_SNAPSHOT,
+        CoreSchemaId.PROJECTED_MARKET_SCENARIO_SET,
+        CoreSchemaId.CURRENT_PORTAL_COMPARISON_REQUEST,
+        CoreSchemaId.CURRENT_PORTAL_COMPARISON_RESULT,
+        CoreSchemaId.CURRENT_RECOMMENDATION_REQUEST,
     }
 
 

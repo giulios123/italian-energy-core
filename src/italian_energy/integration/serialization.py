@@ -15,6 +15,13 @@ from italian_energy.domain.supply import SupplyPoint
 from italian_energy.portal_offers.models import PortalComparisonResult, VerifiedMarketData
 from italian_energy.recommendation import Recommendation, RecommendationPreferences
 
+from .current import (
+    CurrentCatalogSnapshot,
+    CurrentPortalComparisonRequest,
+    CurrentPortalComparisonResult,
+    CurrentRecommendationRequest,
+    ProjectedMarketScenarioSet,
+)
 from .errors import CoreContractError, CoreErrorCode
 from .manifest import CORE_CONTRACT_VERSION, CoreSchemaId
 from .models import HistoricalPortalComparisonRequest, HistoricalRecommendationRequest
@@ -29,6 +36,11 @@ type IntegrationPayload = (
     | RecommendationPreferences
     | HistoricalRecommendationRequest
     | Recommendation
+    | CurrentCatalogSnapshot
+    | ProjectedMarketScenarioSet
+    | CurrentPortalComparisonRequest
+    | CurrentPortalComparisonResult
+    | CurrentRecommendationRequest
 )
 
 
@@ -42,6 +54,11 @@ _SCHEMA_TO_MODEL: dict[CoreSchemaId, type[DomainModel]] = {
     CoreSchemaId.RECOMMENDATION_PREFERENCES: RecommendationPreferences,
     CoreSchemaId.HISTORICAL_RECOMMENDATION_REQUEST: HistoricalRecommendationRequest,
     CoreSchemaId.RECOMMENDATION: Recommendation,
+    CoreSchemaId.CURRENT_CATALOG_SNAPSHOT: CurrentCatalogSnapshot,
+    CoreSchemaId.PROJECTED_MARKET_SCENARIO_SET: ProjectedMarketScenarioSet,
+    CoreSchemaId.CURRENT_PORTAL_COMPARISON_REQUEST: CurrentPortalComparisonRequest,
+    CoreSchemaId.CURRENT_PORTAL_COMPARISON_RESULT: CurrentPortalComparisonResult,
+    CoreSchemaId.CURRENT_RECOMMENDATION_REQUEST: CurrentRecommendationRequest,
 }
 _MODEL_TO_SCHEMA = {model: schema for schema, model in _SCHEMA_TO_MODEL.items()}
 

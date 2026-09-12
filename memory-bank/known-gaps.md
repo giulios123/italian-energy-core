@@ -37,6 +37,14 @@
 - La façade d'integrazione v0.10 supporta esclusivamente replay storici conclusi
   di elettricità domestica BT con residenza esplicita; confronto corrente,
   periodi futuri e forecast richiedono una spec economica separata.
+- La Spec 011 definisce il confronto prospettico ma non è ancora implementata:
+  servono modelli multi-scenario, schedule della baseline, proiezione regolatoria
+  congelata alla quotazione e una recommendation robusta.
+- Un confronto prospettico operativo richiederà un anchor ARERA verificato
+  efficace alla `quote_date`; lo snapshot locale attuale termina il 2026-09-01
+  e non può essere esteso automaticamente.
+- Le curve forward base/stress e il profilo di consumo futuro devono essere
+  forniti dal caller con provenance o assunzioni; il Core non produce forecast.
 - Il contratto JSON v1 è fail-closed e non migra payload automaticamente; una
   modifica incompatibile richiederà un nuovo schema ID o una nuova versione.
 - L'adapter della repository Platform verso `italian-energy>=0.10,<0.11` non è

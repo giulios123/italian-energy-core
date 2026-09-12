@@ -11,8 +11,9 @@
 - Quale policy successiva, separata dalla v0.9 hard-filter, potrà introdurre
   preferenze pesate o un orizzonte multi-periodo senza confonderle con la
   convenienza all-in deterministica?
-- Quale spec economica separata definirà, se autorizzata, confronto corrente,
-  forecast o costo futuro senza estendere implicitamente il contratto storico
-  v0.10?
+- Quando implementare la Spec 011 e rinnovare l'anchor ARERA verificato in modo
+  che copra la `quote_date` operativa?
+- Quale fonte forward verificata e quale processo di controllo userà il caller
+  per fornire gli scenari base/stress della Spec 011?
 - Quando potrà essere pianificato l'allineamento della Platform al manifest e
   agli envelope `italian-energy/contract/v1`?

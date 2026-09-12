@@ -6,7 +6,7 @@ import hashlib
 import json
 from decimal import Decimal
 from enum import StrEnum
-from typing import Protocol
+from typing import Protocol, cast
 
 from pydantic import Field, field_validator, model_validator
 
@@ -67,6 +67,7 @@ class RecommendationDecision(StrEnum):
 class RecommendationReasonCode(StrEnum):
     MEETS_POLICY = "meets_policy"
     MEETS_MINIMUM_SAVINGS = "meets_minimum_savings"
+    MEETS_MINIMUM_PERCENTAGE = "meets_minimum_percentage"
     SELECTED_LOWEST_COMPARABLE_COST = "selected_lowest_comparable_cost"
     NO_SWITCH_THRESHOLD = "no_switch_threshold"
     NO_ELIGIBLE_ALTERNATIVE = "no_eligible_alternative"
@@ -82,6 +83,7 @@ class RecommendationExclusionCode(StrEnum):
     DISCOUNT_UNKNOWN = "discount_unknown"
     DISCOUNT_POLICY_MISMATCH = "discount_policy_mismatch"
     MINIMUM_SAVINGS_NOT_MET = "minimum_savings_not_met"
+    MINIMUM_PERCENTAGE_NOT_MET = "minimum_percentage_not_met"
 
 
 class RecommendationCandidateEvidence(DomainModel):
@@ -116,6 +118,7 @@ class RecommendationPreferences(DomainModel):
     temporary_discount_policy: TemporaryDiscountPolicy = TemporaryDiscountPolicy.ANY
     require_temporary_discounts: bool | None = None
     minimum_savings: Money | None = None
+    minimum_percentage_savings: Decimal | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def validate_legacy_aliases(self) -> RecommendationPreferences:
@@ -137,6 +140,11 @@ class RecommendationPreferences(DomainModel):
         if self.minimum_savings is not None and self.minimum_savings.amount < 0:
             raise ValueError("minimum savings must be non-negative")
         return self
+
+    @field_validator("minimum_percentage_savings", mode="before")
+    @classmethod
+    def validate_percentage(cls, value: object) -> Decimal | None:
+        return None if value is None else strict_decimal(value)
 
     @property
     def effective_tariff_preference(self) -> RecommendationTariffPreference:
@@ -174,6 +182,7 @@ class RecommendationPreferences(DomainModel):
                 if self.minimum_savings is None
                 else self.minimum_savings.model_dump(mode="json")
             ),
+            "minimum_percentage_savings": self.minimum_percentage_savings,
         }
 
 
@@ -258,6 +267,7 @@ class DeterministicRecommendationEngine:
             exclusion = self._exclude(
                 alternative.offer_id,
                 alternative.savings,
+                alternative.percentage_difference,
                 candidate_evidence,
                 request.preferences,
             )
@@ -267,6 +277,8 @@ class DeterministicRecommendationEngine:
             reasons = [RecommendationReasonCode.MEETS_POLICY]
             if request.preferences.minimum_savings is not None:
                 reasons.append(RecommendationReasonCode.MEETS_MINIMUM_SAVINGS)
+            if request.preferences.minimum_percentage_savings is not None:
+                reasons.append(RecommendationReasonCode.MEETS_MINIMUM_PERCENTAGE)
             shortlist.append(
                 RecommendationCandidate(
                     offer_id=alternative.offer_id,
@@ -385,20 +397,37 @@ class DeterministicRecommendationEngine:
         cls,
         offer_id: str,
         savings: Money | None,
-        evidence: RecommendationCandidateEvidence | None,
-        preferences: RecommendationPreferences,
+        percentage: Decimal | RecommendationCandidateEvidence | None = None,
+        evidence: RecommendationCandidateEvidence | RecommendationPreferences | None = None,
+        preferences: RecommendationPreferences | None = None,
     ) -> RecommendationExclusion | None:
-        needs_evidence = preferences.evidence_required
-        if needs_evidence and evidence is None:
+        # Keep the pre-v0.11 private-call shape (offer, savings, evidence,
+        # preferences) usable for downstream test adapters while accepting the
+        # percentage-aware shape used by the current advisor.
+        if preferences is None:
+            if not isinstance(evidence, RecommendationPreferences):
+                raise TypeError("recommendation preferences are required")
+            preferences = evidence
+            evidence = (
+                percentage if isinstance(percentage, RecommendationCandidateEvidence) else None
+            )
+            percentage = None
+        elif isinstance(percentage, RecommendationCandidateEvidence):
+            raise TypeError("percentage savings must be Decimal or None")
+        resolved_preferences = preferences
+        resolved_evidence = cast(RecommendationCandidateEvidence | None, evidence)
+        resolved_percentage = percentage
+        needs_evidence = resolved_preferences.evidence_required
+        if needs_evidence and resolved_evidence is None:
             return RecommendationExclusion(
                 offer_id=offer_id,
                 code=RecommendationExclusionCode.MISSING_EVIDENCE,
                 detail="required candidate evidence is missing",
             )
         if needs_evidence and (
-            evidence is None
-            or evidence.status != VerificationStatus.VERIFIED
-            or not evidence.provenance
+            resolved_evidence is None
+            or resolved_evidence.status != VerificationStatus.VERIFIED
+            or not resolved_evidence.provenance
         ):
             return RecommendationExclusion(
                 offer_id=offer_id,
@@ -407,19 +436,22 @@ class DeterministicRecommendationEngine:
             )
         if savings is None:
             raise RecommendationError(f"comparison savings are missing for {offer_id}")
-        if evidence is not None:
-            preference = preferences.effective_tariff_preference
+        if resolved_evidence is not None:
+            preference = resolved_preferences.effective_tariff_preference
             if (
                 preference != RecommendationTariffPreference.ANY
-                and evidence.tariff_kind.value != preference.value
+                and resolved_evidence.tariff_kind.value != preference.value
             ):
                 return RecommendationExclusion(
                     offer_id=offer_id,
                     code=RecommendationExclusionCode.TARIFF_PREFERENCE_MISMATCH,
                     detail="candidate tariff type does not match tariff preference",
                 )
-            tolerance = preferences.volatility_tolerance
-            if tolerance == VolatilityTolerance.LOW and evidence.price_risk != PriceRisk.FIXED:
+            tolerance = resolved_preferences.volatility_tolerance
+            if (
+                tolerance == VolatilityTolerance.LOW
+                and resolved_evidence.price_risk != PriceRisk.FIXED
+            ):
                 return RecommendationExclusion(
                     offer_id=offer_id,
                     code=RecommendationExclusionCode.VOLATILITY_EXCEEDED,
@@ -427,55 +459,55 @@ class DeterministicRecommendationEngine:
                 )
             if (
                 tolerance == VolatilityTolerance.MEDIUM
-                and evidence.price_risk == PriceRisk.INDEXED_UNCAPPED
+                and resolved_evidence.price_risk == PriceRisk.INDEXED_UNCAPPED
             ):
                 return RecommendationExclusion(
                     offer_id=offer_id,
                     code=RecommendationExclusionCode.VOLATILITY_EXCEEDED,
                     detail="candidate indexed price is not capped",
                 )
-            minimum_months = preferences.minimum_contract_months
+            minimum_months = resolved_preferences.minimum_contract_months
             if minimum_months is not None:
-                if evidence.contract_duration_months is None:
+                if resolved_evidence.contract_duration_months is None:
                     return RecommendationExclusion(
                         offer_id=offer_id,
                         code=RecommendationExclusionCode.DURATION_UNKNOWN,
                         detail="candidate contract duration is not verified",
                     )
-                if evidence.contract_duration_months < minimum_months:
+                if resolved_evidence.contract_duration_months < minimum_months:
                     return RecommendationExclusion(
                         offer_id=offer_id,
                         code=RecommendationExclusionCode.DURATION_TOO_SHORT,
                         detail="candidate contract duration is below the minimum",
                     )
-            discount_policy = preferences.effective_discount_policy
+            discount_policy = resolved_preferences.effective_discount_policy
             if discount_policy == TemporaryDiscountPolicy.REQUIRE:
-                if evidence.discount_profile == CandidateDiscountProfile.UNKNOWN:
+                if resolved_evidence.discount_profile == CandidateDiscountProfile.UNKNOWN:
                     return RecommendationExclusion(
                         offer_id=offer_id,
                         code=RecommendationExclusionCode.DISCOUNT_UNKNOWN,
                         detail="candidate discount profile is not verified",
                     )
-                if evidence.discount_profile != CandidateDiscountProfile.TEMPORARY:
+                if resolved_evidence.discount_profile != CandidateDiscountProfile.TEMPORARY:
                     return RecommendationExclusion(
                         offer_id=offer_id,
                         code=RecommendationExclusionCode.DISCOUNT_POLICY_MISMATCH,
                         detail="candidate has no required temporary discount",
                     )
             if discount_policy == TemporaryDiscountPolicy.AVOID:
-                if evidence.discount_profile == CandidateDiscountProfile.UNKNOWN:
+                if resolved_evidence.discount_profile == CandidateDiscountProfile.UNKNOWN:
                     return RecommendationExclusion(
                         offer_id=offer_id,
                         code=RecommendationExclusionCode.DISCOUNT_UNKNOWN,
                         detail="candidate discount profile is not verified",
                     )
-                if evidence.discount_profile == CandidateDiscountProfile.TEMPORARY:
+                if resolved_evidence.discount_profile == CandidateDiscountProfile.TEMPORARY:
                     return RecommendationExclusion(
                         offer_id=offer_id,
                         code=RecommendationExclusionCode.DISCOUNT_POLICY_MISMATCH,
                         detail="candidate has a temporary discount",
                     )
-        minimum_savings = preferences.minimum_savings
+        minimum_savings = resolved_preferences.minimum_savings
         if minimum_savings is not None:
             if savings.currency != minimum_savings.currency:
                 raise RecommendationError(
@@ -487,6 +519,15 @@ class DeterministicRecommendationEngine:
                     code=RecommendationExclusionCode.MINIMUM_SAVINGS_NOT_MET,
                     detail="candidate savings are below the configured minimum",
                 )
+        minimum_percentage = preferences.minimum_percentage_savings
+        if minimum_percentage is not None and (
+            resolved_percentage is None or resolved_percentage < minimum_percentage
+        ):
+            return RecommendationExclusion(
+                offer_id=offer_id,
+                code=RecommendationExclusionCode.MINIMUM_PERCENTAGE_NOT_MET,
+                detail="candidate percentage savings are below the configured minimum",
+            )
         return None
 
     @staticmethod

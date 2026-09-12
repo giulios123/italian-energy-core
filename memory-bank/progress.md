@@ -40,6 +40,13 @@
   localmente: manifest/capability, façade storica domestica BT, envelope JSON
   versionati e `CoreContractError` con codici stabili; nessuna modifica alla
   repository Platform.
+- Corretto il setup CI/dev della suite ARERA: `openpyxl` è dichiarato nel
+  gruppo `dev` oltre che nell'extra opzionale `arera`, senza aggiungerlo alle
+  dipendenze della wheel base.
+- Preparata la Spec 011 v0.11.0 e ADR 0015 per il confronto prospettico:
+  orizzonte da attivazione, input futuri tracciati, scenari base/stress,
+  congelamento regolatorio esplicito e recommendation robusta; milestone
+  documentale senza codice o bump di versione.
 
 ## Verificato
 
@@ -76,6 +83,11 @@
 - Wheel e sdist `0.10.0` costruite; metadata, `__version__`, manifest e
   `CORE_SCHEMA_IDS` coincidono. Smoke in ambienti puliti: base con Portale e
   import ARERA lazy senza `openpyxl`, extra `arera` con importer XLSX.
+- Dopo la correzione CI, `uv sync --locked --dev` installa `openpyxl==3.1.5`;
+  la suite completa passa su Python 3.12.13 e 3.13.12 con 218 test e branch
+  coverage 95,36%. Ruff check/format, mypy strict e `git diff --check` passano;
+  Python 3.14 resta affidato alla matrice GitHub perché non è installato
+  localmente.
 - Smoke live separati verificati: ARERA snapshot
   `b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b`;
   Portale dataset `2026-09-08`, 4.472 record, 156 punti indice, snapshot
@@ -95,3 +107,6 @@
   autorizzazione separata.
 - Commit, tag, push e release della v0.10.0 restano esclusi e richiedono
   autorizzazione separata; l'allineamento della Platform è fuori milestone.
+- L'implementazione della Spec 011, il rinnovo dell'anchor ARERA alla
+  `quote_date`, i nuovi envelope/capability e l'allineamento della Platform
+  restano milestone successive con autorizzazione separata.

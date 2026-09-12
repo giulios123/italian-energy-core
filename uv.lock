@@ -260,7 +260,7 @@ wheels = [
 
 [[package]]
 name = "italian-energy"
-version = "0.10.0"
+version = "0.11.0"
 source = { editable = "." }
 dependencies = [
     { name = "defusedxml" },
@@ -276,6 +276,7 @@ arera = [
 dev = [
     { name = "hypothesis" },
     { name = "mypy" },
+    { name = "openpyxl" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -295,6 +296,7 @@ provides-extras = ["arera"]
 dev = [
     { name = "hypothesis", specifier = ">=6.120,<7" },
     { name = "mypy", specifier = ">=1.13,<2" },
+    { name = "openpyxl", specifier = ">=3.1.5,<4" },
     { name = "pre-commit", specifier = ">=4.0,<5" },
     { name = "pytest", specifier = ">=9.0.3,<10" },
     { name = "pytest-cov", specifier = ">=6,<7" },

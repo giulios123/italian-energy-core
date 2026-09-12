@@ -60,3 +60,21 @@ packaged per residente/non residente, richiede elettricità domestica BT e usa
 rounding EUR/percentuali a due decimali HALF_UP. `defusedxml` è nella dipendenza
 base; `openpyxl` resta nell'extra ARERA. L'allineamento della Platform e la
 pubblicazione v0.10.0 restano milestone successive.
+
+La CI della milestone locale include ora `openpyxl` anche nel gruppo `dev`,
+perché la suite ARERA costruisce workbook XLSX sintetici. La dipendenza resta
+comunque opzionale nel pacchetto distribuito: la wheel base non richiede
+`openpyxl`, mentre l'extra `arera` continua ad abilitarlo per gli utenti.
+
+La Spec 011 v0.11.0 è stata preparata come milestone documentale separata dal
+replay storico: definisce dodici mesi da `activation_date`, catalogo alla
+`quote_date`, profilo di consumo futuro fornito dal caller, schedule della
+baseline e scenari `base`/`stress` con curve forward tracciate. La regolazione
+e le imposte vengono congelate dai valori verificati attivi alla quotazione, ma
+la loro applicazione futura resta una proiezione non `VERIFIED`; senza anchor
+verificato il confronto fallisce chiuso. La recommendation può emettere
+`switch` soltanto quando la stessa candidata supera la soglia in tutti gli
+scenari. Sono stati aggiunti la spec e ADR 0015; questa milestone non ha
+modificato codice, test, versione, Platform o pubblicazione. La working tree
+contiene però modifiche concorrenti al percorso `Current Domestic Advisor`,
+che devono essere preservate e consolidate separatamente.

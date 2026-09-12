@@ -79,3 +79,16 @@
 - `defusedxml` è dipendenza base per il percorso Portale; `openpyxl` resta
   esclusivamente nell'extra `arera`, con import ARERA lazy per mantenere il base
   installabile senza XLSX.
+- La Spec 011 separa il confronto prospettico dal replay storico: l'orizzonte
+  è di dodici mesi civili da `activation_date`, mentre il catalogo è riferito a
+  `quote_date`.
+- Consumo futuro, schedule della baseline e curve forward sono input tipizzati
+  del caller; il Core non genera forecast. Ogni richiesta richiede una base e
+  almeno uno stress, con provenance e assunzioni esplicite.
+- Le componenti regolatorie e fiscali sono congelate dai valori verificati
+  attivi alla `quote_date`; l'applicazione futura resta una proiezione assunta
+  e senza anchor verificato il confronto fallisce chiuso.
+- La recommendation prospettica può selezionare `switch` solo se la stessa
+  candidata è calcolabile e supera la soglia minima inclusiva in tutti gli
+  scenari. Durata economica assente significa assunzione esplicita di dodici
+  mesi per fixed e indexed; una durata nota inferiore esclude la candidata.

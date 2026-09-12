@@ -6,6 +6,18 @@ from italian_energy.domain.supply import SupplyPoint
 from italian_energy.portal_offers.models import PortalComparisonResult, VerifiedMarketData
 from italian_energy.recommendation import Recommendation, RecommendationPreferences
 
+from .current import (
+    CurrentCatalogSnapshot,
+    CurrentPortalComparisonRequest,
+    CurrentPortalComparisonResult,
+    CurrentRecommendationRequest,
+    CurrentScenario,
+    CurrentScenarioComparison,
+    ProjectedMarketScenarioSet,
+    future_period,
+    project_consumption,
+    project_market_data,
+)
 from .errors import CoreContractError, CoreErrorCode, CoreIntegrationError
 from .manifest import (
     CORE_CAPABILITIES,
@@ -23,6 +35,7 @@ from .serialization import IntegrationPayload, dump_envelope, load_envelope, sup
 from .service import (
     DEFAULT_PERCENTAGE_ROUNDING_POLICY,
     DEFAULT_ROUNDING_POLICY,
+    CurrentDomesticEnergyService,
     HistoricalDomesticEnergyService,
 )
 
@@ -43,16 +56,27 @@ __all__ = [
     "CoreIntegrationError",
     "CoreManifest",
     "CoreSchemaId",
+    "CurrentCatalogSnapshot",
+    "CurrentDomesticEnergyService",
+    "CurrentPortalComparisonRequest",
+    "CurrentPortalComparisonResult",
+    "CurrentRecommendationRequest",
+    "CurrentScenario",
+    "CurrentScenarioComparison",
     "HistoricalDomesticEnergyService",
     "HistoricalPortalComparisonRequest",
     "HistoricalRecommendationRequest",
     "IntegrationPayload",
     "PortalComparisonResult",
+    "ProjectedMarketScenarioSet",
     "Recommendation",
     "RecommendationPreferences",
     "SupplyPoint",
     "VerifiedMarketData",
     "dump_envelope",
+    "future_period",
     "load_envelope",
+    "project_consumption",
+    "project_market_data",
     "supported_schema_ids",
 ]
