@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from italian_energy.arera import (
@@ -12,6 +14,7 @@ from italian_energy.arera import (
     DomesticFiscalPolicy,
 )
 from italian_energy.billing import BillingCoverageEntry, BillingCoverageMatrix, CoverageLevel
+from italian_energy.domain.money import RateUnit, UnitRate
 from italian_energy.domain.provenance import Provenance
 from italian_energy.domain.regulatory import SupplyClassification, VerificationStatus, VoltageLevel
 from italian_energy.domain.time import DatePeriod
@@ -32,7 +35,7 @@ def main() -> None:
     retrieved_at = result.snapshot.retrieved_at
     fiscal_policy = DomesticFiscalPolicy(
         schema_version="006-fiscal-official-v1",
-        excise_rate={"amount": "0.0227", "unit": "EUR/kWh"},
+        excise_rate=UnitRate(amount=Decimal("0.0227"), unit=RateUnit.EUR_PER_KWH),
         excise_provenance=(
             Provenance(
                 source="ADM",
@@ -51,7 +54,7 @@ def main() -> None:
                 url="https://www.gazzettaufficiale.it/eli/id/2011/12/31/11A16870/sg",
             ),
         ),
-        vat_rate={"amount": "10", "unit": "%"},
+        vat_rate=UnitRate(amount=Decimal("10"), unit=RateUnit.PERCENT),
         vat_provenance=(
             Provenance(
                 source="Normattiva",
@@ -88,8 +91,8 @@ def main() -> None:
             (bundle.validity,)
             if resident
             else (
-                DatePeriod(start="2026-01-01", end="2026-03-01"),
-                DatePeriod(start="2026-05-01", end="2026-09-01"),
+                DatePeriod(start=date(2026, 1, 1), end=date(2026, 3, 1)),
+                DatePeriod(start=date(2026, 5, 1), end=date(2026, 9, 1)),
             )
         )
         for period in periods:
@@ -113,7 +116,7 @@ def main() -> None:
         BillingCoverageEntry(
             profile_code=resident_classification.contract_type_code,
             classification=resident_classification,
-            period={"start": "2026-05-01", "end": "2026-07-01"},
+            period=DatePeriod(start=date(2026, 5, 1), end=date(2026, 7, 1)),
             ruleset_id="arera-domestic-bt-resident-2026-05-06",
             level=CoverageLevel.GOLDEN_RECONCILED,
             source_ids=("private-golden-bill-domestic-bt-resident",),
@@ -130,7 +133,7 @@ def main() -> None:
         BillingCoverageEntry(
             profile_code=non_resident_classification.contract_type_code,
             classification=non_resident_classification,
-            period={"start": "2026-03-01", "end": "2026-05-01"},
+            period=DatePeriod(start=date(2026, 3, 1), end=date(2026, 5, 1)),
             ruleset_id=rulesets["non-resident"].ruleset_id,
             level=CoverageLevel.GOLDEN_RECONCILED,
             source_ids=("private-golden-bill-domestic-bt-non-resident",),
