@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable
 from datetime import date, datetime, time
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from hashlib import sha256
 from zoneinfo import ZoneInfo
 
@@ -59,6 +59,61 @@ class BillingError(ValueError):
 
 TOLERANCE = Money(amount=Decimal("0.01"))
 ROME = ZoneInfo("Europe/Rome")
+
+
+def select_regulatory_profile(
+    ruleset: RegulatoryRuleSet,
+    classification: SupplyClassification,
+    request: BillingRequest,
+) -> RegulatoryProfile:
+    """Select the unique ruleset profile for a classified supply context."""
+
+    power = request.contract.supply.contracted_power
+    candidates: list[RegulatoryProfile] = []
+    for profile in ruleset.profiles:
+        if (
+            profile.contract_type_code is not None
+            and profile.contract_type_code != classification.contract_type_code
+        ):
+            continue
+        if (
+            profile.voltage_level is not None
+            and profile.voltage_level != classification.voltage_level
+        ):
+            continue
+        if profile.usage_code is not None and profile.usage_code != classification.usage_code:
+            continue
+        if profile.residential is not None and profile.residential != classification.residential:
+            continue
+        if (
+            profile.tax_profile_code is not None
+            and profile.tax_profile_code != classification.tax_profile_code
+        ):
+            continue
+        if not set(profile.required_eligibility_codes).issubset(classification.eligibility_codes):
+            continue
+        if profile.min_contracted_power_kw is not None:
+            if power is None:
+                continue
+            if profile.min_contracted_power_inclusive:
+                if power.kw < profile.min_contracted_power_kw:
+                    continue
+            elif power.kw <= profile.min_contracted_power_kw:
+                continue
+        if profile.max_contracted_power_kw is not None:
+            if power is None:
+                continue
+            if profile.max_contracted_power_inclusive:
+                if power.kw > profile.max_contracted_power_kw:
+                    continue
+            elif power.kw >= profile.max_contracted_power_kw:
+                continue
+        candidates.append(profile)
+    if len(candidates) != 1:
+        raise BillingError(
+            "regulatory profile selection is " + ("missing" if not candidates else "ambiguous")
+        )
+    return candidates[0]
 
 
 class RegulatoryBillingEngine:
@@ -137,7 +192,7 @@ class RegulatoryBillingEngine:
                     pending_percentages.remove(percentage_rule)
                     progressed = True
                     continue
-                if not self._percentage_ready(percentage_rule, components):
+                if not self._percentage_ready(percentage_rule, window, components):
                     continue
                 component = self._percentage_component(
                     percentage_rule, window, components, policy, ruleset.parameters
@@ -153,7 +208,12 @@ class RegulatoryBillingEngine:
                 progressed = True
             if not progressed:
                 percentage_rule = pending_percentages[0]
-                missing = self._percentage_missing_reference(percentage_rule, components)
+                percentage_window = self._rule_window(request.period, percentage_rule.validity)
+                if percentage_window is None:  # pragma: no cover - removed above
+                    raise BillingError(f"percentage rule {percentage_rule.code} has no window")
+                missing = self._percentage_missing_reference(
+                    percentage_rule, percentage_window, components
+                )
                 raise BillingError(
                     f"percentage rule {percentage_rule.code} base {missing} is missing or cyclic"
                 )
@@ -218,49 +278,7 @@ class RegulatoryBillingEngine:
         classification: SupplyClassification,
         request: BillingRequest,
     ) -> RegulatoryProfile:
-        power = request.contract.supply.contracted_power
-        candidates: list[RegulatoryProfile] = []
-        for profile in ruleset.profiles:
-            if (
-                profile.contract_type_code is not None
-                and profile.contract_type_code != classification.contract_type_code
-            ):
-                continue
-            if (
-                profile.voltage_level is not None
-                and profile.voltage_level != classification.voltage_level
-            ):
-                continue
-            if profile.usage_code is not None and profile.usage_code != classification.usage_code:
-                continue
-            if (
-                profile.residential is not None
-                and profile.residential != classification.residential
-            ):
-                continue
-            if (
-                profile.tax_profile_code is not None
-                and profile.tax_profile_code != classification.tax_profile_code
-            ):
-                continue
-            if not set(profile.required_eligibility_codes).issubset(
-                classification.eligibility_codes
-            ):
-                continue
-            if profile.min_contracted_power_kw is not None and (
-                power is None or power.kw < profile.min_contracted_power_kw
-            ):
-                continue
-            if profile.max_contracted_power_kw is not None and (
-                power is None or power.kw > profile.max_contracted_power_kw
-            ):
-                continue
-            candidates.append(profile)
-        if len(candidates) != 1:
-            raise BillingError(
-                "regulatory profile selection is " + ("missing" if not candidates else "ambiguous")
-            )
-        return candidates[0]
+        return select_regulatory_profile(ruleset, classification, request)
 
     @staticmethod
     def _validate_ruleset_inputs(
@@ -360,7 +378,13 @@ class RegulatoryBillingEngine:
                 raise BillingError(
                     f"rule {rule.code} requires {expected_unit.value}, got {value.unit.value}"
                 )
-            raw_amount = quantity * value.amount
+            if rule.proration == ProrationPolicy.MONTHLY_TWELFTHS_PARTIAL_365 and rule.basis in (
+                BillingBasis.PER_YEAR,
+                BillingBasis.PER_KW_YEAR,
+            ):
+                raw_amount = self._arera_annual_amount(request, value, window, rule.basis)
+            else:
+                raw_amount = quantity * value.amount
             unit_rate = value
         self._validate_sign(rule.code, raw_amount, rule.credit)
         provenance = self._rule_provenance(rule, parameters)
@@ -428,6 +452,40 @@ class RegulatoryBillingEngine:
         raise BillingError(f"billing basis {basis.value} is not supported")
 
     @staticmethod
+    def _arera_annual_amount(
+        request: BillingRequest,
+        value: UnitRate,
+        window: DatePeriod,
+        basis: BillingBasis,
+    ) -> Decimal:
+        """Apply TIT annual charges using twelfths for whole months and 365 days otherwise."""
+
+        multiplier = Decimal(1)
+        if basis == BillingBasis.PER_KW_YEAR:
+            power = request.contract.supply.contracted_power
+            if power is None:
+                raise BillingError("rule requires contracted power")
+            multiplier = power.kw
+        cursor = window.start
+        total = Decimal(0)
+        while cursor < window.end:
+            month_start = cursor.replace(day=1)
+            month_end = RegulatoryBillingEngine._next_month(month_start)
+            segment_end = min(window.end, month_end)
+            full_month = cursor == month_start and segment_end == month_end
+            if full_month:
+                monthly_rate = (value.amount / Decimal(12)).quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                )
+                total += monthly_rate * multiplier
+            else:
+                total += (
+                    value.amount * Decimal((segment_end - cursor).days) / Decimal(365) * multiplier
+                )
+            cursor = segment_end
+        return total
+
+    @staticmethod
     def _consumption_quantity(
         buckets: tuple[ConsumptionBucket, ...], window: DatePeriod
     ) -> Decimal:
@@ -493,31 +551,43 @@ class RegulatoryBillingEngine:
         )
 
     @staticmethod
-    def _percentage_ready(rule: PercentageRegulatoryRule, components: list[CostComponent]) -> bool:
-        by_key = {
-            component.reconciliation_key or component.code: component for component in components
-        }
-        by_code = {component.code: component for component in components}
+    def _percentage_ready(
+        rule: PercentageRegulatoryRule,
+        window: DatePeriod,
+        components: list[CostComponent],
+    ) -> bool:
+        scoped = [
+            component
+            for component in components
+            if window.start <= component.period.start and component.period.end <= window.end
+        ]
+        by_key = {component.reconciliation_key or component.code: component for component in scoped}
+        by_code = {component.code: component for component in scoped}
         if any(code not in by_key and code not in by_code for code in rule.base_codes):
             return False
         return all(
-            any(component.category == category for component in components)
+            any(component.category == category for component in scoped)
             for category in rule.base_categories
         )
 
     @staticmethod
     def _percentage_missing_reference(
-        rule: PercentageRegulatoryRule, components: list[CostComponent]
+        rule: PercentageRegulatoryRule,
+        window: DatePeriod,
+        components: list[CostComponent],
     ) -> str:
-        by_key = {
-            component.reconciliation_key or component.code: component for component in components
-        }
-        by_code = {component.code: component for component in components}
+        scoped = [
+            component
+            for component in components
+            if window.start <= component.period.start and component.period.end <= window.end
+        ]
+        by_key = {component.reconciliation_key or component.code: component for component in scoped}
+        by_code = {component.code: component for component in scoped}
         for code in rule.base_codes:
             if code not in by_key and code not in by_code:
                 return code
         for category in rule.base_categories:
-            if not any(component.category == category for component in components):
+            if not any(component.category == category for component in scoped):
                 return category.value
         return "dependency"
 
@@ -531,16 +601,19 @@ class RegulatoryBillingEngine:
     ) -> CostComponent:
         if rule.rate.unit != RateUnit.PERCENT:
             raise BillingError(f"percentage rule {rule.code} requires percent rate")
-        by_key = {
-            component.reconciliation_key or component.code: component for component in components
-        }
-        by_code = {component.code: component for component in components}
+        scoped = [
+            component
+            for component in components
+            if window.start <= component.period.start and component.period.end <= window.end
+        ]
+        by_key = {component.reconciliation_key or component.code: component for component in scoped}
+        by_code = {component.code: component for component in scoped}
         missing = [code for code in rule.base_codes if code not in by_key and code not in by_code]
         if missing:
             raise BillingError(f"percentage rule {rule.code} base {missing[0]} is missing")
         category_components: list[CostComponent] = []
         for category in rule.base_categories:
-            matches = [component for component in components if component.category == category]
+            matches = [component for component in scoped if component.category == category]
             if not matches:
                 raise BillingError(
                     f"percentage rule {rule.code} category {category.value} is missing"
@@ -686,6 +759,19 @@ class RegulatoryBillingEngine:
                 segment_end = min(window.end, year_end)
                 denominator = Decimal((year_end - year_start).days)
                 result += Decimal((segment_end - cursor).days) / denominator
+                cursor = segment_end
+            return result
+        if policy == ProrationPolicy.MONTHLY_TWELFTHS_PARTIAL_365:
+            cursor = window.start
+            result = Decimal(0)
+            while cursor < window.end:
+                month_start = cursor.replace(day=1)
+                month_end = RegulatoryBillingEngine._next_month(month_start)
+                segment_end = min(window.end, month_end)
+                if cursor == month_start and segment_end == month_end:
+                    result += Decimal(1) / Decimal(12)
+                else:
+                    result += Decimal((segment_end - cursor).days) / Decimal(365)
                 cursor = segment_end
             return result
         policy_name = getattr(policy, "value", repr(policy))

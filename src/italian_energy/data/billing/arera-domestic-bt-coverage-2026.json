@@ -1,0 +1,118 @@
+{
+  "entries": [
+    {
+      "classification": {
+        "contract_type_code": "domestic_bt_resident",
+        "eligibility_codes": [],
+        "residential": true,
+        "tax_profile_code": null,
+        "usage_code": "domestic",
+        "voltage_level": "BT"
+      },
+      "evidence_ids": [],
+      "level": "ruleset_verified",
+      "period": {
+        "end": "2026-09-01",
+        "start": "2026-01-01"
+      },
+      "profile_code": "domestic_bt_resident",
+      "ruleset_id": "arera-domestic_bt_resident-2026:b2542dc7497f5ee9519e32a2dcf81225ebe308be85c0aea987e3c4f0f1735e93",
+      "source_ids": [
+        "arera-bundle:b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b",
+        "arera-snapshot:b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b"
+      ]
+    },
+    {
+      "classification": {
+        "contract_type_code": "domestic_bt_non_resident",
+        "eligibility_codes": [],
+        "residential": false,
+        "tax_profile_code": null,
+        "usage_code": "domestic",
+        "voltage_level": "BT"
+      },
+      "evidence_ids": [],
+      "level": "ruleset_verified",
+      "period": {
+        "end": "2026-03-01",
+        "start": "2026-01-01"
+      },
+      "profile_code": "domestic_bt_non_resident",
+      "ruleset_id": "arera-domestic_bt_non_resident-2026:e548db329723b90f4ef20d25d91be3ed81ac4a1f7f31cc59af5a7349b984f30b",
+      "source_ids": [
+        "arera-bundle:b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b",
+        "arera-snapshot:b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b"
+      ]
+    },
+    {
+      "classification": {
+        "contract_type_code": "domestic_bt_non_resident",
+        "eligibility_codes": [],
+        "residential": false,
+        "tax_profile_code": null,
+        "usage_code": "domestic",
+        "voltage_level": "BT"
+      },
+      "evidence_ids": [],
+      "level": "ruleset_verified",
+      "period": {
+        "end": "2026-09-01",
+        "start": "2026-05-01"
+      },
+      "profile_code": "domestic_bt_non_resident",
+      "ruleset_id": "arera-domestic_bt_non_resident-2026:e548db329723b90f4ef20d25d91be3ed81ac4a1f7f31cc59af5a7349b984f30b",
+      "source_ids": [
+        "arera-bundle:b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b",
+        "arera-snapshot:b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b"
+      ]
+    },
+    {
+      "classification": {
+        "contract_type_code": "domestic_bt_resident",
+        "eligibility_codes": [],
+        "residential": true,
+        "tax_profile_code": null,
+        "usage_code": "domestic",
+        "voltage_level": "BT"
+      },
+      "evidence_ids": [
+        "golden-bill-domestic-bt-resident"
+      ],
+      "level": "golden_reconciled",
+      "period": {
+        "end": "2026-07-01",
+        "start": "2026-05-01"
+      },
+      "profile_code": "domestic_bt_resident",
+      "ruleset_id": "arera-domestic-bt-resident-2026-05-06",
+      "source_ids": [
+        "private-golden-bill-domestic-bt-resident"
+      ]
+    },
+    {
+      "classification": {
+        "contract_type_code": "domestic_bt_non_resident",
+        "eligibility_codes": [],
+        "residential": false,
+        "tax_profile_code": null,
+        "usage_code": "domestic",
+        "voltage_level": "BT"
+      },
+      "evidence_ids": [
+        "golden-bill-domestic-bt-non-resident"
+      ],
+      "level": "golden_reconciled",
+      "period": {
+        "end": "2026-05-01",
+        "start": "2026-03-01"
+      },
+      "profile_code": "domestic_bt_non_resident",
+      "ruleset_id": "arera-domestic_bt_non_resident-2026:e548db329723b90f4ef20d25d91be3ed81ac4a1f7f31cc59af5a7349b984f30b",
+      "source_ids": [
+        "private-golden-bill-domestic-bt-non-resident"
+      ]
+    }
+  ],
+  "matrix_id": "arera-domestic-bt-coverage:2026",
+  "schema_version": "006-v1"
+}

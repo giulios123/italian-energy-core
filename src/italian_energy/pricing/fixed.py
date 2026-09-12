@@ -20,12 +20,37 @@ from italian_energy.pricing.engine import PricingRequest
 
 ROME = ZoneInfo("Europe/Rome")
 SUPPORTED_BASES = frozenset(
-    {ChargeBasis.PER_KWH, ChargeBasis.PER_DAY, ChargeBasis.PER_KW_DAY, ChargeBasis.FLAT}
+    {
+        ChargeBasis.PER_KWH,
+        ChargeBasis.PER_DAY,
+        ChargeBasis.PER_KW_DAY,
+        ChargeBasis.PER_YEAR,
+        ChargeBasis.PER_KW_YEAR,
+        ChargeBasis.FLAT,
+    }
 )
 
 
 class FixedPricingError(ValueError):
     """Raised when a fixed pricing request cannot be evaluated safely."""
+
+
+def annual_proration_factor(period: DatePeriod) -> Decimal:
+    """Return the Spec 008 annual-charge factor for a half-open date period."""
+    factor = Decimal(0)
+    cursor = period.start
+    while cursor < period.end:
+        if cursor.month == 12:
+            next_month = date(cursor.year + 1, 1, 1)
+        else:
+            next_month = date(cursor.year, cursor.month + 1, 1)
+        segment_end = min(period.end, next_month)
+        if cursor.day == 1 and segment_end == next_month:
+            factor += Decimal(1) / Decimal(12)
+        else:
+            factor += Decimal((segment_end - cursor).days) / Decimal(365)
+        cursor = segment_end
+    return factor
 
 
 class FixedPricingEngine:
@@ -133,6 +158,10 @@ class FixedPricingEngine:
                 FixedPricingEngine._require_rate(rule, RateUnit.EUR_PER_DAY)
             elif rule.basis == ChargeBasis.PER_KW_DAY:
                 FixedPricingEngine._require_rate(rule, RateUnit.EUR_PER_KW_DAY)
+            elif rule.basis == ChargeBasis.PER_YEAR:
+                FixedPricingEngine._require_rate(rule, RateUnit.EUR_PER_YEAR)
+            elif rule.basis == ChargeBasis.PER_KW_YEAR:
+                FixedPricingEngine._require_rate(rule, RateUnit.EUR_PER_KW_YEAR)
             elif rule.basis == ChargeBasis.FLAT and not isinstance(rule.value, Money):
                 raise FixedPricingError(f"flat charge {rule.code} requires Money")
 
@@ -247,6 +276,20 @@ class FixedPricingEngine:
             amount = quantity * rate.amount
             unit_rate = rate
             formula = "kw_days * rate_eur_per_kw_day"
+        elif rule.basis == ChargeBasis.PER_YEAR:
+            rate = self._require_rate(rule, RateUnit.EUR_PER_YEAR)
+            quantity = annual_proration_factor(window)
+            amount = quantity * rate.amount
+            unit_rate = rate
+            formula = "annual_factor_monthly_twelfths_partial_days_365 * rate_eur_per_year"
+        elif rule.basis == ChargeBasis.PER_KW_YEAR:
+            rate = self._require_rate(rule, RateUnit.EUR_PER_KW_YEAR)
+            if contract.supply.contracted_power is None:
+                raise FixedPricingError("PER_KW_YEAR requires contracted power")
+            quantity = contract.supply.contracted_power.kw * annual_proration_factor(window)
+            amount = quantity * rate.amount
+            unit_rate = rate
+            formula = "kw_annual_factor_monthly_twelfths_partial_days_365 * rate_eur_per_kw_year"
         elif rule.basis == ChargeBasis.FLAT:
             if trigger is None or not (request.period.start <= trigger < request.period.end):
                 return None

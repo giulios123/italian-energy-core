@@ -211,4 +211,4 @@ la copertura temporale o le unità non sono sufficienti.
 - La Spec 004 definirà tolleranza, componenti normative e golden bill.
 - La Spec 005 definirà raw snapshot, versioning ARERA, normalizzazione e warning
   di parsing.
-- La Spec 006 definirà ranking, percentuali e confronto tra risultati.
+- La Spec 007 definirà ranking, percentuali e confronto tra risultati.

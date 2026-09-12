@@ -2,12 +2,16 @@
 
 ## Stato
 
-Accettato come direzione
+Accettato e concretizzato dalla Spec 005
 
 ## Decisione
 
-I futuri importer conserveranno raw snapshot immutabili con timestamp, formato/versione, provenance, hash e warning. La normalizzazione sarà separata dal modello canonico e non distruggerà il raw.
+Gli importer conservano raw snapshot immutabili con timestamp, formato/versione,
+provenance, hash e warning. La normalizzazione è separata dal modello canonico
+fatturabile e non distrugge il raw.
 
 ## Conseguenze
 
-Le importazioni saranno auditabili e riproducibili. Parser e schema concreto sono rinviati alla Spec 005.
+Le importazioni sono auditabili e riproducibili. La Spec 005 concretizza il
+primo adapter per il workbook elettrico domestico 2026; il parser non promuove
+bytes offline a `VERIFIED` e non crea direttamente un `RegulatoryRuleSet`.

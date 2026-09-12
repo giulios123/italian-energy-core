@@ -1,3 +1,7 @@
 # Integration tests
 
-Gli integration test verranno aggiunti quando i primi adapter e motori delle Spec 002–006 avranno un contratto normativo. La v0.1 verifica esclusivamente il domain core.
+La Spec 010 mantiene le fixture Core→Platform sintetiche nei test contrattuali
+`tests/unit/test_integration.py`: manifest, richieste storiche, risultati,
+recommendation ed envelope JSON sono validati senza dipendenze dalla repository
+Platform. Le fixture usano soltanto dati tecnici sintetici; documenti, bollette,
+offerte e identificativi reali restano in `private/`.

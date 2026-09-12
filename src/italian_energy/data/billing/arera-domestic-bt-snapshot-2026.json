@@ -1,0 +1,16 @@
+{
+  "bundle_id": "arera-bundle:b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b",
+  "charge_count": 256,
+  "dataset_version": "2026",
+  "segments": [
+    "diversa_da_residenza_anagrafica",
+    "residenza_anagrafica"
+  ],
+  "sha256": "b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b",
+  "snapshot_id": "arera-snapshot:b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b",
+  "status": "verified",
+  "validity": {
+    "end": "2026-09-01",
+    "start": "2026-01-01"
+  }
+}

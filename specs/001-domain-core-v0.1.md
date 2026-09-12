@@ -100,4 +100,4 @@ La v0.1 non calcola ancora prezzi, bollette o ranking: prepara contratti e invar
 - La Spec 003 definirà l’ordine semantico completo dell’AST e la gestione dei dati mancanti.
 - La Spec 004 definirà golden bill, privacy, tolleranza e componenti normative verificate.
 - La Spec 005 definirà formato/versioning degli snapshot ARERA e warning di parsing.
-- La Spec 006 definirà ranking e percentuali di confronto.
+- La Spec 007 definirà ranking e percentuali di confronto.

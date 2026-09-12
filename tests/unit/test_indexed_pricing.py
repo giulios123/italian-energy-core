@@ -87,12 +87,13 @@ def request(
     expression: object,
     profile: ConsumptionProfile,
     *,
+    period: DatePeriod = PERIOD,
     market_data: MarketData | None = None,
     charge_rules: tuple[ChargeRule, ...] = (),
 ) -> PricingRequest:
     tariff = IndexedTariff(
         tariff_id="indexed-test",
-        validity=PERIOD,
+        validity=period,
         granularity=Granularity.HOUR,
         formulas=(BandFormula(band="ALL", expression=expression),),  # type: ignore[arg-type]
         fixed_charges=charge_rules,
@@ -105,12 +106,12 @@ def request(
             contracted_power=Power(kw=Decimal("3")),
         ),
         tariff=tariff,
-        validity=PERIOD,
+        validity=period,
     )
     return PricingRequest(
         contract=contract,
         consumption=profile,
-        period=PERIOD,
+        period=period,
         rounding_policy=POLICY,
         market_data=market_data,
     )
@@ -223,6 +224,31 @@ def test_commercial_charges_match_fixed_semantics() -> None:
         request(expression, profile, market_data=data, charge_rules=(charge,))
     )
     assert result.breakdown.total.amount == Decimal("2.00")
+
+
+def test_indexed_annual_charges_use_shared_proration() -> None:
+    expression = IndexReference(
+        index_code="PUN", unit=RateUnit.EUR_PER_KWH, granularity=Granularity.HOUR
+    )
+    annual = ChargeRule(
+        code="annual",
+        description="annual",
+        basis=ChargeBasis.PER_YEAR,
+        value=UnitRate(amount=Decimal("120"), unit=RateUnit.EUR_PER_YEAR),
+    )
+    period = DatePeriod(start=date(2026, 1, 1), end=date(2026, 3, 15))
+    data = MarketData(indexes=(index(unit=RateUnit.EUR_PER_KWH),))
+    result = IndexedPricingEngine().price(
+        request(
+            expression,
+            ConsumptionProfile(profile_id="empty"),
+            period=period,
+            market_data=data,
+            charge_rules=(annual,),
+        )
+    )
+    factor = Decimal(2) / Decimal(12) + Decimal(14) / Decimal(365)
+    assert result.breakdown.total.amount == (Decimal("120") * factor).quantize(Decimal("0.01"))
 
 
 def test_missing_provenance_emits_deterministic_warning() -> None:

@@ -27,7 +27,7 @@ from italian_energy.domain.money import (
     UnitRate,
 )
 from italian_energy.domain.offer import Contract, Offer
-from italian_energy.domain.provenance import Provenance
+from italian_energy.domain.provenance import Provenance, ProvenanceLocator
 from italian_energy.domain.regulatory import (
     AddQuantity,
     BillingBasis,
@@ -56,11 +56,21 @@ from italian_energy.domain.regulatory import (
     VoltageLevel,
 )
 from italian_energy.domain.supply import Commodity, SupplyPoint
-from italian_energy.domain.tariff import ChargeRule, FixedTariff, IndexedTariff, Tariff
+from italian_energy.domain.tariff import (
+    BandFormula,
+    BandPrice,
+    ChargeBasis,
+    ChargeRule,
+    FixedTariff,
+    IndexedTariff,
+    Tariff,
+)
 from italian_energy.domain.time import DatePeriod, Granularity, TimeInterval
 
 __all__ = [
     "AddQuantity",
+    "BandFormula",
+    "BandPrice",
     "Bill",
     "BillReconciliation",
     "BillingBasis",
@@ -69,6 +79,7 @@ __all__ = [
     "BillingMeasureUnit",
     "BillingQuota",
     "BillingResult",
+    "ChargeBasis",
     "ChargeRule",
     "ClampQuantity",
     "Commodity",
@@ -103,6 +114,7 @@ __all__ = [
     "PricingResult",
     "ProrationPolicy",
     "Provenance",
+    "ProvenanceLocator",
     "QuantityConstant",
     "QuantityExpression",
     "RateUnit",

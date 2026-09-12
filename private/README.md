@@ -3,10 +3,16 @@
 Questa directory è riservata a documenti locali non committati, come bollette reali o snapshot con dati personali. Usare soltanto fixture sintetiche o legalmente anonimizzate in `tests/fixtures/`.
 
 Prima della verifica golden, creare una rappresentazione JSON sanitizzata in
-`private/golden-bill-domestic-bt-resident.json`. Il JSON deve contenere soltanto
+`private/golden-bill-domestic-bt-resident.json` o
+`private/golden-bill-domestic-bt-non-resident.json`. Il JSON deve contenere soltanto
 input tecnici, condizioni dell'offerta, misure e voci osservate necessarie al
 calcolo; non deve contenere nome, indirizzo, POD, codice fiscale, numeri cliente,
 coordinate bancarie, QR code o URL personali.
+
+Il checkpoint non residente corrente è `private/nonresident.pdf`: il documento
+contiene il riepilogo, le letture mensili, il dettaglio fiscale e il Box
+dell'offerta necessari alla riconciliazione. Il nome del file non è un requisito
+per la verifica.
 
 Un PDF sorgente non sanitizzato può restare qui per la sola consultazione locale,
 ma non è mai una fixture pubblica né un input da aggiungere allo staging Git.

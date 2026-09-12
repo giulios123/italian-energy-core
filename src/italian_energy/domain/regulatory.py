@@ -65,6 +65,7 @@ class ProrationPolicy(StrEnum):
     ACTUAL_DAYS = "actual_days"
     CALENDAR_MONTH_FRACTION = "calendar_month_fraction"
     CALENDAR_YEAR_FRACTION = "calendar_year_fraction"
+    MONTHLY_TWELFTHS_PARTIAL_365 = "monthly_twelfths_partial_365"
     FULL_PERIOD = "full_period"
 
 
@@ -267,6 +268,8 @@ class RegulatoryProfile(DomainModel):
     required_eligibility_codes: tuple[str, ...] = ()
     min_contracted_power_kw: Decimal | None = None
     max_contracted_power_kw: Decimal | None = None
+    min_contracted_power_inclusive: bool = True
+    max_contracted_power_inclusive: bool = True
     rules: tuple[RegulatoryRule, ...] = ()
 
     @field_validator("min_contracted_power_kw", "max_contracted_power_kw", mode="before")
@@ -284,7 +287,15 @@ class RegulatoryProfile(DomainModel):
         if (
             self.min_contracted_power_kw is not None
             and self.max_contracted_power_kw is not None
-            and self.min_contracted_power_kw > self.max_contracted_power_kw
+            and (
+                self.min_contracted_power_kw > self.max_contracted_power_kw
+                or (
+                    self.min_contracted_power_kw == self.max_contracted_power_kw
+                    and not (
+                        self.min_contracted_power_inclusive and self.max_contracted_power_inclusive
+                    )
+                )
+            )
         ):
             raise ValueError("minimum contracted power cannot exceed maximum")
         return self

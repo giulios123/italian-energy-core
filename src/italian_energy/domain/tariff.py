@@ -21,6 +21,8 @@ class ChargeBasis(StrEnum):
     PER_MONTH = "per_month"
     PER_PERIOD = "per_period"
     PER_KW_DAY = "per_kw_day"
+    PER_YEAR = "per_year"
+    PER_KW_YEAR = "per_kw_year"
     FLAT = "flat"
     PERCENTAGE = "percentage"
 

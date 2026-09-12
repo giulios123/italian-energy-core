@@ -289,6 +289,65 @@ def test_per_kwh_charge_can_target_a_named_band() -> None:
         FixedPricingEngine().price(request(contract_for(fixed), all_profile))
 
 
+def test_annual_charges_use_monthly_twelfths_and_partial_days() -> None:
+    annual = ChargeRule(
+        code="annual",
+        description="annual commercial charge",
+        basis=ChargeBasis.PER_YEAR,
+        value=UnitRate(amount=Decimal("120"), unit=RateUnit.EUR_PER_YEAR),
+    )
+    power_annual = ChargeRule(
+        code="power-annual",
+        description="annual power charge",
+        basis=ChargeBasis.PER_KW_YEAR,
+        value=UnitRate(amount=Decimal("10"), unit=RateUnit.EUR_PER_KW_YEAR),
+    )
+    period = DatePeriod(start=date(2026, 1, 1), end=date(2026, 3, 15))
+    fixed = tariff(
+        (BandPrice(band="ALL", rate=UnitRate(amount=Decimal("0.20"), unit=RateUnit.EUR_PER_KWH)),),
+        fixed_charges=(annual, power_annual),
+        validity=DatePeriod(start=date(2026, 1, 1), end=date(2026, 12, 31)),
+    )
+    contract = contract_for(
+        fixed,
+        validity=DatePeriod(start=date(2026, 1, 1), end=date(2026, 12, 31)),
+        power="3",
+    )
+    result = FixedPricingEngine().price(
+        request(
+            contract,
+            ConsumptionProfile(profile_id="empty"),
+            period,
+        )
+    )
+
+    # January and February are complete; the first 14 days of March are partial.
+    factor = Decimal(2) / Decimal(12) + Decimal(14) / Decimal(365)
+    assert result.breakdown.components[0].amount.amount == (Decimal("120") * factor).quantize(
+        Decimal("0.01")
+    )
+    assert result.breakdown.components[1].amount.amount == (
+        Decimal("10") * Decimal("3") * factor
+    ).quantize(Decimal("0.01"))
+
+
+def test_annual_power_charge_requires_contracted_power() -> None:
+    rule = ChargeRule(
+        code="power-annual",
+        description="annual power charge",
+        basis=ChargeBasis.PER_KW_YEAR,
+        value=UnitRate(amount=Decimal("10"), unit=RateUnit.EUR_PER_KW_YEAR),
+    )
+    fixed = tariff(
+        (BandPrice(band="ALL", rate=UnitRate(amount=Decimal("0.20"), unit=RateUnit.EUR_PER_KWH)),),
+        fixed_charges=(rule,),
+    )
+    with pytest.raises(FixedPricingError, match="PER_KW_YEAR requires contracted power"):
+        FixedPricingEngine().price(
+            request(contract_for(fixed, power=None), ConsumptionProfile(profile_id="empty"))
+        )
+
+
 def test_band_mapping_and_boundary_errors_are_fail_closed() -> None:
     fixed = tariff(
         (BandPrice(band="F1", rate=UnitRate(amount=Decimal("0.20"), unit=RateUnit.EUR_PER_KWH)),)

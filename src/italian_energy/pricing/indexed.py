@@ -39,7 +39,14 @@ _GRANULARITY_RANK: Mapping[Granularity, int] = {
 }
 _SUPPORTED_GRANULARITIES = frozenset(_GRANULARITY_RANK)
 _SUPPORTED_BASES = frozenset(
-    {ChargeBasis.PER_KWH, ChargeBasis.PER_DAY, ChargeBasis.PER_KW_DAY, ChargeBasis.FLAT}
+    {
+        ChargeBasis.PER_KWH,
+        ChargeBasis.PER_DAY,
+        ChargeBasis.PER_KW_DAY,
+        ChargeBasis.PER_YEAR,
+        ChargeBasis.PER_KW_YEAR,
+        ChargeBasis.FLAT,
+    }
 )
 
 
@@ -171,6 +178,10 @@ class IndexedPricingEngine:
                 IndexedPricingEngine._require_rate(rule, RateUnit.EUR_PER_DAY)
             elif rule.basis == ChargeBasis.PER_KW_DAY:
                 IndexedPricingEngine._require_rate(rule, RateUnit.EUR_PER_KW_DAY)
+            elif rule.basis == ChargeBasis.PER_YEAR:
+                IndexedPricingEngine._require_rate(rule, RateUnit.EUR_PER_YEAR)
+            elif rule.basis == ChargeBasis.PER_KW_YEAR:
+                IndexedPricingEngine._require_rate(rule, RateUnit.EUR_PER_KW_YEAR)
             elif rule.basis == ChargeBasis.FLAT and not isinstance(rule.value, Money):
                 raise IndexedPricingError(f"flat charge {rule.code} requires Money")
 

@@ -1230,3 +1230,95 @@ def test_public_synthetic_golden_fixture_matches_calculated_bill() -> None:
         item["reconciliation_key"]: Decimal(item["amount"]) for item in fixture["components"]
     }
     assert result.bill.breakdown.total.amount == Decimal(fixture["total"])
+
+
+def test_monthly_twelfths_partial_365_uses_arera_rounding() -> None:
+    engine = RegulatoryBillingEngine()
+    annual = UnitRate(amount=Decimal("100"), unit=RateUnit.EUR_PER_YEAR)
+
+    full_month = engine._arera_annual_amount(
+        request(),
+        annual,
+        DatePeriod(start=date(2026, 1, 1), end=date(2026, 2, 1)),
+        BillingBasis.PER_YEAR,
+    )
+    partial_months = engine._arera_annual_amount(
+        request(),
+        annual,
+        DatePeriod(start=date(2026, 1, 15), end=date(2026, 2, 15)),
+        BillingBasis.PER_YEAR,
+    )
+    multi_month = engine._arera_annual_amount(
+        request(),
+        annual,
+        DatePeriod(start=date(2026, 1, 1), end=date(2026, 3, 1)),
+        BillingBasis.PER_YEAR,
+    )
+
+    assert full_month == Decimal("8.3333")
+    assert partial_months == (
+        Decimal("100") * Decimal(17) / Decimal(365) + Decimal("100") * Decimal(14) / Decimal(365)
+    )
+    assert multi_month == Decimal("16.6666")
+
+
+def test_profile_power_boundaries_are_unambiguous() -> None:
+    base = linear(
+        "base",
+        BillingBasis.PER_KWH,
+        UnitRate(amount=Decimal("0"), unit=RateUnit.EUR_PER_KWH),
+    )
+    profiles = (
+        RegulatoryProfile(
+            profile_code="le-1.5",
+            contract_type_code="domestic_bt_resident",
+            voltage_level=VoltageLevel.BT,
+            usage_code="domestic",
+            residential=True,
+            max_contracted_power_kw=Decimal("1.5"),
+            rules=(base,),
+        ),
+        RegulatoryProfile(
+            profile_code="gt-1.5-le-3",
+            contract_type_code="domestic_bt_resident",
+            voltage_level=VoltageLevel.BT,
+            usage_code="domestic",
+            residential=True,
+            min_contracted_power_kw=Decimal("1.5"),
+            min_contracted_power_inclusive=False,
+            max_contracted_power_kw=Decimal("3"),
+            rules=(base,),
+        ),
+        RegulatoryProfile(
+            profile_code="gt-3",
+            contract_type_code="domestic_bt_resident",
+            voltage_level=VoltageLevel.BT,
+            usage_code="domestic",
+            residential=True,
+            min_contracted_power_kw=Decimal("3"),
+            min_contracted_power_inclusive=False,
+            rules=(base,),
+        ),
+    )
+    rule_set = ruleset(profiles=profiles)
+    engine = RegulatoryBillingEngine()
+
+    def selected(power: str) -> str:
+        base_contract = contract()
+        req = request(rule_set=rule_set).model_copy(
+            update={
+                "contract": base_contract.model_copy(
+                    update={
+                        "supply": base_contract.supply.model_copy(
+                            update={"contracted_power": Power(kw=Decimal(power))}
+                        )
+                    }
+                )
+            }
+        )
+        assert req.classification is not None
+        return engine._select_profile(rule_set, req.classification, req).profile_code
+
+    assert selected("1.5") == "le-1.5"
+    assert selected("3") == "gt-1.5-le-3"
+    assert selected("3.1") == "gt-3"

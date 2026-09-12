@@ -1,0 +1,67 @@
+"""Portale Offerte open-data importer and deterministic comparison adapter."""
+
+from italian_energy.portal_offers.importer import (
+    PortalFetchError,
+    PortalHttpResponse,
+    PortalImportError,
+    PortalOffersImporter,
+    PortalTransport,
+)
+from italian_energy.portal_offers.models import (
+    NormalizedPortalOffer,
+    PortalAcquisitionPolicy,
+    PortalCatalog,
+    PortalComparisonRequest,
+    PortalComparisonResult,
+    PortalEconomicComponent,
+    PortalEligibilityProfile,
+    PortalFileSnapshot,
+    PortalIndexSnapshot,
+    PortalOfferExclusion,
+    PortalOfferExclusionCode,
+    PortalOfferRecord,
+    PortalOffersImportResult,
+    PortalOffersSnapshot,
+    PortalOfferType,
+    PortalSnapshot,
+    PortalSourceRole,
+    PortalTerritory,
+    VerifiedMarketData,
+)
+from italian_energy.portal_offers.recommendation import PortalRecommendationAdapter
+from italian_energy.portal_offers.service import (
+    PortalComparisonService,
+    compare_portal_offers,
+    merge_market_data,
+)
+
+__all__ = [
+    "NormalizedPortalOffer",
+    "PortalAcquisitionPolicy",
+    "PortalCatalog",
+    "PortalComparisonRequest",
+    "PortalComparisonResult",
+    "PortalComparisonService",
+    "PortalEconomicComponent",
+    "PortalEligibilityProfile",
+    "PortalFetchError",
+    "PortalFileSnapshot",
+    "PortalHttpResponse",
+    "PortalImportError",
+    "PortalIndexSnapshot",
+    "PortalOfferExclusion",
+    "PortalOfferExclusionCode",
+    "PortalOfferRecord",
+    "PortalOfferType",
+    "PortalOffersImportResult",
+    "PortalOffersImporter",
+    "PortalOffersSnapshot",
+    "PortalRecommendationAdapter",
+    "PortalSnapshot",
+    "PortalSourceRole",
+    "PortalTerritory",
+    "PortalTransport",
+    "VerifiedMarketData",
+    "compare_portal_offers",
+    "merge_market_data",
+]

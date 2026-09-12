@@ -1,12 +1,62 @@
 # Active context
 
-Milestone corrente: chiusura tecnica della Spec 004 Billing / Golden Bill v0.4.
+Milestone tecnica corrente: Spec 010 Contratto d'integrazione Core–Platform
+v0.10.0 locale, implementata senza commit/tag/push/release. Il digest ARERA 2026 VERIFIED
+congelato è `b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b`;
+copre 2026-01-01/2026-09-01, 256 valori e entrambi i segmenti.
 
-Il ruleset pubblico `arera-domestic-bt-resident-2026-05-06`, il test sintetico
-indipendente, il verificatore end-to-end e lo scenario JSON tecnico sanitizzato
-sono presenti. Il documento collegato dal PDF contiene la pagina privata
-"Elementi di dettaglio": il golden ora passa con bill stabile, chiavi abbinate e
-differenze entro 0,01 EUR. Nessun importo o aliquota è stato adattato per forzare
-il risultato; v0.4.0 resta non pubblicata in attesa dei gate Git.
+Sono presenti composer deterministico, ruleset JSON residente/non residente,
+matrice di copertura e loader indipendente dall'extra XLSX. Il checkpoint
+non residente usa il PDF privato `private/nonresident.pdf`, che contiene già
+riepilogo, letture mensili, dettaglio fiscale e Box dell'offerta; non è richiesto
+un nome file specifico. Il JSON sanitizzato e il mapping privato sono presenti.
 
-La repository è pubblica su GitHub, il domain core v0.1.0 è verificato e la CI storica è verde su Python 3.12, 3.13 e 3.14. La Release `v0.1.0` è pubblicata; `v0.4.0` è locale e non pubblicata. La working tree contiene anche le milestone 002 e 003 da preservare.
+Il ruleset pubblico `arera-domestic-bt-resident-2026-05-06`, i test sintetici
+indipendenti, il verificatore end-to-end e i due scenari JSON tecnici
+sanitizzati sono presenti. Il golden residente e quello non residente passano
+con bill stabile, chiavi abbinate e differenze entro 0,01 EUR. Nessun importo o
+aliquota è stato adattato per forzare il risultato. La Spec 005 aggiunge un importer per il workbook elettrico
+domestico ARERA 2026: il raw snapshot è content-addressed e conservato in
+memoria, il parsing offline resta `UNVERIFIED`, mentre il fetch ufficiale può
+produrre valori `VERIFIED` soltanto con layout e controlli completi. Il risultato
+è un bundle source-faithful, non un `RegulatoryRuleSet` fatturabile.
+
+La repository è pubblica su GitHub e la CI della release `v0.4.0` è verde su
+Python 3.12, 3.13 e 3.14. Le release GitHub `v0.1.0` e `v0.4.0` sono pubblicate;
+la working tree contiene la milestone 005 locale da preservare.
+
+Il Comparison Engine opera su offerte già normalizzate e prequalificate, usa il
+totale Billing all-in, consulta obbligatoriamente la matrice e isola candidate
+non calcolabili con esclusioni motivate. Le partite esterne sono restituite come
+evidenza ma escluse da Bill e ranking. La Spec 008 fornisce ora l'adapter
+allowlisted che porta i cataloghi commerciali elettrici domestici BT alla 007;
+non promette che ogni formula commerciale sorgente sia calcolabile.
+
+La Spec 008 Portale Offerte Importer v0.8.0 è implementata localmente senza
+commit/tag/push/release: `ComparisonContext`/`PortalComparisonRequest`, snapshot
+content-addressed, acquisizione HTTPS allowlisted, parser XML/CSV, indici storici,
+normalizzazione fixed/indexed e orchestrazione verso la 007 sono presenti. La
+validità relativa usa mesi calendario con clamp e i corrispettivi annuali usano
+1/12 per i mesi completi e giorni/365 per le frazioni. Ogni record termina come
+offerta idonea o esclusione motivata; duplicati nello stesso catalogo escludono
+tutte le occorrenze. Gas, PDF/OCR, persistenza, scheduler e UI restano fuori
+perimetro; lo smoke live Portale è separato dalla suite offline.
+Lo smoke live esplicito del 2026-09-08 ha acquisito 4.472 record e 156 punti
+indice, producendo snapshot VERIFIED
+`portal-snapshot:67577e044c0b257e3b11cbf1ce3f346218c6e932279e9845098b35ea2bb0d23d`.
+
+La Spec 009 aggiunge RecommendationPreferences tipizzate, evidenze candidate
+verificate, `DeterministicRecommendationEngine` e `PortalRecommendationAdapter`.
+La decisione usa filtri hard e il minor totale comparabile; la soglia minima in
+EUR è inclusiva e, se assente, il risultato resta `stay_current` per compatibilità
+legacy. Nessun costo viene ricalcolato e nessun testo commerciale viene
+interpretato.
+
+La Spec 010 espone `italian_energy.integration` come contratto stabile: manifest
+con capability/schema ID ordinati (anche tramite `CORE_SCHEMA_IDS`), richieste tipizzate per replay storico e
+recommendation separata, envelope JSON canonici fail-closed e
+`CoreContractError` con codici stabili. La façade seleziona ruleset e matrice
+packaged per residente/non residente, richiede elettricità domestica BT e usa
+rounding EUR/percentuali a due decimali HALF_UP. `defusedxml` è nella dipendenza
+base; `openpyxl` resta nell'extra ARERA. L'allineamento della Platform e la
+pubblicazione v0.10.0 restano milestone successive.
