@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.11.0] - 2026-09-13
+
+### Added
+
+- Current Domestic Advisor per confronti domestici BT negli scenari
+  deterministici `low_index`, `base` e `high_index`.
+- Acquisizione di snapshot verificati Portale Offerte e proiezione esplicita
+  dei dodici mesi storici di consumo e indice sul prossimo orizzonte.
+- Soglia percentuale nella recommendation corrente e nuovi aggregati/envelope
+  JSON del contratto d'integrazione Core–Platform.
+- Artefatti installabili `italian_energy-0.11.0-py3-none-any.whl` e
+  `italian_energy-0.11.0.tar.gz`.
+
+### Verification boundary
+
+- 232 test passano con 95,29% di branch coverage; Ruff, format, mypy e
+  `git diff --check` passano.
+- Gli scenari prospettici non sono forecast: il Core richiede dati storici e
+  copertura regolatoria verificata, e fallisce chiuso quando mancano.
+
 ## [0.10.0] - 2026-09-09 (locale, non pubblicata)
 
 ### Added

@@ -83,5 +83,6 @@ Nel lavoro Platform del 2026-09-12 il percorso corrente è stato implementato
 localmente: contratti `CurrentDomesticEnergyService`, scenari low/base/high,
 capability/schema ID v1 e soglia percentuale sono ora presenti e coperti. La
 suite è stata riallineata ai rami del current advisor (232 test, 95,29% branch
-coverage); la release firmata v0.11.0, checksum e integrazione wheel restano
-gate espliciti.
+coverage); la release v0.11.0 include gli artefatti wheel/sdist installabili.
+La pubblicazione su PyPI resta un canale separato che richiede configurazione
+di trusted publishing o credenziali del progetto.

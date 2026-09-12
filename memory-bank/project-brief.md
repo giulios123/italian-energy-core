@@ -3,10 +3,10 @@
 `italian-energy-core` è una libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
 La release GitHub `v0.4.0` implementa domain core, pricing fixed/indexed e un
-Billing Engine data-driven. La `v0.10.0` locale aggiunge importer ARERA,
-composer, ruleset domestici BT JSON verificati, Comparison Engine, Portale
-Offerte importer, Recommendation Engine e il contratto d'integrazione
-Core–Platform, ma non è ancora committata o pubblicata.
+Billing Engine data-driven. La `v0.11.0` aggiunge importer ARERA, composer,
+ruleset domestici BT JSON verificati, Comparison Engine, Portale Offerte
+importer, Recommendation Engine, contratto d'integrazione Core–Platform e
+current domestic advisor, con wheel e sdist installabili negli asset di release.
 
 I golden privati BT domestici residente e non residente sono riconciliati,
 ciascuno soltanto per il proprio ruleset e periodo. La Spec 006 aggiunge il profilo

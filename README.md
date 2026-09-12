@@ -2,9 +2,10 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Stato: `v0.10.0` locale — domain core, pricing fixed/indexed, Billing Engine data-driven, importer ARERA, ruleset domestici BT, Comparison Engine, Portale Offerte importer, Recommendation Engine e contratto d'integrazione Core–Platform implementati e verificati localmente. Nessun commit, tag o release è implicato da questa milestone.
+> Stato: `v0.11.0` — domain core, pricing fixed/indexed, Billing Engine data-driven, importer ARERA, ruleset domestici BT, Comparison Engine, Portale Offerte importer, Recommendation Engine, contratto d'integrazione Core–Platform e current domestic advisor implementati e verificati.
 
-La release GitHub pubblica più recente è `v0.4.0`. L'importer Portale Offerte
+La release GitHub pubblica più recente è `v0.11.0`. Il package installabile è
+disponibile come wheel e sdist negli asset della release. L'importer Portale Offerte
 opera solo su cataloghi open-data ufficiali, replay storici esatti e offerte
 elettriche domestiche BT; gas, UI, persistenza e scheduler restano fuori scope.
 
@@ -21,10 +22,10 @@ uv sync --dev
 uv run pytest
 ```
 
-L’installazione del package è compatibile con il futuro flusso:
+Installazione del package dalla release pubblicata:
 
 ```bash
-pip install italian-energy
+pip install italian-energy==0.11.0
 ```
 
 ## Architettura

@@ -1,6 +1,6 @@
 # Spec 011 — Current Domestic Advisor
 
-**Version:** 0.11.0 · **Status:** implemented locally, release-gated
+**Version:** 0.11.0 · **Status:** released
 
 ## Purpose
 
@@ -41,5 +41,6 @@ are met; no weighted score or generative model is involved.
 
 ## Release gate
 
-The local implementation is not a release. Full Core gates, wheel/sdist
-checksums and a signed `v0.11.0` GitHub release require explicit approval.
+The `v0.11.0` release includes the full Core gates and installable wheel/sdist
+artifacts. The implementation remains scoped to domestic electricity BT and
+does not provide a general forecast or regulatory certification.
