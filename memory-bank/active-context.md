@@ -78,3 +78,10 @@ scenari. Sono stati aggiunti la spec e ADR 0015; questa milestone non ha
 modificato codice, test, versione, Platform o pubblicazione. La working tree
 contiene però modifiche concorrenti al percorso `Current Domestic Advisor`,
 che devono essere preservate e consolidate separatamente.
+
+Nel lavoro Platform del 2026-09-12 il percorso corrente è stato implementato
+localmente: contratti `CurrentDomesticEnergyService`, scenari low/base/high,
+capability/schema ID v1 e soglia percentuale sono ora presenti e coperti. La
+suite è stata riallineata ai rami del current advisor (232 test, 95,29% branch
+coverage); la release firmata v0.11.0, checksum e integrazione wheel restano
+gate espliciti.

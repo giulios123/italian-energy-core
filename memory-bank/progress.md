@@ -110,3 +110,8 @@
 - L'implementazione della Spec 011, il rinnovo dell'anchor ARERA alla
   `quote_date`, i nuovi envelope/capability e l'allineamento della Platform
   restano milestone successive con autorizzazione separata.
+- Verifica locale 2026-09-13: aggiunti test per acquisizione catalogo, scenari
+  low/base/high, validazioni fail-closed, copertura billing e recommendation;
+  232 test Core passano con 95,29% di branch coverage. Ruff check/format, mypy
+  strict e `git diff --check` passano; nessun valore regolatorio è stato
+  inventato.

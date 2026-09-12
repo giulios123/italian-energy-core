@@ -41,6 +41,10 @@ from italian_energy.integration import (
     CoreContractError,
     CoreErrorCode,
     CoreIntegrationError,
+    CurrentPortalComparisonResult,
+    CurrentRecommendationRequest,
+    CurrentScenario,
+    CurrentScenarioComparison,
     HistoricalDomesticEnergyService,
     HistoricalPortalComparisonRequest,
     HistoricalRecommendationRequest,
@@ -283,13 +287,28 @@ def test_contract_error_alias_is_stable() -> None:
 
 
 def test_envelopes_are_canonical_and_round_trip() -> None:
+    portal = _portal_result()
+    current = CurrentPortalComparisonResult(
+        current_result_id="current-portal-comparison:" + "a" * 64,
+        as_of=date(2026, 1, 15),
+        period=PERIOD,
+        catalog_dataset_date=PERIOD.start,
+        scenarios=tuple(
+            CurrentScenarioComparison(scenario=scenario, comparison=portal)
+            for scenario in (
+                CurrentScenario.LOW_INDEX,
+                CurrentScenario.BASE,
+                CurrentScenario.HIGH_INDEX,
+            )
+        ),
+    )
     values = (
         _contract(),
         _contract().supply,
         ConsumptionProfile(profile_id="consumption"),
         _verified_market_data(),
         _request(),
-        _portal_result(),
+        portal,
         RecommendationPreferences(),
         HistoricalRecommendationRequest(comparison=_portal_result()),
         Recommendation(
@@ -297,6 +316,8 @@ def test_envelopes_are_canonical_and_round_trip() -> None:
             comparison_id="comparison",
             decision=RecommendationDecision.STAY_CURRENT,
         ),
+        current,
+        CurrentRecommendationRequest(comparison=current),
     )
     for value in values:
         encoded = dump_envelope(value)

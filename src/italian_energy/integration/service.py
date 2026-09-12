@@ -253,6 +253,11 @@ class CurrentDomesticEnergyService:
                 CoreErrorCode.SOURCE_VALIDATION_FAILED,
                 "catalogue snapshot date is after the comparison date",
             )
+        if snapshot.market_data is None:
+            raise CoreContractError(
+                CoreErrorCode.SOURCE_VALIDATION_FAILED,
+                "verified historical index snapshot is required for current scenarios",
+            )
         ruleset, matrix = self._billing_artifacts(request, period)
         contract = self._contract_for_period(request, period)
         projected_consumption = project_consumption(request.consumption, request.as_of)

@@ -192,6 +192,12 @@ def _validate_history(profile: ConsumptionProfile, as_of: date) -> None:
             CoreErrorCode.UNSUPPORTED_SCENARIO,
             "current comparison requires monthly consumption buckets",
         )
+    bands = {bucket.band for bucket in buckets}
+    if any(band not in {"ALL", "F1", "F2", "F3"} for band in bands):
+        raise CoreContractError(
+            CoreErrorCode.UNSUPPORTED_SCENARIO,
+            "current comparison accepts only total or F1/F2/F3 monthly buckets",
+        )
     months = {(bucket.interval.start.year, bucket.interval.start.month) for bucket in buckets}
     expected = {
         (_add_months(cutoff, -offset).year, _add_months(cutoff, -offset).month)
