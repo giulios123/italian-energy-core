@@ -86,4 +86,4 @@ suite è stata riallineata ai rami del current advisor (232 test, 95,29% branch
 coverage); la release v0.11.0 include gli artefatti wheel/sdist installabili.
 Il workflow `.github/workflows/release.yml` prepara e pubblica wheel/sdist su
 PyPI tramite Trusted Publishing OIDC nell'environment GitHub `pypi`; il dispatch
-manuale consente di pubblicare anche il tag già esistente `v0.11.0`.
+manuale ha pubblicato il tag già esistente `v0.11.0` su PyPI.

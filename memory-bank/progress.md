@@ -118,3 +118,6 @@
 - Preparato il workflow dedicato `.github/workflows/release.yml` per Trusted
   Publishing su PyPI: build wheel/sdist, smoke import, artifact condiviso e
   publish OIDC nell'environment GitHub `pypi`, con dispatch manuale per `v0.11.0`.
+- Workflow `Publish to PyPI` eseguito con successo per `v0.11.0`: wheel e sdist
+  sono presenti su PyPI; API metadata 200 e smoke import isolato da PyPI
+  restituisce `italian_energy.__version__ == 0.11.0`.

@@ -12,6 +12,7 @@
   JSON del contratto d'integrazione Core–Platform.
 - Artefatti installabili `italian_energy-0.11.0-py3-none-any.whl` e
   `italian_energy-0.11.0.tar.gz`.
+- Pubblicazione completata su GitHub e PyPI tramite Trusted Publishing OIDC.
 
 ### Verification boundary
 
