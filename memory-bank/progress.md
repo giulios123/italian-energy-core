@@ -115,3 +115,6 @@
   232 test Core passano con 95,29% di branch coverage. Ruff check/format, mypy
   strict e `git diff --check` passano; nessun valore regolatorio è stato
   inventato.
+- Preparato il workflow dedicato `.github/workflows/release.yml` per Trusted
+  Publishing su PyPI: build wheel/sdist, smoke import, artifact condiviso e
+  publish OIDC nell'environment GitHub `pypi`, con dispatch manuale per `v0.11.0`.

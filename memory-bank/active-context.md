@@ -84,5 +84,6 @@ localmente: contratti `CurrentDomesticEnergyService`, scenari low/base/high,
 capability/schema ID v1 e soglia percentuale sono ora presenti e coperti. La
 suite è stata riallineata ai rami del current advisor (232 test, 95,29% branch
 coverage); la release v0.11.0 include gli artefatti wheel/sdist installabili.
-La pubblicazione su PyPI resta un canale separato che richiede configurazione
-di trusted publishing o credenziali del progetto.
+Il workflow `.github/workflows/release.yml` prepara e pubblica wheel/sdist su
+PyPI tramite Trusted Publishing OIDC nell'environment GitHub `pypi`; il dispatch
+manuale consente di pubblicare anche il tag già esistente `v0.11.0`.

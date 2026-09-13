@@ -1,0 +1,72 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Git tag to build and publish
+        required: true
+        default: v0.11.0
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.2"
+          python-version: "3.12"
+
+      - name: Verify package version matches tag
+        run: |
+          python -c 'import os, tomllib; from pathlib import Path; expected = os.environ["RELEASE_TAG"].removeprefix("v"); actual = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]; assert actual == expected, f"tag {expected} != package {actual}"'
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Smoke-test wheel import
+        run: uv run --no-project --isolated --with dist/*.whl python -c "import italian_energy; print(italian_energy.__version__)"
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish package to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/italian-energy
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
