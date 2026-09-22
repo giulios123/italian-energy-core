@@ -1,5 +1,12 @@
 # Progress
 
+## In corso
+
+- Preparazione della release Core v0.11.1: preflight tipizzato del current
+  advisor, contratto additivo in Spec 011 e test regression inclusi; gate locali
+  verdi con 235 test e 95,16% branch coverage. Restano commit, push, tag/release
+  GitHub, pubblicazione PyPI OIDC e verifica degli artefatti.
+
 ## Completato
 
 - Struttura repository, packaging e CI definiti.

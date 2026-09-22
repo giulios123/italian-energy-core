@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.11.1] - 2026-09-22
+
+### Added
+
+- Typed `CurrentDomesticEnergyService.preflight` and
+  `CurrentPreflightResult`, sharing contract, continuation, index and
+  regulatory-coverage checks with `compare()`.
+- Manifest capability `current_portal_preflight` and schema
+  `italian-energy/current-preflight-result/v1`.
+
+### Verification boundary
+
+- 235 tests pass with 95.16% branch coverage; Ruff, format, mypy,
+  pre-commit, private golden, `git diff --check`, and wheel import smoke pass.
+- PyPI publication and Platform staging acceptance are separate release gates.
+
 ## [0.11.0] - 2026-09-13
 
 ### Added

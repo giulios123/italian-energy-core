@@ -33,6 +33,7 @@ from italian_energy.integration import (
     CurrentDomesticEnergyService,
     CurrentPortalComparisonRequest,
     CurrentPortalComparisonResult,
+    CurrentPreflightResult,
     CurrentRecommendationRequest,
     CurrentScenario,
     CurrentScenarioComparison,
@@ -466,6 +467,86 @@ def test_current_service_acquires_catalog_and_maps_source_errors(
 
     with pytest.raises(Exception, match="validation failed"):
         CurrentDomesticEnergyService(importer=cast(Any, ParseFailure())).acquire_catalog(AS_OF)
+
+
+def test_current_service_preflight_reports_ready_gates_and_continuation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = CurrentDomesticEnergyService(clock=lambda: datetime(2026, 9, 12, tzinfo=UTC))
+    matrix = BillingCoverageMatrix.model_construct(matrix_id="test", schema_version="1", entries=())
+    monkeypatch.setattr(
+        service,
+        "_billing_artifacts",
+        lambda request, period: (load_ruleset(segment="resident"), matrix),
+    )
+
+    result = service.preflight(_current_request(continuation_assumption=True), _catalog())
+
+    assert isinstance(result, CurrentPreflightResult)
+    assert result.ready is True
+    assert result.as_of == AS_OF
+    assert result.horizon == future_period(AS_OF)
+    assert result.checks == {
+        "request_contract": True,
+        "catalog_verified": True,
+        "historical_indexes": True,
+        "regulatory_coverage": True,
+        "future_horizon": True,
+    }
+    assert result.reason_codes == ()
+    assert result.continuation_required is True
+    assert result.coverage == {"status": "verified"}
+
+
+def test_current_service_preflight_fails_closed_for_missing_catalog_and_indexes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = CurrentDomesticEnergyService(clock=lambda: datetime(2026, 9, 12, tzinfo=UTC))
+    matrix = BillingCoverageMatrix.model_construct(matrix_id="test", schema_version="1", entries=())
+    monkeypatch.setattr(
+        service,
+        "_billing_artifacts",
+        lambda request, period: (load_ruleset(segment="resident"), matrix),
+    )
+    request = _current_request(continuation_assumption=True)
+
+    missing_catalog = service.preflight(request)
+    assert missing_catalog.ready is False
+    assert missing_catalog.checks["catalog_verified"] is False
+    assert missing_catalog.checks["historical_indexes"] is False
+    assert missing_catalog.reason_codes == ("source_validation_failed",)
+
+    missing_indexes = service.preflight(request, _catalog(with_market_data=False))
+    assert missing_indexes.ready is False
+    assert missing_indexes.checks["catalog_verified"] is True
+    assert missing_indexes.checks["historical_indexes"] is False
+    assert missing_indexes.reason_codes == ("source_validation_failed",)
+
+
+def test_current_service_preflight_reports_horizon_and_coverage_failures() -> None:
+    request = _current_request()
+    catalog = _catalog()
+    horizon_service = CurrentDomesticEnergyService(clock=lambda: datetime(2026, 9, 12, tzinfo=UTC))
+    horizon_result = horizon_service.preflight(request, catalog)
+    assert horizon_result.ready is False
+    assert horizon_result.checks["future_horizon"] is False
+    assert "unsupported_horizon" in horizon_result.reason_codes
+
+    class MissingRuleset:
+        def __call__(self, **kwargs: Any) -> Any:
+            raise OSError("private artifact detail")
+
+    coverage_service = CurrentDomesticEnergyService(
+        clock=lambda: datetime(2026, 9, 12, tzinfo=UTC),
+        ruleset_loader=MissingRuleset(),
+    )
+    coverage_result = coverage_service.preflight(
+        _current_request(continuation_assumption=True), catalog
+    )
+    assert coverage_result.ready is False
+    assert coverage_result.checks["regulatory_coverage"] is False
+    assert coverage_result.reason_codes == ("coverage_unavailable",)
+    assert coverage_result.coverage == {"status": "unavailable"}
 
 
 def test_current_service_compares_three_frozen_scenarios(monkeypatch: pytest.MonkeyPatch) -> None:

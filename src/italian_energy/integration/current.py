@@ -87,6 +87,18 @@ class CurrentPortalComparisonRequest(DomainModel):
         return self
 
 
+class CurrentPreflightResult(DomainModel):
+    """Typed, economic-free readiness result shared by preflight and compare."""
+
+    ready: bool
+    as_of: date
+    horizon: DatePeriod | None = None
+    checks: dict[str, bool] = Field(default_factory=dict)
+    reason_codes: tuple[str, ...] = ()
+    continuation_required: bool = False
+    coverage: dict[str, object] = Field(default_factory=dict)
+
+
 class CurrentCatalogSnapshot(DomainModel):
     """Parsed, verified catalogue data retained for deterministic replays."""
 
@@ -297,6 +309,7 @@ __all__ = [
     "CurrentCatalogSnapshot",
     "CurrentPortalComparisonRequest",
     "CurrentPortalComparisonResult",
+    "CurrentPreflightResult",
     "CurrentRecommendationRequest",
     "CurrentScenario",
     "CurrentScenarioComparison",

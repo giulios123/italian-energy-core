@@ -42,6 +42,7 @@ from italian_energy.integration import (
     CoreErrorCode,
     CoreIntegrationError,
     CurrentPortalComparisonResult,
+    CurrentPreflightResult,
     CurrentRecommendationRequest,
     CurrentScenario,
     CurrentScenarioComparison,
@@ -252,6 +253,7 @@ def test_manifest_is_canonical_and_matches_package_identity() -> None:
     assert tuple(sorted(CORE_CAPABILITIES)) == CORE_CAPABILITIES
     assert CoreCapability.HISTORICAL_PORTAL_COMPARISON in CORE_MANIFEST.capabilities
     assert CoreCapability.CURRENT_PORTAL_COMPARISON in CORE_MANIFEST.capabilities
+    assert CoreCapability.CURRENT_PORTAL_PREFLIGHT in CORE_MANIFEST.capabilities
     assert CORE_MANIFEST.schema_ids == tuple(sorted(CORE_MANIFEST.schema_ids))
     assert tuple(item.value for item in CORE_MANIFEST.schema_ids) == CORE_SCHEMA_IDS
 
@@ -272,6 +274,7 @@ def test_manifest_exposes_only_integration_schema_ids() -> None:
         CoreSchemaId.CURRENT_PORTAL_COMPARISON_REQUEST,
         CoreSchemaId.CURRENT_PORTAL_COMPARISON_RESULT,
         CoreSchemaId.CURRENT_RECOMMENDATION_REQUEST,
+        CoreSchemaId.CURRENT_PREFLIGHT_RESULT,
     }
 
 
@@ -318,6 +321,20 @@ def test_envelopes_are_canonical_and_round_trip() -> None:
         ),
         current,
         CurrentRecommendationRequest(comparison=current),
+        CurrentPreflightResult(
+            ready=False,
+            as_of=date(2026, 1, 15),
+            horizon=PERIOD,
+            checks={
+                "request_contract": True,
+                "catalog_verified": False,
+                "historical_indexes": False,
+                "regulatory_coverage": True,
+                "future_horizon": True,
+            },
+            reason_codes=(CoreErrorCode.SOURCE_VALIDATION_FAILED.value,),
+            coverage={"status": "verified"},
+        ),
     )
     for value in values:
         encoded = dump_envelope(value)

@@ -24,6 +24,32 @@ base `PortalComparisonResult` to the deterministic recommendation engine. A
 switch is eligible only when both configured thresholds (EUR and percentage)
 are met; no weighted score or generative model is involved.
 
+## Additive contract in v0.11.1 — preflight
+
+`CurrentDomesticEnergyService.preflight(request, catalog)` reports whether a
+current comparison can proceed without calculating prices or performing a
+comparison. It does not acquire a catalogue: callers must pass a previously
+acquired snapshot. A missing snapshot is reported as not ready.
+
+The typed `CurrentPreflightResult` contains `ready`, `as_of`, the derived
+twelve-month `horizon`, `checks`, ordered and de-duplicated `reason_codes`,
+`continuation_required`, and a `coverage` status. The stable `checks` keys are
+`request_contract`, `catalog_verified`, `historical_indexes`,
+`regulatory_coverage`, and `future_horizon`. A gate is true only when its
+condition was verified; an uncheckable required gate is false. `ready` is true
+only when every gate is true. `reason_codes` use stable `CoreErrorCode` values.
+`coverage.status` is `verified` only when a verified packaged ruleset and
+coverage matrix cover the entire derived horizon; otherwise it is
+`unavailable`.
+
+Preflight checks the same request, contract-continuation, projected-index, and
+regulatory-coverage conditions consumed by `compare()`. Contract continuation
+is permitted only when explicitly declared in the request and is surfaced by
+`continuation_required`. This additive contract is advertised as capability
+`current_portal_preflight` and schema
+`italian-energy/current-preflight-result/v1`; historical schema IDs are
+unchanged.
+
 ## Safety invariants
 
 - only domestic electricity BT supplies with an explicit residential value are
@@ -41,6 +67,7 @@ are met; no weighted score or generative model is involved.
 
 ## Release gate
 
-The `v0.11.0` release includes the full Core gates and installable wheel/sdist
-artifacts. The implementation remains scoped to domestic electricity BT and
-does not provide a general forecast or regulatory certification.
+The `v0.11.1` release includes the full Core gates and installable wheel/sdist
+artifacts. The preflight is a readiness check, not a price calculation or
+regulatory certification. The implementation remains scoped to domestic
+electricity BT and does not provide a general forecast.

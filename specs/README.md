@@ -18,7 +18,7 @@ Le specifiche sono il contratto normativo del progetto. Una funzionalità rileva
 | 008 | Portale Offerte Importer e integrazione frontend | Implementata localmente in `v0.8.0`; snapshot open-data, normalizzazione elettrica domestica BT e orchestrazione verso Comparison Engine 007 verificate |
 | 009 | Recommendation Engine | Implementata localmente in `v0.9.0`; preferenze strutturate, shortlist deterministica e adapter dal Portale Offerte |
 | 010 | Contratto d'integrazione Core–Platform | Implementata localmente in `v0.10.0`; manifest, façade storica, envelope JSON e errori stabili |
-| 011 | Current Domestic Advisor | Rilasciata in `v0.11.0`; scenari deterministici, snapshot verificati, envelope correnti e soglie di raccomandazione |
+| 011 | Current Domestic Advisor | Rilasciata in `v0.11.1`; scenari deterministici, snapshot verificati, preflight tipizzato ed envelope correnti |
 
 Le spec pianificate non autorizzano ancora codice produttivo. I dettagli diventano vincolanti soltanto quando la spec viene scritta e accettata.
 

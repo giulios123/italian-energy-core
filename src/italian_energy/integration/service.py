@@ -47,6 +47,7 @@ from .current import (
     CurrentCatalogSnapshot,
     CurrentPortalComparisonRequest,
     CurrentPortalComparisonResult,
+    CurrentPreflightResult,
     CurrentRecommendationRequest,
     CurrentScenario,
     CurrentScenarioComparison,
@@ -237,6 +238,89 @@ class CurrentDomesticEnergyService:
                 CoreErrorCode.SOURCE_VALIDATION_FAILED,
                 "official Portale Offerte source validation failed",
             ) from exc
+
+    def preflight(
+        self,
+        request: CurrentPortalComparisonRequest,
+        catalog: CurrentCatalogSnapshot | None = None,
+    ) -> CurrentPreflightResult:
+        """Run the exact readiness checks consumed by :meth:`compare`.
+
+        This method performs no comparison and returns stable reason codes.  The
+        private validators are intentionally shared with ``compare`` so a request
+        cannot pass preflight and later fail for a different economic gate.
+        """
+
+        checks: dict[str, bool] = {
+            "request_contract": True,
+            "catalog_verified": True,
+            "historical_indexes": True,
+            "regulatory_coverage": True,
+            "future_horizon": True,
+        }
+        reasons: list[str] = []
+        period = future_period(request.as_of)
+        try:
+            self._validate_request(request)
+        except CoreContractError as exc:
+            checks["request_contract"] = False
+            reasons.append(exc.code.value)
+
+        snapshot = catalog
+        if snapshot is None:
+            checks["catalog_verified"] = False
+            checks["historical_indexes"] = False
+            reasons.append(CoreErrorCode.SOURCE_VALIDATION_FAILED.value)
+        else:
+            if (
+                snapshot.dataset_date > request.as_of
+                or snapshot.snapshot.offers.status.value != "verified"
+            ):
+                checks["catalog_verified"] = False
+                reasons.append(CoreErrorCode.SOURCE_VALIDATION_FAILED.value)
+            if snapshot.market_data is None:
+                checks["historical_indexes"] = False
+                reasons.append(CoreErrorCode.SOURCE_VALIDATION_FAILED.value)
+            else:
+                # Exercise the same historical-index projection used by
+                # ``compare`` so preflight cannot claim readiness when one of
+                # the three scenario horizons lacks twelve complete points.
+                try:
+                    for scenario in CurrentScenario:
+                        project_market_data(
+                            snapshot.market_data,
+                            request.as_of,
+                            scenario,
+                            request.stress_delta,
+                        )
+                except CoreContractError as exc:
+                    checks["historical_indexes"] = False
+                    reasons.append(exc.code.value)
+
+        try:
+            self._contract_for_period(request, period)
+        except CoreContractError as exc:
+            checks["future_horizon"] = False
+            reasons.append(exc.code.value)
+
+        try:
+            if checks["request_contract"]:
+                self._billing_artifacts(request, period)
+            else:
+                checks["regulatory_coverage"] = False
+        except CoreContractError as exc:
+            checks["regulatory_coverage"] = False
+            reasons.append(exc.code.value)
+
+        return CurrentPreflightResult(
+            ready=all(checks.values()),
+            as_of=request.as_of,
+            horizon=period,
+            checks=checks,
+            reason_codes=tuple(dict.fromkeys(reasons)),
+            continuation_required=(period.end > request.current_contract.validity.end),
+            coverage={"status": "verified" if checks["regulatory_coverage"] else "unavailable"},
+        )
 
     def compare(
         self,

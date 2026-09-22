@@ -19,6 +19,7 @@ from .current import (
     CurrentCatalogSnapshot,
     CurrentPortalComparisonRequest,
     CurrentPortalComparisonResult,
+    CurrentPreflightResult,
     CurrentRecommendationRequest,
     ProjectedMarketScenarioSet,
 )
@@ -41,6 +42,7 @@ type IntegrationPayload = (
     | CurrentPortalComparisonRequest
     | CurrentPortalComparisonResult
     | CurrentRecommendationRequest
+    | CurrentPreflightResult
 )
 
 
@@ -59,6 +61,7 @@ _SCHEMA_TO_MODEL: dict[CoreSchemaId, type[DomainModel]] = {
     CoreSchemaId.CURRENT_PORTAL_COMPARISON_REQUEST: CurrentPortalComparisonRequest,
     CoreSchemaId.CURRENT_PORTAL_COMPARISON_RESULT: CurrentPortalComparisonResult,
     CoreSchemaId.CURRENT_RECOMMENDATION_REQUEST: CurrentRecommendationRequest,
+    CoreSchemaId.CURRENT_PREFLIGHT_RESULT: CurrentPreflightResult,
 }
 _MODEL_TO_SCHEMA = {model: schema for schema, model in _SCHEMA_TO_MODEL.items()}
 

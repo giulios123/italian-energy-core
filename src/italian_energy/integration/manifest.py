@@ -28,6 +28,7 @@ class CoreCapability(StrEnum):
     PORTAL_OFFERS_IMPORT = "portal_offers_import"
     HISTORICAL_PORTAL_COMPARISON = "historical_portal_comparison"
     CURRENT_PORTAL_COMPARISON = "current_portal_comparison"
+    CURRENT_PORTAL_PREFLIGHT = "current_portal_preflight"
     DETERMINISTIC_RECOMMENDATION = "deterministic_recommendation"
 
 
@@ -48,6 +49,7 @@ class CoreSchemaId(StrEnum):
     CURRENT_PORTAL_COMPARISON_REQUEST = "italian-energy/current-portal-comparison-request/v1"
     CURRENT_PORTAL_COMPARISON_RESULT = "italian-energy/current-portal-comparison-result/v1"
     CURRENT_RECOMMENDATION_REQUEST = "italian-energy/current-recommendation-request/v1"
+    CURRENT_PREFLIGHT_RESULT = "italian-energy/current-preflight-result/v1"
 
 
 class CoreManifest(DomainModel):
