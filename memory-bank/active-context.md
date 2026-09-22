@@ -3,8 +3,10 @@
 Milestone tecnica corrente: Spec 011 Current Domestic Advisor v0.11.1. Il
 preflight tipizzato `CurrentDomesticEnergyService.preflight` è specificato,
 implementato e coperto; i gate locali passano (235 test, 95,16% branch coverage,
-Ruff, format, mypy e pre-commit). Commit, tag, push e pubblicazione PyPI sono
-ancora da completare. Il digest ARERA 2026 VERIFIED
+Ruff, format, mypy e pre-commit). Commit `3a6f1d5`, tag `v0.11.1`, push e release
+GitHub sono completati. Trusted Publishing OIDC ha pubblicato wheel/sdist su
+PyPI; gli hash PyPI coincidono con gli asset GitHub e l'import isolato passa.
+L'accettazione staging della Platform resta separata. Il digest ARERA 2026 VERIFIED
 congelato è `b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b`;
 copre 2026-01-01/2026-09-01, 256 valori e entrambi i segmenti.
 

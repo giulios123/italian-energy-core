@@ -1,12 +1,5 @@
 # Progress
 
-## In corso
-
-- Preparazione della release Core v0.11.1: preflight tipizzato del current
-  advisor, contratto additivo in Spec 011 e test regression inclusi; gate locali
-  verdi con 235 test e 95,16% branch coverage. Restano commit, push, tag/release
-  GitHub, pubblicazione PyPI OIDC e verifica degli artefatti.
-
 ## Completato
 
 - Struttura repository, packaging e CI definiti.
@@ -47,6 +40,11 @@
   localmente: manifest/capability, façade storica domestica BT, envelope JSON
   versionati e `CoreContractError` con codici stabili; nessuna modifica alla
   repository Platform.
+- Release Core `v0.11.1` completata: preflight tipizzato specificato, testato e
+  pubblicato; 235 test passano con 95,16% branch coverage e tutti i gate locali
+  sono verdi. Tag e release GitHub pubblicati, wheel/sdist/`SHA256SUMS` allegati,
+  Trusted Publishing OIDC riuscito, hash PyPI riconciliati e installazione
+  isolata verificata. L'accettazione staging Platform resta separata.
 - Corretto il setup CI/dev della suite ARERA: `openpyxl` è dichiarato nel
   gruppo `dev` oltre che nell'extra opzionale `arera`, senza aggiungerlo alle
   dipendenze della wheel base.

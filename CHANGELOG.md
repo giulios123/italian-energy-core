@@ -14,7 +14,10 @@
 
 - 235 tests pass with 95.16% branch coverage; Ruff, format, mypy,
   pre-commit, private golden, `git diff --check`, and wheel import smoke pass.
-- PyPI publication and Platform staging acceptance are separate release gates.
+- GitHub release assets include the wheel, sdist and `SHA256SUMS`. Trusted
+  Publishing OIDC run `35788003178` succeeded; PyPI hashes match the GitHub
+  artifacts and an isolated PyPI install/import smoke passed.
+- Platform staging acceptance remains a separate release gate.
 
 ## [0.11.0] - 2026-09-13
 
