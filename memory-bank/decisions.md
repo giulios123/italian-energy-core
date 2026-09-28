@@ -79,7 +79,8 @@
 - `defusedxml` è dipendenza base per il percorso Portale; `openpyxl` resta
   esclusivamente nell'extra `arera`, con import ARERA lazy per mantenere il base
   installabile senza XLSX.
-- La Spec 011 separa il confronto prospettico dal replay storico: l'orizzonte
+- La proposta forward del confronto prospettico è ora Spec 012 differita e
+  separata dal replay storico: l'orizzonte
   è di dodici mesi civili da `activation_date`, mentre il catalogo è riferito a
   `quote_date`.
 - Consumo futuro, schedule della baseline e curve forward sono input tipizzati
@@ -88,6 +89,10 @@
 - Le componenti regolatorie e fiscali sono congelate dai valori verificati
   attivi alla `quote_date`; l'applicazione futura resta una proiezione assunta
   e senza anchor verificato il confronto fallisce chiuso.
+- La Spec 013 governa la beta su consumi e indici storici associati per lo
+  stesso mese dell'anno; usa moltiplicatori 0,80/1,00/1,20 e raccomanda solo
+  sul base con filtri e soglie Spec 009/011. Anchor regolatorio e fiscale
+  verificato ad `as_of` resta un'assunzione esplicita nei mesi futuri.
 - La recommendation prospettica può selezionare `switch` solo se la stessa
   candidata è calcolabile e supera la soglia minima inclusiva in tutti gli
   scenari. Durata economica assente significa assunzione esplicita di dodici

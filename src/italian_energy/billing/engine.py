@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Protocol
 
 from italian_energy.domain.base import DomainModel
@@ -30,6 +31,7 @@ class BillingRequest(DomainModel):
     measurements: tuple[BillingMeasure, ...] = ()
     external_items: tuple[ExternalBillItem, ...] = ()
     rounding_policy: RoundingPolicy | None = None
+    regulatory_projection_as_of: date | None = None
 
 
 class BillingEngine(Protocol):

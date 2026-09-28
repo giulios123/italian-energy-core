@@ -32,6 +32,17 @@ from .manifest import (
     CoreSchemaId,
 )
 from .models import HistoricalPortalComparisonRequest, HistoricalRecommendationRequest
+from .projected import (
+    ProjectedComparisonAssumptions,
+    ProjectedDomesticComparisonRequest,
+    ProjectedDomesticComparisonResult,
+    ProjectedDomesticPreflightResult,
+    ProjectedDomesticRecommendationRequest,
+    ProjectedDomesticRecommendationResult,
+    ProjectedScenarioComparison,
+    ProjectedVerifiedInputs,
+)
+from .projected_service import ProjectedDomesticEnergyService
 from .serialization import IntegrationPayload, dump_envelope, load_envelope, supported_schema_ids
 from .service import (
     DEFAULT_PERCENTAGE_ROUNDING_POLICY,
@@ -70,7 +81,16 @@ __all__ = [
     "HistoricalRecommendationRequest",
     "IntegrationPayload",
     "PortalComparisonResult",
+    "ProjectedComparisonAssumptions",
+    "ProjectedDomesticComparisonRequest",
+    "ProjectedDomesticComparisonResult",
+    "ProjectedDomesticEnergyService",
+    "ProjectedDomesticPreflightResult",
+    "ProjectedDomesticRecommendationRequest",
+    "ProjectedDomesticRecommendationResult",
     "ProjectedMarketScenarioSet",
+    "ProjectedScenarioComparison",
+    "ProjectedVerifiedInputs",
     "Recommendation",
     "RecommendationPreferences",
     "SupplyPoint",

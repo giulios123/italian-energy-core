@@ -446,7 +446,10 @@ def _charge_provenance(charge: AreraChargeValue) -> tuple[Provenance, ...]:
         cell=charge.source.cell,
         section=charge.source.label,
     )
-    return tuple(item.model_copy(update={"locator": locator}) for item in charge.provenance)
+    return tuple(
+        item if item.locator is not None else item.model_copy(update={"locator": locator})
+        for item in charge.provenance
+    )
 
 
 def _composition_provenance(

@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, ClassVar, cast
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -223,6 +224,7 @@ def test_future_horizon_is_next_twelve_complete_months() -> None:
 def test_consumption_and_market_scenarios_shift_and_scale() -> None:
     projected = project_consumption(_profile(), AS_OF)
     assert projected.buckets[0].interval.start.date() == date(2026, 10, 1)
+    assert projected.buckets[0].interval.start.tzinfo == ZoneInfo("Europe/Rome")
     assert projected.buckets[-1].interval.start.date() == date(2027, 9, 1)
     low = project_market_data(_market_data(), AS_OF, CurrentScenario.LOW_INDEX, Decimal("0.20"))
     base = project_market_data(_market_data(), AS_OF, CurrentScenario.BASE, Decimal("0.20"))
@@ -231,6 +233,80 @@ def test_consumption_and_market_scenarios_shift_and_scale() -> None:
     assert base.points[0].value == Decimal("0.10")
     assert high.points[0].value == Decimal("0.120")
     assert low.points[0].interval.start.date() == date(2026, 10, 1)
+
+
+def test_projection_pairs_consumption_and_indexes_by_calendar_month() -> None:
+    source = _market_data()
+    monthly = MarketData(
+        indexes=source.indexes,
+        points=tuple(
+            point.model_copy(update={"value": Decimal(point.interval.start.month)})
+            for point in source.points
+        ),
+    )
+
+    projected = project_market_data(monthly, AS_OF, CurrentScenario.BASE, Decimal("0.20"))
+    projected_consumption = project_consumption(_profile(), AS_OF)
+
+    assert projected.points[0].interval.start.date() == date(2026, 10, 1)
+    assert projected.points[0].value == Decimal(10)
+    assert projected.points[-1].interval.start.date() == date(2027, 9, 1)
+    assert projected.points[-1].value == Decimal(9)
+    assert projected_consumption.buckets[0].interval.start.date() == date(2026, 10, 1)
+    assert projected_consumption.buckets[-1].interval.start.date() == date(2027, 9, 1)
+
+
+def test_market_projection_rejects_twelve_points_from_stale_window() -> None:
+    shifted = tuple(
+        point.model_copy(
+            update={
+                "interval": TimeInterval(
+                    start=datetime(
+                        point.interval.start.year - 1,
+                        point.interval.start.month,
+                        1,
+                        tzinfo=UTC,
+                    ),
+                    end=datetime(
+                        point.interval.end.year - 1,
+                        point.interval.end.month,
+                        1,
+                        tzinfo=UTC,
+                    ),
+                )
+            }
+        )
+        for point in _market_data().points
+    )
+    stale = MarketData(indexes=_market_data().indexes, points=shifted)
+    with pytest.raises(Exception, match="twelve latest consecutive"):
+        project_market_data(stale, AS_OF, CurrentScenario.BASE, Decimal("0.20"))
+
+
+def test_market_projection_rejects_internal_month_gap() -> None:
+    data = _market_data()
+    points = list(data.points)
+    points[5] = points[4].model_copy(update={"interval": points[4].interval})
+    gapped = MarketData.model_construct(indexes=data.indexes, points=tuple(points))
+    with pytest.raises(Exception, match="twelve latest consecutive"):
+        project_market_data(gapped, AS_OF, CurrentScenario.BASE, Decimal("0.20"))
+
+
+def test_market_projection_rejects_duplicate_recent_months() -> None:
+    data = _market_data()
+    points = list(data.points)
+    points[5] = points[4].model_copy(
+        update={
+            "interval": TimeInterval(
+                start=points[4].interval.start,
+                end=points[4].interval.end,
+            )
+        }
+    )
+    duplicate = MarketData.model_construct(indexes=data.indexes, points=tuple(points))
+
+    with pytest.raises(Exception, match="twelve latest consecutive"):
+        project_market_data(duplicate, AS_OF, CurrentScenario.BASE, Decimal("0.20"))
 
 
 def test_current_request_rejects_incomplete_history() -> None:

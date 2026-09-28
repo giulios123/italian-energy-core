@@ -1322,3 +1322,73 @@ def test_profile_power_boundaries_are_unambiguous() -> None:
     assert selected("1.5") == "le-1.5"
     assert selected("3") == "gt-1.5-le-3"
     assert selected("3.1") == "gt-3"
+
+
+def test_billing_can_explicitly_apply_a_verified_anchor_as_a_future_assumption() -> None:
+    future = DatePeriod(start=date(2026, 2, 1), end=date(2026, 3, 1))
+    anchored_rule = linear(
+        "anchor-network",
+        BillingBasis.PER_KWH,
+        UnitRate(amount=Decimal("0.01"), unit=RateUnit.EUR_PER_KWH),
+        quota=BillingQuota.CONSUMPTION,
+    )
+    source_ruleset = ruleset(anchored_rule)
+    source_contract = contract()
+    future_contract = source_contract.model_copy(
+        update={
+            "validity": future,
+            "tariff": source_contract.tariff.model_copy(update={"validity": future}),
+        }
+    )
+    source_pricing = pricing_result()
+    future_pricing = source_pricing.model_copy(
+        update={
+            "period": future,
+            "breakdown": source_pricing.breakdown.model_copy(
+                update={
+                    "components": tuple(
+                        component.model_copy(update={"period": future})
+                        for component in source_pricing.breakdown.components
+                    )
+                }
+            ),
+        }
+    )
+    future_request = BillingRequest(
+        contract=future_contract,
+        consumption=ConsumptionProfile(
+            profile_id="projected-consumption",
+            buckets=(
+                ConsumptionBucket(
+                    interval=TimeInterval(
+                        start=datetime(2026, 2, 1, tzinfo=ROME),
+                        end=datetime(2026, 3, 1, tzinfo=ROME),
+                    ),
+                    energy=EnergyQuantity(kwh=Decimal("100")),
+                    granularity=Granularity.MONTH,
+                ),
+            ),
+        ),
+        period=future,
+        pricing_result=future_pricing,
+        classification=SupplyClassification(
+            contract_type_code="domestic_bt_resident",
+            voltage_level=VoltageLevel.BT,
+            usage_code="domestic",
+            residential=True,
+        ),
+        rule_set=source_ruleset,
+        rounding_policy=POLICY,
+        regulatory_projection_as_of=date(2026, 1, 15),
+    )
+
+    result = RegulatoryBillingEngine().evaluate(future_request)
+
+    network_component = next(
+        component
+        for component in result.bill.breakdown.components
+        if component.code.endswith("anchor-network")
+    )
+    assert network_component.amount == Money(amount=Decimal("1.00"))
+    assert network_component.period == future
+    assert any("regulatory_projection_as_of=2026-01-15" in item for item in result.assumptions)

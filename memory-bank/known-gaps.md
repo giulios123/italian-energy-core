@@ -37,15 +37,26 @@
 - La façade d'integrazione v0.10 supporta replay storici conclusi; il current
   advisor v0.11 aggiunge soltanto scenari deterministici basati sugli ultimi
   dodici mesi e non è un forecast di mercato.
-- La specifica documentale `011-prospective-comparison.md` non è implementata:
+- La proposta differita `specs/012-prospective-comparison.md` non è implementata:
   schedule della baseline, curve forward e recommendation robusta restano una
   milestone futura da numerare separatamente.
-- Un confronto prospettico operativo richiederà un anchor ARERA verificato
-  efficace alla `quote_date`; lo snapshot locale attuale termina il 2026-09-01
-  e non può essere esteso automaticamente.
-- Le curve forward base/stress e il profilo di consumo futuro devono essere
-  forniti dal caller con provenance o assunzioni; il Core non produce forecast.
+- La Spec 013 è inclusa nella release Core `v0.12.0`; la verifica live del
+  2026-09-27 ha completato i 12 mesi PUN e l'anchor ARERA/fiscale di settembre.
+  Il confronto live con consumi e contratto di un cliente resta da eseguire con un envelope
+  `ProjectedDomesticComparisonRequest`; non è stato fornito input utente.
+- La copertura di mapping live è PUN mensile; i report GME F1/F2/F3 sono distinti
+  e non vengono associati automaticamente a codici d'offerta. Indici non
+  supportati escludono la singola offerta con motivo; dati mancanti della
+  baseline bloccano il confronto. Il CSV indici del Portale arriva a giugno 2026
+  e non sostituisce la serie GME richiesta per settembre 2025–agosto 2026.
+- La validità dell'ancora regolatoria/fiscale resta quella verificata al mese di
+  `as_of`; applicarla da ottobre 2026 in poi è un'assunzione esplicita, non una
+  verifica normativa futura. Aggiornare data e fonti prima di confronti con un
+  diverso `as_of`.
+- La proposta forward della Spec 012 richiede curve base/stress e consumo
+  futuro forniti dal caller; la beta Spec 013 non produce forecast.
 - Il contratto JSON v1 è fail-closed e non migra payload automaticamente; una
   modifica incompatibile richiederà un nuovo schema ID o una nuova versione.
-- L'adapter della repository Platform verso `italian-energy>=0.11,<0.12` non è
-  ancora implementato per scelta di perimetro della Spec 010.
+- L'adapter della repository Platform verso la capability prospettica non è
+  ancora implementato. Il vincolo attuale `italian-energy>=0.11.1,<0.12.0`
+  esclude `v0.12.0` e dovrà essere aggiornato nella milestone Platform.

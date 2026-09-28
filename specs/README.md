@@ -19,6 +19,8 @@ Le specifiche sono il contratto normativo del progetto. Una funzionalità rileva
 | 009 | Recommendation Engine | Implementata localmente in `v0.9.0`; preferenze strutturate, shortlist deterministica e adapter dal Portale Offerte |
 | 010 | Contratto d'integrazione Core–Platform | Implementata localmente in `v0.10.0`; manifest, façade storica, envelope JSON e errori stabili |
 | 011 | Current Domestic Advisor | Rilasciata in `v0.11.1`; scenari deterministici, snapshot verificati, preflight tipizzato ed envelope correnti |
+| 012 | Confronto prospettico con forward e recommendation robusta | Differita; solo documentale, non implementata |
+| 013 | Confronto beta con scenari storici | Rilasciata in `v0.12.0`; fonti live e gate Core verificati |
 
 Le spec pianificate non autorizzano ancora codice produttivo. I dettagli diventano vincolanti soltanto quando la spec viene scritta e accettata.
 
@@ -36,8 +38,13 @@ La 011 aggiunge il percorso corrente a scenari, mantenendo separata la
 proiezione deterministica dalle previsioni e fallendo chiuso in assenza di
 copertura regolatoria futura verificata.
 
-È inoltre presente la specifica documentale
-`011-prospective-comparison.md`, che definisce un percorso prospettico
-multi-scenario con orizzonte da attivazione e recommendation robusta. Resta
-document-only e non fa parte della release `v0.11.0`; il suo eventuale codice
-dovrà ricevere una numerazione/versione distinta prima dell'implementazione.
+La 012 conserva come progetto differito il percorso basato su schedule e
+scenari forward forniti dal caller. La 013 definisce invece la beta basata sui
+dodici mesi storici, con assunzioni stagionali e regolatorie esplicite; non
+modifica gli envelope storici né il replay concluso.
+
+La Spec 013 aggiunge una capability e schemi prospettici tipizzati senza
+modificare gli envelope storici rilasciati. Acquisizione live GME, anchor
+ARERA/fiscale e test locali sono verificati; il confronto con dati di un cliente
+richiede un envelope request esplicito e non è certificato dal solo riepilogo
+delle fonti. La capability è inclusa nel package `v0.12.0`.

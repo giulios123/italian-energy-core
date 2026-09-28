@@ -1,5 +1,33 @@
 # Changelog
 
+## [Unreleased]
+
+## [0.12.0] - 2026-09-28
+
+### Added
+
+- Comando `python -m italian_energy.integration.catalog_cli --date YYYY-MM-DD`
+  per il catalogo reale, riepilogo delle cinque fonti e copertura degli indici,
+  con errori espliciti e senza fallback a un'altra data.
+- Spec 013: confronto prospettico additivo su dodici mesi storici consecutivi,
+  scenari d'indice 0,80/1,00/1,20, anchor regolatoria e fiscale puntuale,
+  costi stimati, nuovi envelope e capability Core.
+- Importer GME per report mensili PUN e medie F1/F2/F3, con mapping e unità
+  distinti; comando `projection_cli --verify-sources` per verifica live di
+  catalogo, storico, definizione d'indice e fonti ARERA/ADM/Normattiva.
+- La Spec 012 prospettica con forward e recommendation robusta resta differita;
+  gli envelope storici e il Current Domestic Advisor restano compatibili.
+
+### Verification
+
+- 311 test passano con 95,22% di branch coverage; Ruff, format, mypy,
+  `git diff --check`, golden privati e smoke degli extra `gme`/`arera` passano.
+- La verifica live del 2026-09-27 ha validato catalogo, dodici mesi GME
+  consecutivi e anchor ARERA/fiscale. Non è stato fornito un envelope cliente,
+  quindi non è stata eseguita una comparazione personalizzata.
+- GitHub Release e PyPI pubblicati tramite Trusted Publishing; wheel, sdist e
+  `SHA256SUMS` sono allegati alla release GitHub.
+
 ## [0.11.1] - 2026-09-22
 
 ### Added

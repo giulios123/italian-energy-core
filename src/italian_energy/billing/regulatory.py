@@ -138,6 +138,10 @@ class RegulatoryBillingEngine:
             self._commercial_component(component) for component in pricing.breakdown.components
         ]
         assumptions = list(pricing.assumptions) + list(request.contract.conditions)
+        if request.regulatory_projection_as_of is not None:
+            assumptions.append(
+                f"regulatory_projection_as_of={request.regulatory_projection_as_of.isoformat()}"
+            )
         warnings = list(pricing.warnings)
         provenance_groups: list[Iterable[Provenance]] = [
             pricing.provenance,
@@ -153,7 +157,7 @@ class RegulatoryBillingEngine:
             if isinstance(rule, (LinearRegulatoryRule, ThresholdRegulatoryRule))
         )
         for rule in linear_and_threshold:
-            window = self._rule_window(request.period, rule.validity)
+            window = self._request_rule_window(request, rule.validity)
             if window is None:
                 continue
             if isinstance(rule, LinearRegulatoryRule):
@@ -187,7 +191,7 @@ class RegulatoryBillingEngine:
         while pending_percentages:
             progressed = False
             for percentage_rule in tuple(pending_percentages):
-                window = self._rule_window(request.period, percentage_rule.validity)
+                window = self._request_rule_window(request, percentage_rule.validity)
                 if window is None:
                     pending_percentages.remove(percentage_rule)
                     progressed = True
@@ -208,7 +212,7 @@ class RegulatoryBillingEngine:
                 progressed = True
             if not progressed:
                 percentage_rule = pending_percentages[0]
-                percentage_window = self._rule_window(request.period, percentage_rule.validity)
+                percentage_window = self._request_rule_window(request, percentage_rule.validity)
                 if percentage_window is None:  # pragma: no cover - removed above
                     raise BillingError(f"percentage rule {percentage_rule.code} has no window")
                 missing = self._percentage_missing_reference(
@@ -290,13 +294,24 @@ class RegulatoryBillingEngine:
             raise BillingError("regulatory rule set is not verified")
         if not ruleset.provenance:
             raise BillingError("regulatory rule set provenance is missing")
-        if (
-            request.period.start < ruleset.validity.start
-            or request.period.end > ruleset.validity.end
-        ):
-            raise BillingError("billing period is outside regulatory rule set validity")
+        projection_anchor = request.regulatory_projection_as_of
+        if projection_anchor is None:
+            if (
+                request.period.start < ruleset.validity.start
+                or request.period.end > ruleset.validity.end
+            ):
+                raise BillingError("billing period is outside regulatory rule set validity")
+        else:
+            if not (ruleset.validity.start <= projection_anchor < ruleset.validity.end):
+                raise BillingError("regulatory projection anchor is outside ruleset validity")
+            if request.period.start <= projection_anchor:
+                raise BillingError("regulatory projection period must follow its anchor")
         parameters = {parameter.code: parameter for parameter in ruleset.parameters}
         for rule in profile.rules:
+            if projection_anchor is not None and not (
+                rule.validity.start <= projection_anchor < rule.validity.end
+            ):
+                continue
             if rule.status != VerificationStatus.VERIFIED:
                 raise BillingError(f"regulatory rule {rule.code} is not verified")
             if not rule.provenance:
@@ -309,11 +324,16 @@ class RegulatoryBillingEngine:
                     raise BillingError(f"regulatory parameter {code} is not verified")
                 if not parameter.provenance:
                     raise BillingError(f"regulatory parameter {code} provenance is missing")
-                if (
-                    request.period.start < parameter.validity.start
-                    or request.period.end > parameter.validity.end
-                ):
-                    raise BillingError(f"regulatory parameter {code} does not cover billing period")
+                if projection_anchor is None:
+                    if (
+                        request.period.start < parameter.validity.start
+                        or request.period.end > parameter.validity.end
+                    ):
+                        raise BillingError(
+                            f"regulatory parameter {code} does not cover billing period"
+                        )
+                elif not (parameter.validity.start <= projection_anchor < parameter.validity.end):
+                    raise BillingError(f"regulatory parameter {code} does not cover anchor")
 
     def _selected_buckets(self, request: BillingRequest) -> tuple[ConsumptionBucket, ...]:
         start = datetime.combine(request.period.start, time.min, ROME)
@@ -336,6 +356,17 @@ class RegulatoryBillingEngine:
         if end <= start:
             return None
         return DatePeriod(start=start, end=end)
+
+    @classmethod
+    def _request_rule_window(
+        cls, request: BillingRequest, validity: DatePeriod
+    ) -> DatePeriod | None:
+        anchor = request.regulatory_projection_as_of
+        if anchor is None:
+            return cls._rule_window(request.period, validity)
+        if not (validity.start <= anchor < validity.end):
+            return None
+        return request.period
 
     @staticmethod
     def _commercial_component(component: CostComponent) -> CostComponent:

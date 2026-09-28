@@ -2,6 +2,10 @@
 
 ## Completato
 
+- Release Core `v0.12.0` del 2026-09-28: Spec 013 beta storica, importer GME,
+  anchor regolatoria/fiscale, servizio e envelope prospettici inclusi. GitHub
+  Release con wheel/sdist/`SHA256SUMS`; PyPI pubblicato tramite Trusted
+  Publishing OIDC. La Platform non è stata modificata.
 - Struttura repository, packaging e CI definiti.
 - Spec 001 e ADR iniziali scritti.
 - Domain core, test unitari e property-based implementati localmente.
@@ -126,3 +130,49 @@
 - Workflow `Publish to PyPI` eseguito con successo per `v0.11.0`: wheel e sdist
   sono presenti su PyPI; API metadata 200 e smoke import isolato da PyPI
   restituisce `italian_energy.__version__ == 0.11.0`.
+
+## Catalogo reale — 2026-09-27
+
+- Comando di acquisizione esatta con riepilogo JSON e errori Core espliciti,
+  specificato nell'addendum operativo della Spec 008.
+- Live Portale: 4.478 record, 156 punti indice, cinque file ufficiali; PUN e PE
+  coprono gennaio 2020–giugno 2026. Persistenza nella Platform verificata tramite
+  rilettura dei cinque file e validazione dei digest.
+- Live ARERA: VERIFIED, stesso digest congelato, periodo 2026-01-01/2026-09-01.
+- Scelta utente: beta con scenari storici base/-20%/+20%; acquisizione del
+  catalogo e copertura economica restano verifiche separate.
+- Verifica finale: 240 test passano, branch coverage 95,21%; Ruff check,
+  format-check, mypy src/tests e git diff --check passano. Il nuovo comando è
+  stato eseguito anche sul catalogo live 2026-09-27. Nessun commit, cambio di
+  versione o pubblicazione.
+
+## Specifica beta storica — 2026-09-27
+
+- Risolto il doppio uso di 011: il Current Domestic Advisor rilasciato resta
+  Spec 011; proposta forward e robusta rinumerata Spec 012 e differita.
+- Aggiunte Spec 013 e ADR 0016 con confronto dei 12 mesi recenti e consecutivi,
+  ripetizione sullo stesso mese, indici x0,80/x1,00/x1,20, anchor ARERA/fiscale
+  puntuale e recommendation solo base.
+- Il lavoro comprende importer GME e fonti regolatorie/fiscali correnti,
+  output stimato additivo, CLI live, test dedicati e gate Core; è incluso nella
+  release Core `v0.12.0`.
+- Verifica live ufficiale: `projection_cli --date 2026-09-27 --verify-sources`
+  ha restituito `verified`. Catalogo Portale: 4.478 offerte e 156 punti indice;
+  snapshot `portal-snapshot:d425ff802cf6233ff1e86711718e91848b6d4664f1ddd129446376324e351d86`.
+- GME: PUN Index GME mensile MGP Baseload, unità EUR/MWh convertita con
+  `Decimal` in EUR/kWh, esattamente settembre 2025–agosto 2026; dodici mesi
+  consecutivi senza buchi o duplicati. Prezzi medi GME per fascia di luglio e
+  agosto 2026 acquisiti e verificati come serie distinta, senza auto-mapping
+  alle offerte.
+- Anchor: fonti 575/2025, 588/2025 e 227/2026 ARERA, ADM 18 settembre 2026,
+  TUA D.Lgs. 43/2025 e decreto 26A01335, DPR 633/1972 Tabella A e art. 16
+  Normattiva fissati al 27 settembre 2026. Otto digest live corrispondono;
+  validità dell'anchor 2026-09-01/2026-10-01, usata in futuro solo come
+  assunzione. L'aliquota IVA domestica del 10% è supportata separatamente da
+  Tabella A n. 103 e art. 16.
+- Verifica sintetica e gate: 311 test passano, branch coverage 95,22%, Ruff
+  check/format, mypy e `git diff --check` verdi. Entrambi i golden privati e
+  smoke dipendenze opzionali (`openpyxl` 3.1.5, `pypdf` 6.19.0) passano.
+- La CLI live ha verificato le fonti, non una bolletta personale: nessun
+  `ProjectedDomesticComparisonRequest` con dati utente è stato fornito. La
+  Platform non è stata modificata.

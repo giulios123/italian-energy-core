@@ -1,11 +1,9 @@
-# Spec 011 — Confronto prospettico e raccomandazione robusta v0.11
+# Spec 012 — Confronto prospettico e raccomandazione robusta
 
 ## Stato
 
-Specifica normativa v0.11.0 preparata. La scrittura della spec non autorizza
-l'implementazione, il bump della versione del package o modifiche alla
-repository Platform. Commit, tag, push, release e pubblicazione restano
-operazioni separate.
+Proposta differita, non implementata. La beta autorizzata dalla Spec 013 usa
+scenari storici; non attivare queste semantiche senza una decisione successiva.
 
 ## Contesto
 
@@ -40,7 +38,7 @@ forniti dal caller, mantenendo separati:
 Il Core non acquisisce curve forward, non genera previsioni e non modifica la
 semantica del replay storico.
 
-## Perimetro v0.11
+## Perimetro proposto e differito
 
 Incluso:
 

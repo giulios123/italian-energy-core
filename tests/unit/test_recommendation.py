@@ -300,6 +300,21 @@ def test_recommendation_id_is_invariant_to_evidence_order_and_comparison_is_unch
     assert comparison.ranking == ("a", "b")
 
 
+def test_percentage_threshold_has_a_canonical_recommendation_id() -> None:
+    result = DeterministicRecommendationEngine().recommend(
+        RecommendationRequest(
+            comparison=_comparison(alternatives=(("a", "90.00", "10.00"),)),
+            preferences=RecommendationPreferences(
+                minimum_savings=Money(amount=Decimal("1.00")),
+                minimum_percentage_savings=Decimal("5.0"),
+            ),
+        )
+    )
+
+    assert result.selected_offer_id == "a"
+    assert result.recommendation_id.startswith("recommendation:")
+
+
 def test_incomplete_comparison_is_rejected() -> None:
     incomplete = _comparison(alternatives=(("a", "90.00", "10.00"),)).model_copy(
         update={"current_comparable_total": None}

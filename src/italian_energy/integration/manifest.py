@@ -29,6 +29,9 @@ class CoreCapability(StrEnum):
     HISTORICAL_PORTAL_COMPARISON = "historical_portal_comparison"
     CURRENT_PORTAL_COMPARISON = "current_portal_comparison"
     CURRENT_PORTAL_PREFLIGHT = "current_portal_preflight"
+    PROJECTED_DOMESTIC_COMPARISON = "projected_domestic_comparison"
+    PROJECTED_DOMESTIC_PREFLIGHT = "projected_domestic_preflight"
+    PROJECTED_DOMESTIC_RECOMMENDATION = "projected_domestic_recommendation"
     DETERMINISTIC_RECOMMENDATION = "deterministic_recommendation"
 
 
@@ -50,6 +53,17 @@ class CoreSchemaId(StrEnum):
     CURRENT_PORTAL_COMPARISON_RESULT = "italian-energy/current-portal-comparison-result/v1"
     CURRENT_RECOMMENDATION_REQUEST = "italian-energy/current-recommendation-request/v1"
     CURRENT_PREFLIGHT_RESULT = "italian-energy/current-preflight-result/v1"
+    PROJECTED_DOMESTIC_COMPARISON_REQUEST = (
+        "italian-energy/projected-domestic-comparison-request/v1"
+    )
+    PROJECTED_DOMESTIC_COMPARISON_RESULT = "italian-energy/projected-domestic-comparison-result/v1"
+    PROJECTED_DOMESTIC_PREFLIGHT_RESULT = "italian-energy/projected-domestic-preflight-result/v1"
+    PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST = (
+        "italian-energy/projected-domestic-recommendation-request/v1"
+    )
+    PROJECTED_DOMESTIC_RECOMMENDATION_RESULT = (
+        "italian-energy/projected-domestic-recommendation-result/v1"
+    )
 
 
 class CoreManifest(DomainModel):

@@ -2,12 +2,13 @@
 
 ## Stato
 
-Accettato come decisione normativa per la Spec 011 v0.11.0. L'implementazione
-resta una milestone successiva.
+Proposta differita della Spec 012. Superata per la beta dalla decisione ADR
+0016; non attivare il contratto forward o la recommendation robusta senza una
+nuova approvazione.
 
 ## Decisione
 
-Il Core introduce un percorso prospettico separato dal replay storico v0.10.
+La proposta introdurrebbe un percorso prospettico separato dal replay storico v0.10.
 L'orizzonte canonico è il primo anno civile a partire da `activation_date`,
 con catalogo Portale riferito a `quote_date`.
 
@@ -28,8 +29,8 @@ durata economica assente è assunta a dodici mesi per fixed e indexed, con
 warning e provenance; una durata esplicita inferiore a dodici mesi esclude la
 candidata.
 
-La superficie `italian_energy.integration` e il contratto JSON v1 vengono
-estesi additivamente con nuovi aggregati, schema ID e capability prospettiche.
+Se ripresa, la superficie `italian_energy.integration` e il contratto JSON v1
+verrebbero estesi additivamente con nuovi aggregati, schema ID e capability prospettiche.
 Le API storiche, la Recommendation 009 e la repository Platform non vengono
 modificate semanticamente.
 

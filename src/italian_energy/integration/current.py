@@ -11,6 +11,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Self
+from zoneinfo import ZoneInfo
 
 from pydantic import Field, field_validator, model_validator
 
@@ -33,6 +34,8 @@ from italian_energy.portal_offers.models import (
 from italian_energy.recommendation import RecommendationPreferences
 
 from .errors import CoreContractError, CoreErrorCode
+
+_ITALIAN_TIMEZONE = ZoneInfo("Europe/Rome")
 
 
 class CurrentScenario(StrEnum):
@@ -188,7 +191,16 @@ def _add_months(value: date, months: int) -> date:
 
 
 def _month_start(value: datetime, target: date) -> datetime:
-    return datetime(target.year, target.month, 1, tzinfo=value.tzinfo)
+    """Use Italian civil-month boundaries required by domestic billing rules."""
+    del value
+    return datetime(target.year, target.month, 1, tzinfo=_ITALIAN_TIMEZONE)
+
+
+def _same_calendar_month_target(source_month: date, as_of: date) -> date:
+    """Repeat an observation in the future month with the same calendar number."""
+    horizon_start = future_period(as_of).start
+    target_year = horizon_start.year + (source_month.month < horizon_start.month)
+    return date(target_year, source_month.month, 1)
 
 
 def _validate_history(profile: ConsumptionProfile, as_of: date) -> None:
@@ -241,21 +253,15 @@ def future_period(as_of: date) -> DatePeriod:
 
 
 def project_consumption(profile: ConsumptionProfile, as_of: date) -> ConsumptionProfile:
-    """Shift twelve historical monthly buckets onto the future horizon."""
-
-    cutoff = _first_of_month(as_of)
+    """Repeat each historical consumption month in its future calendar month."""
     ordered = sorted(profile.buckets, key=lambda item: item.interval.start)
     output: list[ConsumptionBucket] = []
     for bucket in ordered:
-        offset = (
-            bucket.interval.start.year * 12
-            + bucket.interval.start.month
-            - (cutoff.year * 12 + cutoff.month)
-        )
-        target = _add_months(future_period(as_of).start, offset + 12)
+        target = _same_calendar_month_target(bucket.interval.start.date(), as_of)
         start = _month_start(bucket.interval.start, target)
         end = _month_start(bucket.interval.start, _add_months(target, 1))
         output.append(bucket.model_copy(update={"interval": TimeInterval(start=start, end=end)}))
+    output.sort(key=lambda item: (item.interval.start, item.band))
     return profile.model_copy(update={"buckets": tuple(output)})
 
 
@@ -265,9 +271,8 @@ def project_market_data(
     scenario: CurrentScenario,
     stress_delta: Decimal,
 ) -> MarketData:
-    """Shift the latest twelve complete monthly points and apply the scenario delta."""
+    """Repeat matching calendar months from the exact recent window and scale the index."""
 
-    horizon = future_period(as_of)
     cutoff = _first_of_month(as_of)
     points: list[MarketDataPoint] = []
     for index in market_data.indexes:
@@ -279,18 +284,30 @@ def project_market_data(
             ),
             key=lambda point: point.interval.start,
         )[-12:]
-        if len(history) != 12:
+        expected_starts = tuple(_add_months(cutoff, -offset) for offset in range(12, 0, -1))
+        actual_starts = tuple(point.interval.start.date().replace(day=1) for point in history)
+        if (
+            len(history) != 12
+            or actual_starts != expected_starts
+            or any(
+                point.interval.start.date() != point.interval.start.date().replace(day=1)
+                or point.interval.end.date() != _add_months(point.interval.start.date(), 1)
+                or point.interval.start.tzinfo is None
+                or point.interval.end.tzinfo is None
+                for point in history
+            )
+        ):
             raise CoreContractError(
                 CoreErrorCode.COVERAGE_UNAVAILABLE,
-                f"market index {index.code} lacks twelve complete historical months",
+                f"market index {index.code} lacks twelve latest consecutive complete months",
             )
         multiplier = {
             CurrentScenario.LOW_INDEX: Decimal(1) - stress_delta,
             CurrentScenario.BASE: Decimal(1),
             CurrentScenario.HIGH_INDEX: Decimal(1) + stress_delta,
         }[scenario]
-        for offset, source in enumerate(history):
-            target = _add_months(horizon.start, offset)
+        for source in history:
+            target = _same_calendar_month_target(source.interval.start.date(), as_of)
             start = datetime(target.year, target.month, 1, tzinfo=source.interval.start.tzinfo)
             end_date = _add_months(target, 1)
             end = datetime(end_date.year, end_date.month, 1, tzinfo=source.interval.end.tzinfo)
@@ -302,6 +319,7 @@ def project_market_data(
                     }
                 )
             )
+    points.sort(key=lambda item: (item.interval.start, item.index_code))
     return MarketData(indexes=market_data.indexes, points=tuple(points))
 
 

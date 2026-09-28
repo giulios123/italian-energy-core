@@ -1,14 +1,54 @@
 # Active context
 
-Milestone tecnica corrente: Spec 011 Current Domestic Advisor v0.11.1. Il
-preflight tipizzato `CurrentDomesticEnergyService.preflight` è specificato,
-implementato e coperto; i gate locali passano (235 test, 95,16% branch coverage,
-Ruff, format, mypy e pre-commit). Commit `3a6f1d5`, tag `v0.11.1`, push e release
-GitHub sono completati. Trusted Publishing OIDC ha pubblicato wheel/sdist su
-PyPI; gli hash PyPI coincidono con gli asset GitHub e l'import isolato passa.
-L'accettazione staging della Platform resta separata. Il digest ARERA 2026 VERIFIED
-congelato è `b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b`;
-copre 2026-01-01/2026-09-01, 256 valori e entrambi i segmenti.
+Release Core `v0.12.0` del 2026-09-28: Spec 013, importer GME, anchor
+ARERA/fiscale, envelope e CLI di verifica sono inclusi nel package. La release
+GitHub allega wheel, sdist e checksum; PyPI viene pubblicato dal workflow OIDC.
+La Platform non è stata modificata e il suo vincolo `<0.12.0` richiede
+allineamento prima di consumare questa versione. Nessun envelope cliente è
+stato fornito per il confronto personalizzato.
+
+Milestone completata localmente (2026-09-27): Spec 013 `Confronto beta
+domestico con scenari storici`, ADR 0016 e capability additiva in Core. Il
+metodo congelato è: 12 mesi civili recenti e consecutivi, proiezione sul
+medesimo mese dell'anno, indici 0,80/1,00/1,20 e recommendation solo sul base;
+i valori futuri sono stime. La precedente proposta forward/robust è ora Spec
+012 differita; Spec 011 resta il Current Domestic Advisor rilasciato. La
+working tree contiene anche le modifiche catalog CLI preesistenti: preservate.
+
+Aggiornamento 2026-09-27: autorizzato e implementato un comando operativo
+`italian_energy.integration.catalog_cli` per l'acquisizione esatta del catalogo
+reale con diagnostica delle fonti/indici. Il catalogo live 2026-09-27 è VERIFIED:
+4.478 record, 156 punti indice, snapshot
+`d425ff802cf6233ff1e86711718e91848b6d4664f1ddd129446376324e351d86`.
+I due indici arrivano a giugno 2026; il workbook ARERA live conserva il digest
+congelato e la copertura termina il 2026-09-01. La Platform ha persistito i
+cinque file (20.992.193 bytes), verificato i digest in lettura e riporta il
+catalogo disponibile. Questo non chiude la copertura economica prospettica.
+L'utente ha scelto per la beta scenari sullo storico: base, -20%, +20%; Entra
+External ID è rimandata alla versione finale. Il contratto prospettico forward
+è stato rinumerato Spec 012 e resta differito; Spec 013 governa la beta storica.
+Nessun cambio di versione o pubblicazione.
+
+Baseline pubblicata: Spec 011 Current Domestic Advisor v0.11.1. Il preflight
+tipizzato `CurrentDomesticEnergyService.preflight` resta compatibile; la Spec
+013 è stata poi rilasciata in v0.12.0. L'accettazione staging della Platform
+resta separata.
+Il digest ARERA 2026 VERIFIED congelato per il replay storico è
+`b43ac3fa4b96335634785e26ac68d27191e2a6a770ea8ebf51bdf88fce1d5f7b` e copre
+2026-01-01/2026-09-01; il nuovo anchor prospettico di settembre è separato.
+
+Verifica finale Spec 013: 311 test passano con 95,22% di branch coverage; Ruff
+check/format, mypy, `git diff --check`, entrambi i golden privati e smoke extra
+`gme`/`arera` sono verdi. La verifica live `projection_cli --date 2026-09-27
+--verify-sources` è `verified`: catalogo 4.478 offerte, storico PUN completo
+settembre 2025–agosto 2026, report GME F1/F2/F3 verificati separatamente per
+luglio/agosto 2026 e anchor ARERA/fiscale completo, valido 2026-09-01/2026-10-01.
+L'anchor include le versioni Normattiva di Tabella A e art. 16 fissate al
+2026-09-27; tutte le otto fonti hanno digest corrispondenti. I valori dei mesi
+futuri restano stime sotto l'ipotesi di congelamento dell'anchor. Non è stato
+fornito un envelope con consumi e contratto di un cliente, quindi la verifica
+live non ha eseguito una comparazione personalizzata. La Platform non è stata
+modificata.
 
 Sono presenti composer deterministico, ruleset JSON residente/non residente,
 matrice di copertura e loader indipendente dall'extra XLSX. Il checkpoint

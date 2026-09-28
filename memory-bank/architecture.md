@@ -21,7 +21,8 @@
 - Il Comparison Engine passa sempre `external_items=()` al Billing Engine; le
   partite esterne verificate vengono restituite come evidenza separata.
 - `integration/` è il confine pubblico Core–Platform: manifesta capability e
-  schema ID, orchestra soltanto replay storici domestici BT tramite la façade e
-  serializza gli aggregati registrati senza introdurre trasporto o persistenza.
+  schema ID, orchestra replay storici e confronti domestici BT correnti o
+  prospettici tramite façade distinte e serializza gli aggregati registrati
+  senza introdurre trasporto o persistenza.
 
 I modelli canonici sono Pydantic v2 frozen; gli importi usano Decimal.

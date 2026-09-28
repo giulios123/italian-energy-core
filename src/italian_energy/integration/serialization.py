@@ -26,6 +26,13 @@ from .current import (
 from .errors import CoreContractError, CoreErrorCode
 from .manifest import CORE_CONTRACT_VERSION, CoreSchemaId
 from .models import HistoricalPortalComparisonRequest, HistoricalRecommendationRequest
+from .projected import (
+    ProjectedDomesticComparisonRequest,
+    ProjectedDomesticComparisonResult,
+    ProjectedDomesticPreflightResult,
+    ProjectedDomesticRecommendationRequest,
+    ProjectedDomesticRecommendationResult,
+)
 
 type IntegrationPayload = (
     SupplyPoint
@@ -43,6 +50,11 @@ type IntegrationPayload = (
     | CurrentPortalComparisonResult
     | CurrentRecommendationRequest
     | CurrentPreflightResult
+    | ProjectedDomesticComparisonRequest
+    | ProjectedDomesticComparisonResult
+    | ProjectedDomesticPreflightResult
+    | ProjectedDomesticRecommendationRequest
+    | ProjectedDomesticRecommendationResult
 )
 
 
@@ -62,6 +74,11 @@ _SCHEMA_TO_MODEL: dict[CoreSchemaId, type[DomainModel]] = {
     CoreSchemaId.CURRENT_PORTAL_COMPARISON_RESULT: CurrentPortalComparisonResult,
     CoreSchemaId.CURRENT_RECOMMENDATION_REQUEST: CurrentRecommendationRequest,
     CoreSchemaId.CURRENT_PREFLIGHT_RESULT: CurrentPreflightResult,
+    CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_REQUEST: ProjectedDomesticComparisonRequest,
+    CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_RESULT: ProjectedDomesticComparisonResult,
+    CoreSchemaId.PROJECTED_DOMESTIC_PREFLIGHT_RESULT: ProjectedDomesticPreflightResult,
+    CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST: ProjectedDomesticRecommendationRequest,
+    CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_RESULT: ProjectedDomesticRecommendationResult,
 }
 _MODEL_TO_SCHEMA = {model: schema for schema, model in _SCHEMA_TO_MODEL.items()}
 

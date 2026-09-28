@@ -182,7 +182,11 @@ class RecommendationPreferences(DomainModel):
                 if self.minimum_savings is None
                 else self.minimum_savings.model_dump(mode="json")
             ),
-            "minimum_percentage_savings": self.minimum_percentage_savings,
+            "minimum_percentage_savings": (
+                None
+                if self.minimum_percentage_savings is None
+                else str(self.minimum_percentage_savings)
+            ),
         }
 
 

@@ -539,3 +539,24 @@ del costo futuro.
 - [ARERA — Delibera 51/2018/R/com e scheda tecnica](https://www.arera.it/schede-tecniche/dettaglio/it/schedetecniche/18/051-18st)
 - [ARERA — Allegato A, contenuti minimi del Portale Offerte](https://www.arera.it/fileadmin/allegati/docs/18/51-18_Allegato_A__valido_dall_1_aprile_2026.pdf)
 - [Acquirente Unico — Portale Offerte](https://www.acquirenteunico.it/attivita/portale-offerte)
+
+## Addendum operativo — catalogo reale, 2026-09-27
+
+Autorizzato: comando installabile con il package, eseguibile come
+`python -m italian_energy.integration.catalog_cli --date YYYY-MM-DD`. Il comando
+riusa `CurrentDomesticEnergyService.acquire_catalog` per una data esatta, acquisisce
+i cinque file ufficiali e restituisce un riepilogo JSON con data, stato, snapshot,
+conteggi, metadati/digest delle fonti e primo/ultimo mese per ciascun indice.
+Non espone bytes raw, non produce costi o forecast e non certifica che gli indici
+coprano la richiesta economica. Persistenza e pianificazione restano nella Platform.
+Errori Core producono JSON su stderr ed exit code 1, senza cambiare data o usare
+cataloghi obsoleti; data mancante/non valida produce exit code 2.
+
+### Fonte indici GME — Spec 013
+
+La Spec 013 abilita in modo circoscritto le pubblicazioni mensili e per fasce
+scaricabili dal sito ufficiale GME. L’importer accetta layout PDF testuali
+allowlistati, controlla unità e periodo e registra byte acquisiti, digest e
+provenance. Non usa OCR, scraping HTML generico o endpoint privati. La serie
+commerciale Portale resta distinta finché le specifiche e i documenti
+ufficiali non provano il relativo mapping.

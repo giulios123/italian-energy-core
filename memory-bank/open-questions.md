@@ -11,9 +11,10 @@
 - Quale policy successiva, separata dalla v0.9 hard-filter, potrà introdurre
   preferenze pesate o un orizzonte multi-periodo senza confonderle con la
   convenienza all-in deterministica?
-- Quando implementare la Spec 011 e rinnovare l'anchor ARERA verificato in modo
-  che copra la `quote_date` operativa?
-- Quale fonte forward verificata e quale processo di controllo userà il caller
-  per fornire gli scenari base/stress della Spec 011?
+- La Spec 013 è rilasciata in Core `v0.12.0`; manca un envelope d'input cliente
+  per eseguire il percorso comparativo con dati utente. La verifica live delle
+  fonti ufficiali non sostituisce quella prova.
+- Quando riattivare la proposta differita Spec 012 e quale fonte forward
+  verificata userà il caller per scenari base/stress?
 - Quando potrà essere pianificato l'allineamento della Platform al manifest e
   agli envelope `italian-energy/contract/v1`?
