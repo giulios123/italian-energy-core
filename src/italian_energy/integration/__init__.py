@@ -1,5 +1,12 @@
 """Stable typed and JSON integration contract for application consumers."""
 
+from italian_energy.arera.rollover_coverage import (
+    RegulatoryAnchorCoverageEvidence,
+    RegulatoryCandidateCoverageResult,
+    RegulatoryManualReview,
+)
+from italian_energy.arera.rollover_models import RegulatoryEffect, RegulatoryRolloverReason
+from italian_energy.arera.rollover_repository import regulatory_candidate_semantic_digest
 from italian_energy.domain.consumption import ConsumptionProfile
 from italian_energy.domain.offer import Contract
 from italian_energy.domain.supply import SupplyPoint
@@ -33,6 +40,7 @@ from .manifest import (
 )
 from .models import HistoricalPortalComparisonRequest, HistoricalRecommendationRequest
 from .projected import (
+    GmeDefinitionCheck,
     ProjectedComparisonAssumptions,
     ProjectedDomesticComparisonRequest,
     ProjectedDomesticComparisonResult,
@@ -40,9 +48,25 @@ from .projected import (
     ProjectedDomesticRecommendationRequest,
     ProjectedDomesticRecommendationResult,
     ProjectedScenarioComparison,
+    ProjectedSourceBundle,
+    ProjectedSourcePreflightResult,
     ProjectedVerifiedInputs,
+    RegulatoryActFinding,
+    RegulatoryAnchorRefreshResult,
+    RegulatoryCoverageEvidence,
+    RegulatoryRegistryReview,
+    RegulatorySourceDigestCheck,
+    projection_anchor_digest,
 )
 from .projected_service import ProjectedDomesticEnergyService
+from .regulatory_rollover_service import (
+    RegulatoryRolloverAction,
+    RegulatoryRolloverReport,
+    RegulatoryRolloverService,
+    RegulatoryRolloverSourcePort,
+    RegulatorySourcePreflightResult,
+    create_official_regulatory_service,
+)
 from .serialization import IntegrationPayload, dump_envelope, load_envelope, supported_schema_ids
 from .service import (
     DEFAULT_PERCENTAGE_ROUNDING_POLICY,
@@ -76,6 +100,7 @@ __all__ = [
     "CurrentRecommendationRequest",
     "CurrentScenario",
     "CurrentScenarioComparison",
+    "GmeDefinitionCheck",
     "HistoricalDomesticEnergyService",
     "HistoricalPortalComparisonRequest",
     "HistoricalRecommendationRequest",
@@ -90,15 +115,35 @@ __all__ = [
     "ProjectedDomesticRecommendationResult",
     "ProjectedMarketScenarioSet",
     "ProjectedScenarioComparison",
+    "ProjectedSourceBundle",
+    "ProjectedSourcePreflightResult",
     "ProjectedVerifiedInputs",
     "Recommendation",
     "RecommendationPreferences",
+    "RegulatoryActFinding",
+    "RegulatoryAnchorCoverageEvidence",
+    "RegulatoryAnchorRefreshResult",
+    "RegulatoryCandidateCoverageResult",
+    "RegulatoryCoverageEvidence",
+    "RegulatoryEffect",
+    "RegulatoryManualReview",
+    "RegulatoryRegistryReview",
+    "RegulatoryRolloverAction",
+    "RegulatoryRolloverReason",
+    "RegulatoryRolloverReport",
+    "RegulatoryRolloverService",
+    "RegulatoryRolloverSourcePort",
+    "RegulatorySourceDigestCheck",
+    "RegulatorySourcePreflightResult",
     "SupplyPoint",
     "VerifiedMarketData",
+    "create_official_regulatory_service",
     "dump_envelope",
     "future_period",
     "load_envelope",
     "project_consumption",
     "project_market_data",
+    "projection_anchor_digest",
+    "regulatory_candidate_semantic_digest",
     "supported_schema_ids",
 ]

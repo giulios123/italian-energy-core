@@ -1,0 +1,247 @@
+{
+  "anchor_id": "regulatory-anchor:8171d18ee60eac067092ee0e7653c475499da9966fdbcfda55c8770846337e1e",
+  "as_of": "2026-10-08",
+  "charges": [
+    {
+      "category": "network",
+      "code": "rollover:diversa_da_residenza_anagrafica:network_total:consumption:2026-10-01",
+      "component_code": "network_total",
+      "quota": "consumption",
+      "references": [
+        {
+          "cell": null,
+          "section": "page 6, article 1, paragraph 1.4; page 6, article 1, paragraph 1.4",
+          "sheet": null,
+          "source_id": "arera_343"
+        }
+      ],
+      "segment": "diversa_da_residenza_anagrafica",
+      "unit": "EUR/kWh",
+      "value": "0.01473"
+    },
+    {
+      "category": "network",
+      "code": "rollover:diversa_da_residenza_anagrafica:network_total:fixed:2026-10-01",
+      "component_code": "network_total",
+      "quota": "fixed",
+      "references": [
+        {
+          "cell": null,
+          "section": "page 6, article 1, paragraph 1.4; page 6, article 1, paragraph 1.4",
+          "sheet": null,
+          "source_id": "arera_343"
+        }
+      ],
+      "segment": "diversa_da_residenza_anagrafica",
+      "unit": "EUR/year",
+      "value": "23.04"
+    },
+    {
+      "category": "network",
+      "code": "rollover:diversa_da_residenza_anagrafica:network_total:power:2026-10-01",
+      "component_code": "network_total",
+      "quota": "power",
+      "references": [
+        {
+          "cell": null,
+          "section": "page 6, article 1, paragraph 1.4; page 6, article 1, paragraph 1.4",
+          "sheet": null,
+          "source_id": "arera_343"
+        }
+      ],
+      "segment": "diversa_da_residenza_anagrafica",
+      "unit": "EUR/kW/year",
+      "value": "23.7188"
+    },
+    {
+      "category": "system_charges",
+      "code": "rollover:diversa_da_residenza_anagrafica:system_total:consumption:2026-10-01",
+      "component_code": "system_total",
+      "quota": "consumption",
+      "references": [
+        {
+          "cell": null,
+          "section": "page 6, article 1, paragraph 1.1; page 6, article 1, paragraph 1.3",
+          "sheet": null,
+          "source_id": "arera_343"
+        }
+      ],
+      "segment": "diversa_da_residenza_anagrafica",
+      "unit": "EUR/kWh",
+      "value": "0.033153"
+    },
+    {
+      "category": "system_charges",
+      "code": "rollover:diversa_da_residenza_anagrafica:system_total:fixed:2026-10-01",
+      "component_code": "system_total",
+      "quota": "fixed",
+      "references": [
+        {
+          "cell": null,
+          "section": "page 6, article 1, paragraph 1.1; page 6, article 1, paragraph 1.3",
+          "sheet": null,
+          "source_id": "arera_343"
+        }
+      ],
+      "segment": "diversa_da_residenza_anagrafica",
+      "unit": "EUR/year",
+      "value": "95.0916"
+    },
+    {
+      "category": "network",
+      "code": "rollover:residenza_anagrafica:network_total:consumption:2026-10-01",
+      "component_code": "network_total",
+      "quota": "consumption",
+      "references": [
+        {
+          "cell": null,
+          "section": "page 6, article 1, paragraph 1.4; page 6, article 1, paragraph 1.4",
+          "sheet": null,
+          "source_id": "arera_343"
+        }
+      ],
+      "segment": "residenza_anagrafica",
+      "unit": "EUR/kWh",
+      "value": "0.01473"
+    },
+    {
+      "category": "network",
+      "code": "rollover:residenza_anagrafica:network_total:fixed:2026-10-01",
+      "component_code": "network_total",
+      "quota": "fixed",
+      "references": [
+        {
+          "cell": null,
+          "section": "page 6, article 1, paragraph 1.4; page 6, article 1, paragraph 1.4",
+          "sheet": null,
+          "source_id": "arera_343"
+        }
+      ],
+      "segment": "residenza_anagrafica",
+      "unit": "EUR/year",
+      "value": "23.04"
+    },
+    {
+      "category": "network",
+      "code": "rollover:residenza_anagrafica:network_total:power:2026-10-01",
+      "component_code": "network_total",
+      "quota": "power",
+      "references": [
+        {
+          "cell": null,
+          "section": "page 6, article 1, paragraph 1.4; page 6, article 1, paragraph 1.4",
+          "sheet": null,
+          "source_id": "arera_343"
+        }
+      ],
+      "segment": "residenza_anagrafica",
+      "unit": "EUR/kW/year",
+      "value": "23.7188"
+    },
+    {
+      "category": "system_charges",
+      "code": "rollover:residenza_anagrafica:system_total:consumption:2026-10-01",
+      "component_code": "system_total",
+      "quota": "consumption",
+      "references": [
+        {
+          "cell": null,
+          "section": "page 6, article 1, paragraph 1.1; page 6, article 1, paragraph 1.3",
+          "sheet": null,
+          "source_id": "arera_343"
+        }
+      ],
+      "segment": "residenza_anagrafica",
+      "unit": "EUR/kWh",
+      "value": "0.033153"
+    }
+  ],
+  "excise_rate": "0.0227",
+  "excise_source_ids": [
+    "adm_excise_20260926",
+    "adm_excise_20261006"
+  ],
+  "schema_version": "014-rollover-anchor-v2",
+  "sources": [
+    {
+      "document": "520d8bc6-cd18-ab4b-ea07-63b5a1ad1b85",
+      "effective_period": {
+        "end": "9999-12-31",
+        "start": "2026-09-26"
+      },
+      "published_at": "2026-09-26",
+      "retrieved_at": "2026-10-08T14:52:40.018599Z",
+      "sha256": "9610ee7e7a34022b96a892b8fc5367a70415067af1cdcdcbb9baf85bc47f3eea",
+      "source": "ADM",
+      "source_id": "adm_excise_20260926",
+      "source_identifier": "adm-excise:2026-09-26:520d8bc6-cd18-ab4b-ea07-63b5a1ad1b85",
+      "url": "https://www.adm.gov.it/portale/documents/20182/43975520/Aliquote+nazionali++aggiornamento+al+26+settembre+2026.pdf/520d8bc6-cd18-ab4b-ea07-63b5a1ad1b85?t=1791278639804"
+    },
+    {
+      "document": "843f942b-f77d-a718-b5f5-63559bd5fdb7",
+      "effective_period": {
+        "end": "9999-12-31",
+        "start": "2026-10-06"
+      },
+      "published_at": "2026-10-06",
+      "retrieved_at": "2026-10-08T14:52:40.184152Z",
+      "sha256": "260f21ce3995f1440955d81f05544329c7f13749cc37d323d67efef66b55ef6b",
+      "source": "ADM",
+      "source_id": "adm_excise_20261006",
+      "source_identifier": "adm-excise:2026-10-06:843f942b-f77d-a718-b5f5-63559bd5fdb7",
+      "url": "https://www.adm.gov.it/portale/documents/20182/43975520/Aliquote+nazionali++aggiornamento+al+6+ottobre+2026.pdf/843f942b-f77d-a718-b5f5-63559bd5fdb7?t=1791278679997"
+    },
+    {
+      "document": "343-2026-R-com.pdf",
+      "effective_period": {
+        "end": "2027-01-01",
+        "start": "2026-10-01"
+      },
+      "published_at": "2026-09-29",
+      "retrieved_at": "2026-10-08T14:52:40.480388Z",
+      "sha256": "685691673341be23f479823c61b18c37fe24360f629ff3f8b3c5c847888db30e",
+      "source": "ARERA",
+      "source_id": "arera_343",
+      "source_identifier": "343/2026/R/com",
+      "url": "https://www.arera.it/fileadmin/allegati/docs/26/343-2026-R-com.pdf"
+    },
+    {
+      "document": "DPR-633-1972-Tabella-A-Parte-III-n-103",
+      "effective_period": {
+        "end": "2027-01-01",
+        "start": "2025-12-13"
+      },
+      "published_at": "1972-10-26",
+      "retrieved_at": "2026-10-08T14:52:42.837750Z",
+      "sha256": "3131100857ef19810e425b0330d2521fb698391419c5c5068ba72dd4b8cf148c",
+      "source": "Normattiva",
+      "source_id": "vat_dpr_633",
+      "source_identifier": "DPR 633/1972",
+      "url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.presidente.della.repubblica:1972-10-26;633:1~art1!vig=2026-10-08"
+    },
+    {
+      "document": "DPR-633-1972-art-16-aliquote",
+      "effective_period": {
+        "end": "2027-01-01",
+        "start": "2016-01-01"
+      },
+      "published_at": "1972-10-26",
+      "retrieved_at": "2026-10-08T14:52:43.694342Z",
+      "sha256": "8aa066590d1e5e86e6a539367743a3563ec97e73b5c8047e72d74da2215b361e",
+      "source": "Normattiva",
+      "source_id": "vat_dpr_633_art16",
+      "source_identifier": "DPR 633/1972",
+      "url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.presidente.della.repubblica:1972-10-26;633~art16!vig=2026-10-08"
+    }
+  ],
+  "status": "verified",
+  "validity": {
+    "end": "2027-01-01",
+    "start": "2026-10-01"
+  },
+  "vat_rate_percent": "10",
+  "vat_source_ids": [
+    "vat_dpr_633",
+    "vat_dpr_633_art16"
+  ]
+}

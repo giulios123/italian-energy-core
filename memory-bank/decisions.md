@@ -1,6 +1,28 @@
 # Decisions
 
+- ADR 0017/Spec 014 (M1–M16 implementate localmente): la façade Core
+  `refresh_regulatory_state` orchestra fasi interne separate; Platform fornisce
+  scheduler, porte di trasporto e repository CAS, non semantica regolatoria.
+- La discovery del rollover richiede scan completo e datato di ARERA, ADM,
+  Gazzetta e Normattiva con cursor, overlap e cross-check; digest uguali delle
+  fonti note non bastano. Atti/layout incerti producono review auditata.
+- Parser e mapping sono specifici e versionati; facts hanno locator/unità/
+  periodi e `carry_forward` richiede una derivazione provata. Nessuna euristica
+  generica su PDF/testo può promuovere valori.
+- L'anchor v2 usa validità half-open derivata dai facts; `snapshot_as_of` può
+  precedere `valid_from` per stage anticipato. Build key semantico e digest
+  completo dell'artefatto sono distinti; l'anchor v1/digest resta invariato.
+- Candidate immutabili e ledger append-only: stage/promotion con CAS
+  transazionale, promotion idempotente e coverage fresca alla data effettiva.
+  `refresh_regulatory_anchor` legacy conserva il significato; nuova API di
+  coverage e rollover sono additive, con schema versionati.
+- I timestamp audit di candidate/evidence/stage/promotion devono seguire le
+  acquisizioni e i controlli che attestano. La porta HTTPS usa il trust store
+  nativo con verifica TLS attiva; nessun record non interpretato viene ignorato.
 - Pydantic v2 frozen è il formato canonico dei modelli.
+- Nessun comando CLI `--rollover` finché adapter live certificati e repository
+  durevole non sono disponibili; `--refresh-anchor` mantiene la semantica
+  precedente e il worker Platform invoca la façade Python con porte configurate.
 - Decimal è obbligatorio per valori economici.
 - I periodi sono semiaperti; gli intervalli di mercato sono timezone-aware.
 - L’indicizzazione usa un AST tipizzato senza `eval`.
@@ -97,3 +119,7 @@
   candidata è calcolabile e supera la soglia minima inclusiva in tutti gli
   scenari. Durata economica assente significa assunzione esplicita di dodici
   mesi per fixed e indexed; una durata nota inferiore esclude la candidata.
+- La release Core 0.13.0 include l'anchor Q4, la coverage datata e la façade
+  rollover dopo i gate Core e smoke wheel. Il test persistente PostgreSQL e il
+  job Platform sono un gate d'integrazione separato, differito su richiesta;
+  non sono attestati dalla pubblicazione della sola wheel Core.

@@ -1,0 +1,49 @@
+{
+  "search_period": {"start": "2026-09-23", "end": "2026-10-01"},
+  "pages": [
+    {
+      "channel": "arera_acts",
+      "page_number": 1,
+      "source_url": "https://www.arera.it/atti-e-provvedimenti/",
+      "fetched_at": "2026-09-30T11:59:50Z",
+      "total_pages": 2,
+      "total_results": 2,
+      "cursor_in": null,
+      "cursor_out": "page-2",
+      "index_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "complete": true,
+      "records": [
+        {
+          "channel": "arera_acts",
+          "act_id": "fixture-arera-001",
+          "title": "Synthetic regulatory act A",
+          "published_at": "2026-09-25",
+          "url": "https://www.arera.it/atti/fixture-arera-001",
+          "document_id": "fixture-a.pdf"
+        }
+      ]
+    },
+    {
+      "channel": "arera_acts",
+      "page_number": 2,
+      "source_url": "https://www.arera.it/atti-e-provvedimenti/",
+      "fetched_at": "2026-09-30T11:59:51Z",
+      "total_pages": 2,
+      "total_results": 2,
+      "cursor_in": "page-2",
+      "cursor_out": "page-3",
+      "index_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "complete": true,
+      "records": [
+        {
+          "channel": "arera_acts",
+          "act_id": "fixture-arera-002",
+          "title": "Synthetic regulatory act B",
+          "published_at": "2026-09-29",
+          "url": "https://www.arera.it/atti/fixture-arera-002",
+          "document_id": "fixture-b.pdf"
+        }
+      ]
+    }
+  ]
+}

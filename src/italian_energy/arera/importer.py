@@ -627,6 +627,25 @@ def _read_workbook(content: bytes) -> tuple[tuple[_RawSheet, ...], Any]:
     return tuple(sheets), workbook
 
 
+def extract_xlsx_cell_tokens(content: bytes) -> dict[tuple[str, str], str]:
+    """Return exact non-empty OOXML cell tokens keyed by sheet and cell ref.
+
+    Callers must first validate the workbook with the supported parser. This
+    helper preserves the lexical numeric token for provenance and replay.
+    """
+
+    if not content or len(content) > MAX_CONTENT_BYTES:
+        raise AreraImportError("ARERA input is empty or exceeds the maximum content size")
+    _validate_archive(content)
+    raw_sheets, _ = _read_workbook(content)
+    tokens: dict[tuple[str, str], str] = {}
+    for sheet in raw_sheets:
+        for ref, cell in sheet.cells.items():
+            if cell.value is not None:
+                tokens[(sheet.name, ref)] = cell.value
+    return tokens
+
+
 def _read_shared_strings(archive: zipfile.ZipFile) -> tuple[str, ...]:
     try:
         root = SafeET.fromstring(archive.read("xl/sharedStrings.xml"))

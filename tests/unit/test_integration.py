@@ -254,6 +254,8 @@ def test_manifest_is_canonical_and_matches_package_identity() -> None:
     assert CoreCapability.HISTORICAL_PORTAL_COMPARISON in CORE_MANIFEST.capabilities
     assert CoreCapability.CURRENT_PORTAL_COMPARISON in CORE_MANIFEST.capabilities
     assert CoreCapability.CURRENT_PORTAL_PREFLIGHT in CORE_MANIFEST.capabilities
+    assert CoreCapability.REGULATORY_ANCHOR_REFRESH in CORE_MANIFEST.capabilities
+    assert CoreCapability.REGULATORY_ANCHOR_ROLLOVER in CORE_MANIFEST.capabilities
     assert CORE_MANIFEST.schema_ids == tuple(sorted(CORE_MANIFEST.schema_ids))
     assert tuple(item.value for item in CORE_MANIFEST.schema_ids) == CORE_SCHEMA_IDS
 
@@ -280,6 +282,32 @@ def test_manifest_exposes_only_integration_schema_ids() -> None:
         CoreSchemaId.PROJECTED_DOMESTIC_PREFLIGHT_RESULT,
         CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST,
         CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_RESULT,
+        CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_RESULT_V2,
+        CoreSchemaId.PROJECTED_DOMESTIC_PREFLIGHT_RESULT_V2,
+        CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST_V2,
+        CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_RESULT_V2,
+        CoreSchemaId.REGULATORY_COVERAGE_EVIDENCE,
+        CoreSchemaId.REGULATORY_ANCHOR_REFRESH_RESULT,
+        CoreSchemaId.REGULATORY_ANCHOR_V2,
+        CoreSchemaId.REGULATORY_CANDIDATE,
+        CoreSchemaId.REGULATORY_CANDIDATE_V2,
+        CoreSchemaId.REGULATORY_EFFECT_V1,
+        CoreSchemaId.REGULATORY_CANDIDATE_COVERAGE_RESULT,
+        CoreSchemaId.REGULATORY_ANCHOR_COVERAGE_EVIDENCE,
+        CoreSchemaId.REGULATORY_MANUAL_REVIEW,
+        CoreSchemaId.REGULATORY_DISCOVERY_REPORT,
+        CoreSchemaId.REGULATORY_DISCOVERY_REPORT_V2,
+        CoreSchemaId.REGULATORY_DISCOVERY_SNAPSHOT,
+        CoreSchemaId.REGULATORY_DISCOVERY_SNAPSHOT_V2,
+        CoreSchemaId.REGULATORY_REGISTRY_CURSOR,
+        CoreSchemaId.REGULATORY_ROLLOVER_ATTEMPT,
+        CoreSchemaId.REGULATORY_ROLLOVER_STATE,
+        CoreSchemaId.REGULATORY_ROLLOVER_EVENT,
+        CoreSchemaId.REGULATORY_ROLLOVER_REPORT,
+        CoreSchemaId.REGULATORY_ROLLOVER_REPORT_V2,
+        CoreSchemaId.REGULATORY_SOURCE_PREFLIGHT_RESULT,
+        CoreSchemaId.PROJECTED_SOURCE_BUNDLE,
+        CoreSchemaId.PROJECTED_SOURCE_PREFLIGHT_RESULT,
     }
 
 

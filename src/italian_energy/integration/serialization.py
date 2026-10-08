@@ -8,6 +8,26 @@ from typing import Never, cast
 
 from pydantic import ValidationError
 
+from italian_energy.arera.discovery import (
+    DiscoverySnapshot,
+    RegistryCursor,
+    RegulatoryDiscoveryReport,
+)
+from italian_energy.arera.projection import (
+    ROLLOVER_ANCHOR_SCHEMA_VERSION,
+    DomesticProjectionAnchor,
+)
+from italian_energy.arera.rollover_coverage import (
+    RegulatoryAnchorCoverageEvidence,
+    RegulatoryCandidateCoverageResult,
+    RegulatoryManualReview,
+)
+from italian_energy.arera.rollover_models import RegulatoryAnchorCandidate, RegulatoryEffect
+from italian_energy.arera.rollover_state import (
+    RegulatoryRolloverAttempt,
+    RegulatoryRolloverEvent,
+    RegulatoryRolloverState,
+)
 from italian_energy.domain.base import DomainModel
 from italian_energy.domain.consumption import ConsumptionProfile
 from italian_energy.domain.offer import Contract
@@ -32,6 +52,14 @@ from .projected import (
     ProjectedDomesticPreflightResult,
     ProjectedDomesticRecommendationRequest,
     ProjectedDomesticRecommendationResult,
+    ProjectedSourceBundle,
+    ProjectedSourcePreflightResult,
+    RegulatoryAnchorRefreshResult,
+    RegulatoryCoverageEvidence,
+)
+from .regulatory_rollover_service import (
+    RegulatoryRolloverReport,
+    RegulatorySourcePreflightResult,
 )
 
 type IntegrationPayload = (
@@ -55,6 +83,24 @@ type IntegrationPayload = (
     | ProjectedDomesticPreflightResult
     | ProjectedDomesticRecommendationRequest
     | ProjectedDomesticRecommendationResult
+    | RegulatoryCoverageEvidence
+    | RegulatoryAnchorRefreshResult
+    | RegulatoryAnchorCandidate
+    | RegulatoryEffect
+    | RegulatoryAnchorCoverageEvidence
+    | RegulatoryCandidateCoverageResult
+    | RegulatoryManualReview
+    | RegulatoryDiscoveryReport
+    | DiscoverySnapshot
+    | RegistryCursor
+    | RegulatoryRolloverAttempt
+    | RegulatoryRolloverState
+    | RegulatoryRolloverEvent
+    | RegulatoryRolloverReport
+    | RegulatorySourcePreflightResult
+    | DomesticProjectionAnchor
+    | ProjectedSourceBundle
+    | ProjectedSourcePreflightResult
 )
 
 
@@ -79,8 +125,52 @@ _SCHEMA_TO_MODEL: dict[CoreSchemaId, type[DomainModel]] = {
     CoreSchemaId.PROJECTED_DOMESTIC_PREFLIGHT_RESULT: ProjectedDomesticPreflightResult,
     CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST: ProjectedDomesticRecommendationRequest,
     CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_RESULT: ProjectedDomesticRecommendationResult,
+    CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_RESULT_V2: ProjectedDomesticComparisonResult,
+    CoreSchemaId.PROJECTED_DOMESTIC_PREFLIGHT_RESULT_V2: ProjectedDomesticPreflightResult,
+    CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST_V2: (
+        ProjectedDomesticRecommendationRequest
+    ),
+    CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_RESULT_V2: ProjectedDomesticRecommendationResult,
+    CoreSchemaId.REGULATORY_COVERAGE_EVIDENCE: RegulatoryCoverageEvidence,
+    CoreSchemaId.REGULATORY_ANCHOR_REFRESH_RESULT: RegulatoryAnchorRefreshResult,
+    CoreSchemaId.REGULATORY_ANCHOR_V2: DomesticProjectionAnchor,
+    CoreSchemaId.REGULATORY_CANDIDATE: RegulatoryAnchorCandidate,
+    CoreSchemaId.REGULATORY_CANDIDATE_V2: RegulatoryAnchorCandidate,
+    CoreSchemaId.REGULATORY_EFFECT_V1: RegulatoryEffect,
+    CoreSchemaId.REGULATORY_CANDIDATE_COVERAGE_RESULT: RegulatoryCandidateCoverageResult,
+    CoreSchemaId.REGULATORY_ANCHOR_COVERAGE_EVIDENCE: RegulatoryAnchorCoverageEvidence,
+    CoreSchemaId.REGULATORY_MANUAL_REVIEW: RegulatoryManualReview,
+    CoreSchemaId.REGULATORY_DISCOVERY_REPORT: RegulatoryDiscoveryReport,
+    CoreSchemaId.REGULATORY_DISCOVERY_REPORT_V2: RegulatoryDiscoveryReport,
+    CoreSchemaId.REGULATORY_DISCOVERY_SNAPSHOT: DiscoverySnapshot,
+    CoreSchemaId.REGULATORY_DISCOVERY_SNAPSHOT_V2: DiscoverySnapshot,
+    CoreSchemaId.REGULATORY_REGISTRY_CURSOR: RegistryCursor,
+    CoreSchemaId.REGULATORY_ROLLOVER_ATTEMPT: RegulatoryRolloverAttempt,
+    CoreSchemaId.REGULATORY_ROLLOVER_STATE: RegulatoryRolloverState,
+    CoreSchemaId.REGULATORY_ROLLOVER_EVENT: RegulatoryRolloverEvent,
+    CoreSchemaId.REGULATORY_ROLLOVER_REPORT: RegulatoryRolloverReport,
+    CoreSchemaId.REGULATORY_ROLLOVER_REPORT_V2: RegulatoryRolloverReport,
+    CoreSchemaId.REGULATORY_SOURCE_PREFLIGHT_RESULT: RegulatorySourcePreflightResult,
+    CoreSchemaId.PROJECTED_SOURCE_BUNDLE: ProjectedSourceBundle,
+    CoreSchemaId.PROJECTED_SOURCE_PREFLIGHT_RESULT: ProjectedSourcePreflightResult,
 }
 _MODEL_TO_SCHEMA = {model: schema for schema, model in _SCHEMA_TO_MODEL.items()}
+_MODEL_TO_SCHEMA.update(
+    {
+        ProjectedDomesticComparisonResult: CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_RESULT_V2,
+        ProjectedDomesticPreflightResult: CoreSchemaId.PROJECTED_DOMESTIC_PREFLIGHT_RESULT_V2,
+        ProjectedDomesticRecommendationRequest: (
+            CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST_V2
+        ),
+        ProjectedDomesticRecommendationResult: (
+            CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_RESULT_V2
+        ),
+        RegulatoryAnchorCandidate: CoreSchemaId.REGULATORY_CANDIDATE_V2,
+        RegulatoryDiscoveryReport: CoreSchemaId.REGULATORY_DISCOVERY_REPORT_V2,
+        DiscoverySnapshot: CoreSchemaId.REGULATORY_DISCOVERY_SNAPSHOT_V2,
+        RegulatoryRolloverReport: CoreSchemaId.REGULATORY_ROLLOVER_REPORT_V2,
+    }
+)
 
 
 def _reject_json_constant(value: str) -> Never:
@@ -107,7 +197,14 @@ def _contains_raw_content(value: object) -> bool:
 def dump_envelope(value: IntegrationPayload) -> bytes:
     """Serialize one supported aggregate into canonical UTF-8 JSON bytes."""
 
-    schema = _MODEL_TO_SCHEMA.get(type(value))
+    if isinstance(value, DomesticProjectionAnchor):
+        schema = (
+            CoreSchemaId.REGULATORY_ANCHOR_V2
+            if value.schema_version == ROLLOVER_ANCHOR_SCHEMA_VERSION
+            else None
+        )
+    else:
+        schema = _MODEL_TO_SCHEMA.get(type(value))
     if schema is None:
         raise CoreContractError(
             CoreErrorCode.UNSUPPORTED_SCHEMA,
@@ -179,7 +276,14 @@ def load_envelope(data: bytes | str) -> IntegrationPayload:
         )
     model = _SCHEMA_TO_MODEL[schema]
     try:
-        return cast(IntegrationPayload, model.model_validate(payload))
+        result = model.model_validate(payload)
+        if (
+            schema == CoreSchemaId.REGULATORY_ANCHOR_V2
+            and isinstance(result, DomesticProjectionAnchor)
+            and result.schema_version != ROLLOVER_ANCHOR_SCHEMA_VERSION
+        ):
+            raise ValueError("anchor schema version does not match its envelope schema")
+        return cast(IntegrationPayload, result)
     except (TypeError, ValueError, ValidationError) as exc:
         raise CoreContractError(
             CoreErrorCode.INVALID_PAYLOAD,

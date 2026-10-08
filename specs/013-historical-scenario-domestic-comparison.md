@@ -67,8 +67,43 @@ duplicati o sovrapposizioni. Uno storico più vecchio non è sostituto valido.
 
 L’ancora tariffaria ARERA deriva dagli atti e dataset ufficiali applicabili
 alla data richiesta, integrando il workbook quando il suo periodo non arriva
-ad `as_of`. La composizione mantiene separati oneri, rete e componenti
-commerciali, senza sommare totali e componenti elementari insieme.
+ad `as_of`. `anchor.as_of` identifica la data dello snapshot verificato e non
+deve essere riscritta per coincidere con la data del confronto. L’anchor è
+applicabile soltanto nell’intervallo half-open `validity`; il suo riuso in una
+data diversa da `anchor.as_of` richiede un’evidenza di copertura specifica per
+la data richiesta. Il package dell’anchor non deve essere acquisito ogni
+giorno: lo stesso snapshot resta utilizzabile mentre la sua validità copre la
+data, anche se i documenti sono già stati pubblicati in precedenza.
+
+L’evidenza lega l’identificativo e il digest canonico dell’anchor, la data del
+confronto, l’istante della verifica e l’esito dei digest di tutte le fonti
+versionate. Include una revisione attestata degli atti successivi presso i
+registri ufficiali pertinenti di ARERA, ADM e Gazzetta Ufficiale e della
+normativa vigente su Normattiva. La revisione registra responsabile, URL e
+data controllata, ricerche, atti trovati e valutazione della loro applicabilità.
+Esito incompleto, fonte alterata o atto applicabile rendono la copertura non
+pronta; un atto applicabile richiede un nuovo anchor verificato. La verifica
+può avvenire in un processo separato e il relativo risultato può essere
+persistito: preflight e confronto deterministico non acquisiscono fonti dalla
+rete.
+
+L’acquisizione dell’anchor è un’operazione Core esplicita e distinta dal
+confronto. `refresh_regulatory_anchor(as_of, registry_reviews)` scarica e
+verifica tutti i documenti versionati già elencati nell’anchor, conserva SHA-256
+osservati e restituisce `RegulatoryAnchorRefreshResult` serializzabile. Se i
+digest coincidono, riusa i valori e `anchor.as_of` senza riscriverli; se un
+digest cambia o l’intervallo non copre la data, restituisce `review_required`.
+Il refresh richiede inoltre revisioni datate dei registri ufficiali pertinenti
+e blocca atti applicabili o incerti. Non deduce l’irrilevanza giuridica da un
+hash o da parole chiave e non genera valori nuovi da layout non supportati.
+Preflight e confronto consumano il risultato persistito senza rete. L’API
+acquisisce i documenti collegati al package corrente; la discovery di nuove
+pubblicazioni e la produzione di un nuovo anchor richiedono parser versionati
+per i nuovi atti e non vengono simulate come aggiornamento automatico del
+package.
+
+La composizione mantiene separati oneri, rete e componenti commerciali, senza
+sommarne totali e componenti elementari insieme.
 
 Accise e IVA seguono fonti ufficiali fiscali indipendenti dal workbook ARERA.
 Aliquote, soglie, trattamento residente/non residente e basi imponibili sono
@@ -84,14 +119,21 @@ classificazione, eleggibilità, misure billing indispensabili e dichiarazione
 esplicita sulla continuità del contratto. Fonti e input del calcolo sono
 espliciti per consentire replay deterministici.
 
-Il preflight distingue richiesta valida, catalogo verificato, finestra indice
-completa e fresca, ancora regolatoria/fiscale verificata ad `as_of`,
-modellabilità della baseline e copertura contrattuale. Espone periodi e fonti
-effettivi. È non pronto se manca un dato economico necessario.
+`ProjectedDomesticEnergyService.source_preflight(as_of, catalog,
+market_history, anchor, coverage_evidence)` espone il gate tipizzato delle
+fonti per i consumer che non dispongono ancora di una richiesta cliente. Il
+preflight cliente e `compare` riusano gli stessi controlli. La copertura deve
+riferirsi esattamente alla data richiesta; `anchor.as_of` resta la data
+originale dello snapshot. Il preflight cliente distingue richiesta valida,
+catalogo verificato, finestra indice completa e fresca, anchor applicabile con
+copertura confermata, modellabilità della baseline e copertura contrattuale.
+Espone periodi, fonti e codici di blocco. È non pronto se manca un dato
+economico necessario.
 
 Il risultato contiene snapshot, periodo, osservazioni storiche con finestre
 originarie, periodi futuri con valori stimati, moltiplicatori e assunzioni,
-ancore e provenance senza periodi riscritti, tre confronti tipizzati
+data originale, validità e id dell’evidenza dell’anchor con provenance senza
+periodi riscritti, tre confronti tipizzati
 `low_index`, `base`, `high_index`, warning/esclusioni e recommendation
 separata. La distinzione fra stato della fonte e stima è verificabile dal
 consumer e non dipende da testo libero. La recommendation riusa solo il
@@ -114,23 +156,35 @@ o AI.
 - Invarianza di spread e quote al variare dello scenario dell’indice.
 - Composizione e validità ARERA per entrambi i profili, quote, basi fiscali,
   soglie e arrotondamento mensile; fixture separate dalla prova live.
-- Ancora puntuale e proiezione futura non verificata; il billing storico
-  continua a rifiutare regole non valide per il suo periodo.
+- Anchor applicabile all’inizio, all’interno e nell’ultimo giorno valido del
+  suo intervallo; la data di fine è esclusa. L’evidenza deve preservare
+  separatamente la data originale dell’anchor e la data della verifica.
+- Fonti alterate, digest mancanti, revisione atti assente/incompleta e nuovo
+  atto applicabile bloccano il riuso; l’evidenza valida viene serializzata e
+  ricaricata senza rete.
+- Proiezione futura non verificata; il billing storico continua a rifiutare
+  regole non valide per il suo periodo.
 - Scadenza offerte, sottoscrivibilità ad `as_of`, continuità esplicita,
   durata insufficiente e tariffa non modellabile.
 - Recommendation invariata sul solo base; scenari stress non cambiano soglie,
   ranking o selezione. Envelope e golden storici invariati.
-- Verifica live separata di endpoint ufficiali, mesi effettivamente letti,
-  digest e motivo dei gate incompleti. Le fixture non attestano dati reali.
+- CLI/API di refresh separata dal confronto offline; verifica di ogni documento
+  versionato dell’anchor e blocco fail-closed per fonti cambiate o revisioni
+  normative non classificate.
+- Copertura incompleta se gli hash coincidono ma manca la revisione ufficiale
+  datata o la valutazione di un atto candidato. Le fixture non attestano dati
+  reali.
 - Gate AGENTS: Ruff, format check, mypy, pytest con branch coverage almeno 95%,
   golden privati, smoke base/extra e `git diff --check`.
 
 ## Confini
 
 In scope: Core, fonti pubbliche, calcolo, serializzazione, test e CLI di
-verifica. Fuori scope: persistenza, scheduler, autenticazione, API HTTP, UI,
-Platform, forward quote, forecast, robust recommendation su stress, commit,
-release e pubblicazione.
+acquisizione/refresh. Fuori scope: persistenza, scheduler, autenticazione, API
+HTTP, UI, Platform, forward quote, forecast, robust recommendation su stress,
+commit, release e pubblicazione. La classificazione giuridica di atti nuovi o
+ambigui resta una decisione esplicita e tracciata; il Core non la deduce da
+somiglianza testuale.
 
 ## Fonti normative
 

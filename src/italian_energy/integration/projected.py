@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal, Self
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
 
+from italian_energy.arera.projection import DomesticProjectionAnchor
 from italian_energy.domain.base import DomainModel
 from italian_energy.domain.common import strict_decimal
 from italian_energy.domain.consumption import ConsumptionProfile
@@ -20,14 +24,210 @@ from italian_energy.domain.regulatory import (
 )
 from italian_energy.domain.time import DatePeriod
 from italian_energy.integration.current import (
+    CurrentCatalogSnapshot,
     CurrentScenario,
     future_period,
 )
+from italian_energy.market.gme import GmeMarketHistory
 from italian_energy.portal_offers.models import (
     PortalComparisonResult,
     PortalEligibilityProfile,
 )
 from italian_energy.recommendation import Recommendation, RecommendationPreferences
+
+RegulatoryRegistry = Literal["ARERA", "ADM", "Gazzetta Ufficiale", "Normattiva"]
+_REGISTRY_HOSTS = {
+    "ARERA": {"arera.it", "www.arera.it"},
+    "ADM": {"adm.gov.it", "www.adm.gov.it"},
+    "Gazzetta Ufficiale": {"gazzettaufficiale.it", "www.gazzettaufficiale.it"},
+    "Normattiva": {"normattiva.it", "www.normattiva.it"},
+}
+
+
+class RegulatorySourceDigestCheck(DomainModel):
+    """One live digest observation bound to a source listed by the anchor."""
+
+    source_id: str = Field(min_length=1)
+    expected_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    observed_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    checked_at: datetime
+
+    @field_validator("checked_at")
+    @classmethod
+    def require_aware_check_time(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("regulatory source check time must be timezone-aware")
+        return value
+
+
+class RegulatoryActFinding(DomainModel):
+    """An act discovered while reviewing an official registry for applicability."""
+
+    act_id: str = Field(min_length=1)
+    url: str = Field(min_length=1)
+    applicability: Literal["applicable", "not_applicable", "uncertain"]
+    rationale: str = Field(min_length=1)
+
+    @field_validator("url")
+    @classmethod
+    def require_official_act_url(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or not any(parsed.hostname in hosts for hosts in _REGISTRY_HOSTS.values())
+        ):
+            raise ValueError("regulatory act URL must use an official HTTPS registry")
+        return value
+
+
+class RegulatoryRegistryReview(DomainModel):
+    """Dated manual review or reproducible automated scan of one official registry."""
+
+    registry: RegulatoryRegistry
+    registry_url: str = Field(min_length=1)
+    reviewer: str = Field(min_length=1)
+    as_of: date
+    reviewed_at: datetime
+    searches: tuple[str, ...] = Field(min_length=1)
+    decision_summary: str = Field(min_length=1)
+    findings: tuple[RegulatoryActFinding, ...] = ()
+    discovery_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    discovery_version: Literal["registry-scan-v1"] | None = None
+    search_start: date | None = None
+
+    @model_validator(mode="after")
+    def validate_review(self) -> Self:
+        parsed = urlsplit(self.registry_url)
+        if parsed.scheme != "https" or parsed.hostname not in _REGISTRY_HOSTS[self.registry]:
+            raise ValueError("registry review URL must match its official HTTPS registry")
+        if self.reviewed_at.tzinfo is None or self.reviewed_at.utcoffset() is None:
+            raise ValueError("registry review time must be timezone-aware")
+        if not self.searches or any(not item.strip() for item in self.searches):
+            raise ValueError("registry review must record its searches")
+        if (self.discovery_sha256 is None) != (self.discovery_version is None):
+            raise ValueError("automated registry review requires a digest and version together")
+        if self.discovery_version is not None and self.search_start is None:
+            raise ValueError("automated registry review requires its search start date")
+        return self
+
+
+class RegulatoryCoverageEvidence(DomainModel):
+    """Versioned evidence binding source checks and later-act review to one date."""
+
+    evidence_version: Literal[1] = 1
+    anchor_id: str = Field(min_length=1)
+    anchor_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    comparison_as_of: date
+    checked_at: datetime
+    source_checks: tuple[RegulatorySourceDigestCheck, ...]
+    registry_reviews: tuple[RegulatoryRegistryReview, ...]
+
+    @model_validator(mode="after")
+    def validate_coverage_evidence(self) -> Self:
+        if self.checked_at.tzinfo is None or self.checked_at.utcoffset() is None:
+            raise ValueError("regulatory coverage evidence time must be timezone-aware")
+        source_ids = tuple(item.source_id for item in self.source_checks)
+        if len(set(source_ids)) != len(source_ids):
+            raise ValueError("regulatory source checks must be unique")
+        registries = tuple(item.registry for item in self.registry_reviews)
+        if len(set(registries)) != len(registries):
+            raise ValueError("regulatory registry reviews must be unique")
+        if any(item.as_of != self.comparison_as_of for item in self.registry_reviews):
+            raise ValueError("registry reviews must attest the requested comparison date")
+        if any(item.checked_at > self.checked_at for item in self.source_checks) or any(
+            item.reviewed_at > self.checked_at for item in self.registry_reviews
+        ):
+            raise ValueError("coverage evidence time cannot precede a recorded check or review")
+        return self
+
+    @property
+    def evidence_id(self) -> str:
+        payload = self.model_dump(mode="json")
+        encoded = json.dumps(
+            payload, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")
+        )
+        return f"regulatory-coverage:{hashlib.sha256(encoded.encode('utf-8')).hexdigest()}"
+
+
+class RegulatoryAnchorRefreshResult(DomainModel):
+    """Live source refresh result, reusable by an offline caller after persistence."""
+
+    as_of: date
+    anchor: DomesticProjectionAnchor
+    coverage_evidence: RegulatoryCoverageEvidence
+    ready: bool
+    checks: dict[str, bool]
+    reason_codes: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_refresh(self) -> Self:
+        if self.coverage_evidence.anchor_id != self.anchor.anchor_id:
+            raise ValueError("refresh evidence must identify its anchor")
+        if self.coverage_evidence.comparison_as_of != self.as_of:
+            raise ValueError("refresh evidence must identify its comparison date")
+        if self.ready != all(self.checks.values()):
+            raise ValueError("anchor refresh readiness must match all checks")
+        return self
+
+
+class GmeDefinitionCheck(DomainModel):
+    """Digest evidence for the official definition of the PUN index."""
+
+    expected_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    observed_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    checked_at: datetime
+
+    @field_validator("checked_at")
+    @classmethod
+    def require_aware_check_time(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("GME definition check time must be timezone-aware")
+        return value
+
+
+def projection_anchor_digest(anchor: DomesticProjectionAnchor) -> str:
+    """Return a canonical SHA-256 digest for the complete typed anchor artifact."""
+    payload = anchor.model_dump(mode="json")
+    encoded = json.dumps(
+        payload, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+class ProjectedSourceBundle(DomainModel):
+    """Reusable, already acquired inputs for an offline deterministic comparison."""
+
+    bundle_version: Literal[1] = 1
+    as_of: date
+    catalog: CurrentCatalogSnapshot
+    market_history: GmeMarketHistory
+    anchor: DomesticProjectionAnchor
+    coverage_evidence: RegulatoryCoverageEvidence
+    gme_definition_check: GmeDefinitionCheck | None = None
+
+    @model_validator(mode="after")
+    def validate_bundle_dates(self) -> Self:
+        if self.market_history.as_of != self.as_of:
+            raise ValueError("source bundle market history must match its comparison date")
+        if self.coverage_evidence.comparison_as_of != self.as_of:
+            raise ValueError("source bundle coverage must match its comparison date")
+        return self
+
+
+class ProjectedSourcePreflightResult(DomainModel):
+    """Typed readiness of external source snapshots before customer calculation."""
+
+    ready: bool
+    as_of: date
+    checks: dict[str, bool] = Field(default_factory=dict)
+    reason_codes: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_ready(self) -> Self:
+        if self.ready != all(self.checks.values()):
+            raise ValueError("source preflight readiness must match all source checks")
+        return self
 
 
 class ProjectedDomesticComparisonRequest(DomainModel):
@@ -107,12 +307,17 @@ class ProjectedVerifiedInputs(DomainModel):
     regulatory_status: VerificationStatus
     regulatory_anchor_date: date
     regulatory_provenance: tuple[Provenance, ...]
+    comparison_as_of: date | None = None
+    regulatory_anchor_validity: DatePeriod | None = None
+    regulatory_coverage_as_of: date | None = None
+    regulatory_coverage_id: str | None = None
 
     @model_validator(mode="after")
     def validate_verified_sources(self) -> Self:
         if self.catalog_status != VerificationStatus.VERIFIED:
             raise ValueError("projected result requires a verified Portale Offerte catalog")
-        if self.catalog_dataset_date > self.regulatory_anchor_date:
+        comparison_as_of = self.comparison_as_of or self.regulatory_anchor_date
+        if self.catalog_dataset_date > comparison_as_of:
             raise ValueError("projected catalog cannot be newer than the comparison date")
         if self.market_status != VerificationStatus.VERIFIED:
             raise ValueError("projected result requires verified GME history")
@@ -123,7 +328,7 @@ class ProjectedVerifiedInputs(DomainModel):
             for item in self.market_report_provenance
         ):
             raise ValueError("market provenance requires GME source, digest and month")
-        recent = _recent_months(self.regulatory_anchor_date)
+        recent = _recent_months(comparison_as_of)
         expected_periods = tuple(
             DatePeriod(start=month, end=_add_months(month, 1)) for month in recent
         )
@@ -132,9 +337,7 @@ class ProjectedVerifiedInputs(DomainModel):
             != expected_periods
         ):
             raise ValueError("market provenance must cover the exact recent twelve-month window")
-        expected_market_period = DatePeriod(
-            start=recent[0], end=self.regulatory_anchor_date.replace(day=1)
-        )
+        expected_market_period = DatePeriod(start=recent[0], end=comparison_as_of.replace(day=1))
         if self.market_period != expected_market_period:
             raise ValueError("market period must match the exact recent twelve-month window")
         for item, month in zip(self.market_report_provenance, recent, strict=True):
@@ -151,6 +354,19 @@ class ProjectedVerifiedInputs(DomainModel):
             raise ValueError("projected result requires a verified regulatory anchor")
         if not self.regulatory_provenance:
             raise ValueError("regulatory provenance is required")
+        if (self.regulatory_coverage_as_of is None) != (self.regulatory_coverage_id is None):
+            raise ValueError("regulatory coverage date and evidence id must be supplied together")
+        if self.regulatory_coverage_as_of is not None:
+            if self.regulatory_anchor_date > comparison_as_of:
+                raise ValueError("regulatory anchor snapshot cannot postdate the comparison")
+            if self.regulatory_coverage_as_of != comparison_as_of:
+                raise ValueError("regulatory coverage must attest the comparison date")
+            if self.regulatory_anchor_validity is None or not (
+                self.regulatory_anchor_validity.start
+                <= comparison_as_of
+                < self.regulatory_anchor_validity.end
+            ):
+                raise ValueError("regulatory anchor validity must cover the comparison date")
         return self
 
 
@@ -182,10 +398,20 @@ class ProjectedDomesticComparisonResult(DomainModel):
             raise ValueError("projected result must cover the next twelve complete months")
         if self.assumptions.future_period != self.period:
             raise ValueError("projection assumptions must name the result horizon")
-        if self.assumptions.regulatory_anchor_date != self.as_of:
-            raise ValueError("projection anchor must match as_of")
-        if self.verified_inputs.regulatory_anchor_date != self.as_of:
-            raise ValueError("verified regulatory inputs must match the comparison date")
+        if self.verified_inputs.regulatory_coverage_as_of is None:
+            # V1 results used one date for the anchor and comparison. Keep them readable.
+            if (
+                self.assumptions.regulatory_anchor_date != self.as_of
+                or self.verified_inputs.regulatory_anchor_date != self.as_of
+            ):
+                raise ValueError("legacy projected results must keep the anchor comparison date")
+        elif (
+            self.verified_inputs.comparison_as_of != self.as_of
+            or self.verified_inputs.regulatory_coverage_as_of != self.as_of
+            or self.assumptions.regulatory_anchor_date
+            != self.verified_inputs.regulatory_anchor_date
+        ):
+            raise ValueError("projected result must preserve separate anchor and comparison dates")
         history = _recent_months(self.as_of)
         expected_history = DatePeriod(start=history[0], end=self.as_of.replace(day=1))
         if (
@@ -325,6 +551,7 @@ def _recent_months(as_of: date) -> tuple[date, ...]:
 
 
 __all__ = [
+    "GmeDefinitionCheck",
     "ProjectedComparisonAssumptions",
     "ProjectedDomesticComparisonRequest",
     "ProjectedDomesticComparisonResult",
@@ -332,6 +559,14 @@ __all__ = [
     "ProjectedDomesticRecommendationRequest",
     "ProjectedDomesticRecommendationResult",
     "ProjectedScenarioComparison",
+    "ProjectedSourceBundle",
+    "ProjectedSourcePreflightResult",
     "ProjectedVerifiedInputs",
+    "RegulatoryActFinding",
+    "RegulatoryCoverageEvidence",
+    "RegulatoryRegistry",
+    "RegulatoryRegistryReview",
+    "RegulatorySourceDigestCheck",
+    "projection_anchor_digest",
     "validate_consumption_periods",
 ]

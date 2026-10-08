@@ -31,6 +31,9 @@ class CoreCapability(StrEnum):
     CURRENT_PORTAL_PREFLIGHT = "current_portal_preflight"
     PROJECTED_DOMESTIC_COMPARISON = "projected_domestic_comparison"
     PROJECTED_DOMESTIC_PREFLIGHT = "projected_domestic_preflight"
+    PROJECTED_SOURCE_PREFLIGHT = "projected_source_preflight"
+    REGULATORY_ANCHOR_REFRESH = "regulatory_anchor_refresh"
+    REGULATORY_ANCHOR_ROLLOVER = "regulatory_anchor_rollover"
     PROJECTED_DOMESTIC_RECOMMENDATION = "projected_domestic_recommendation"
     DETERMINISTIC_RECOMMENDATION = "deterministic_recommendation"
 
@@ -64,6 +67,38 @@ class CoreSchemaId(StrEnum):
     PROJECTED_DOMESTIC_RECOMMENDATION_RESULT = (
         "italian-energy/projected-domestic-recommendation-result/v1"
     )
+    PROJECTED_DOMESTIC_COMPARISON_RESULT_V2 = (
+        "italian-energy/projected-domestic-comparison-result/v2"
+    )
+    PROJECTED_DOMESTIC_PREFLIGHT_RESULT_V2 = "italian-energy/projected-domestic-preflight-result/v2"
+    PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST_V2 = (
+        "italian-energy/projected-domestic-recommendation-request/v2"
+    )
+    PROJECTED_DOMESTIC_RECOMMENDATION_RESULT_V2 = (
+        "italian-energy/projected-domestic-recommendation-result/v2"
+    )
+    REGULATORY_COVERAGE_EVIDENCE = "italian-energy/regulatory-coverage-evidence/v1"
+    REGULATORY_ANCHOR_REFRESH_RESULT = "italian-energy/regulatory-anchor-refresh-result/v1"
+    REGULATORY_ANCHOR_V2 = "italian-energy/regulatory-anchor/v2"
+    REGULATORY_CANDIDATE = "italian-energy/regulatory-candidate/v1"
+    REGULATORY_CANDIDATE_V2 = "italian-energy/regulatory-candidate/v2"
+    REGULATORY_EFFECT_V1 = "italian-energy/regulatory-effect/v1"
+    REGULATORY_CANDIDATE_COVERAGE_RESULT = "italian-energy/regulatory-candidate-coverage-result/v1"
+    REGULATORY_ANCHOR_COVERAGE_EVIDENCE = "italian-energy/regulatory-anchor-coverage-evidence/v1"
+    REGULATORY_MANUAL_REVIEW = "italian-energy/regulatory-manual-review/v1"
+    REGULATORY_DISCOVERY_REPORT = "italian-energy/regulatory-discovery-report/v1"
+    REGULATORY_DISCOVERY_REPORT_V2 = "italian-energy/regulatory-discovery-report/v2"
+    REGULATORY_DISCOVERY_SNAPSHOT = "italian-energy/regulatory-discovery-snapshot/v1"
+    REGULATORY_DISCOVERY_SNAPSHOT_V2 = "italian-energy/regulatory-discovery-snapshot/v2"
+    REGULATORY_REGISTRY_CURSOR = "italian-energy/regulatory-registry-cursor/v1"
+    REGULATORY_ROLLOVER_ATTEMPT = "italian-energy/regulatory-rollover-attempt/v1"
+    REGULATORY_ROLLOVER_STATE = "italian-energy/regulatory-rollover-state/v1"
+    REGULATORY_ROLLOVER_EVENT = "italian-energy/regulatory-rollover-event/v1"
+    REGULATORY_ROLLOVER_REPORT = "italian-energy/regulatory-rollover-report/v1"
+    REGULATORY_ROLLOVER_REPORT_V2 = "italian-energy/regulatory-rollover-report/v2"
+    REGULATORY_SOURCE_PREFLIGHT_RESULT = "italian-energy/regulatory-source-preflight-result/v1"
+    PROJECTED_SOURCE_BUNDLE = "italian-energy/projected-source-bundle/v1"
+    PROJECTED_SOURCE_PREFLIGHT_RESULT = "italian-energy/projected-source-preflight-result/v1"
 
 
 class CoreManifest(DomainModel):

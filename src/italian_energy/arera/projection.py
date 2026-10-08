@@ -33,6 +33,11 @@ from italian_energy.domain.regulatory import (
 from italian_energy.domain.time import DatePeriod
 
 _ARTIFACT = "arera-domestic-bt-projection-anchor-2026-q3.json"
+_VERSIONED_ARTIFACTS = (
+    _ARTIFACT,
+    "arera-domestic-bt-projection-anchor-2026-q4.json",
+)
+ROLLOVER_ANCHOR_SCHEMA_VERSION = "014-rollover-anchor-v2"
 
 
 class ProjectionAnchorSource(DomainModel):
@@ -84,7 +89,7 @@ class ProjectionAnchorCharge(DomainModel):
 
 
 class DomesticProjectionAnchor(DomainModel):
-    """Source-backed rules applicable on one comparison date, with no future validity."""
+    """Source-backed snapshot with an explicit, half-open applicability period."""
 
     schema_version: str = Field(min_length=1)
     anchor_id: str = Field(min_length=1)
@@ -100,11 +105,35 @@ class DomesticProjectionAnchor(DomainModel):
 
     @model_validator(mode="after")
     def validate_anchor(self) -> Self:
-        if not (self.validity.start <= self.as_of < self.validity.end):
-            raise ValueError("projection anchor date is outside its verified validity")
-        next_month = date(self.as_of.year + (self.as_of.month == 12), self.as_of.month % 12 + 1, 1)
-        if self.validity.start != self.as_of.replace(day=1) or self.validity.end != next_month:
-            raise ValueError("projection anchor validity cannot extend beyond its calendar month")
+        if self.schema_version == ROLLOVER_ANCHOR_SCHEMA_VERSION:
+            if self.as_of >= self.validity.end:
+                raise ValueError("projection anchor snapshot must precede validity end")
+            for source in self.sources:
+                if source.sha256 is None:
+                    raise ValueError(f"rollover anchor source {source.source_id} requires a digest")
+                if source.published_at is None:
+                    raise ValueError(
+                        f"rollover anchor source {source.source_id} requires published_at"
+                    )
+                if source.published_at > self.as_of:
+                    raise ValueError(
+                        f"projection source {source.source_id} was published after snapshot"
+                    )
+                if source.retrieved_at.tzinfo is None or source.retrieved_at.utcoffset() is None:
+                    raise ValueError(
+                        f"rollover anchor source {source.source_id} retrieved_at must be aware"
+                    )
+        else:
+            # Keep the legacy v1 validity contract byte-for-byte and semantically stable.
+            if not (self.validity.start <= self.as_of < self.validity.end):
+                raise ValueError("projection anchor date is outside its verified validity")
+            next_month = date(
+                self.as_of.year + (self.as_of.month == 12), self.as_of.month % 12 + 1, 1
+            )
+            if self.validity.start != self.as_of.replace(day=1) or self.validity.end != next_month:
+                raise ValueError(
+                    "projection anchor validity cannot extend beyond its calendar month"
+                )
         source_ids = {source.source_id for source in self.sources}
         if len(source_ids) != len(self.sources):
             raise ValueError("projection anchor source identifiers must be unique")
@@ -236,20 +265,40 @@ class DomesticProjectionAnchor(DomainModel):
         )
 
 
-def load_domestic_projection_anchor() -> DomesticProjectionAnchor:
-    """Load the immutable Q3 anchor artifact packaged with the Core."""
-    resource = files("italian_energy").joinpath("data", "billing", _ARTIFACT)
+def _load_projection_anchor_artifact(artifact: str) -> DomesticProjectionAnchor:
+    resource = files("italian_energy").joinpath("data", "billing", artifact)
     try:
         with resource.open("r", encoding="utf-8") as handle:
             payload = json.load(handle)
         return DomesticProjectionAnchor.model_validate(payload)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
-        raise ValueError("cannot load the verified domestic Q3 projection anchor") from exc
+        raise ValueError(f"cannot load packaged domestic projection anchor {artifact}") from exc
 
 
-def load_domestic_projection_ruleset(*, residential: bool) -> RegulatoryRuleSet:
-    """Compose the resident or non-resident rules from the verified as-of anchor."""
-    anchor = load_domestic_projection_anchor()
+def load_domestic_projection_anchor(as_of: date | None = None) -> DomesticProjectionAnchor:
+    """Load an immutable anchor, selecting the half-open validity window when dated.
+
+    The no-argument form retains the historical Q3 lookup for compatibility.
+    New comparison callers should pass ``as_of`` so a successor is selected
+    from its validity interval instead of the date of its snapshot.
+    """
+
+    if as_of is None:
+        return _load_projection_anchor_artifact(_ARTIFACT)
+    anchors = tuple(_load_projection_anchor_artifact(item) for item in _VERSIONED_ARTIFACTS)
+    active = tuple(
+        anchor for anchor in anchors if anchor.validity.start <= as_of < anchor.validity.end
+    )
+    if len(active) != 1:
+        raise ValueError(f"no unique packaged domestic projection anchor is valid on {as_of}")
+    return active[0]
+
+
+def load_domestic_projection_ruleset(
+    *, residential: bool, as_of: date | None = None
+) -> RegulatoryRuleSet:
+    """Compose resident or non-resident rules from an anchor valid at ``as_of``."""
+    anchor = load_domestic_projection_anchor(as_of)
     segment = AreraCustomerSegment.RESIDENT if residential else AreraCustomerSegment.NON_RESIDENT
     return AreraDomesticRuleSetComposer().compose(
         anchor.to_bundle(),

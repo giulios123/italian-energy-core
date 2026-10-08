@@ -1,5 +1,238 @@
 # Active context
 
+## Regulatory Anchor Rollover — Q4 promosso localmente, 2026-10-08
+
+Il Core ha promosso l'anchor Q4 da un replay deterministico dello snapshot
+ufficiale completo acquisito il 2026-10-08. La matrice Core versionata collega
+i campi dell'anchor agli indici tariffari ARERA, ADM e alle disposizioni
+Normattiva sorvegliate; non è stata richiesta classificazione manuale dei
+record generalisti.
+
+Anchor corrente packaged:
+`src/italian_energy/data/billing/arera-domestic-bt-projection-anchor-2026-q4.json`.
+ID `regulatory-anchor:8171d18ee60eac067092ee0e7653c475499da9966fdbcfda55c8770846337e1e`,
+digest `641c71a677d98cefe6ec562fd5665a54d3620059e61d70c6a00c397238073ddf`,
+snapshot `2026-10-08`, validità `[2026-10-01, 2027-01-01)`, status `VERIFIED`.
+Il candidate immutabile d'origine resta in
+`arera-domestic-bt-projection-anchor-2026-q4-candidate.json`.
+
+La coverage datata è in
+`arera-domestic-bt-coverage-2026-10-08.json`; l'evento append-only di
+promozione è in `arera-domestic-bt-promotion-event-2026-10-08.json`. Il replay
+ha dato candidate coverage pronta, stage riuscito, promozione singola,
+coverage anchor pronta e `source_preflight.ready=true`. Il confronto sintetico
+ha restituito tre scenari usando soltanto gli snapshot forniti; la rete è stata
+disabilitata nel test. Gate Core finale: 689 test, 95,05% branch coverage,
+Ruff check/format, mypy `src tests` e `git diff --check` tutti verdi.
+
+Il loader packaged seleziona l'anchor con `as_of` usando intervalli half-open;
+il CLI passa la data alla risoluzione. La coverage prova la data 2026-10-08 e
+deve essere aggiornata prima di confronti in date successive. Gate Core,
+build wheel/sdist e smoke isolato della 0.13.0 passano. Per decisione
+dell'utente la pubblicazione Core procede; archivio/job Platform, Docker e
+PostgreSQL restano un gate separato e non sono inclusi nel rilascio.
+
+### Snapshot storico M21 — collegamento TUA verificato (superato da M23)
+
+L'API Normattiva attribuisce l'aggiornamento TUA del 25/09 alla Legge
+26G00184; il testo Gazzetta e il testo coordinato ufficiale mostrano che la
+misura riguarda il gasolio fino al 05/09, prima della validità Q4. Il Core ora
+conserva `ultimiAttiModificanti` e ha regole/test esatti per i due record
+collegati. Il workflow live completo non è ancora stato rieseguito, quindi
+resta valido l'ultimo esito certificato: candidate `UNVERIFIED`, preflight
+chiuso, nessuna promozione. Restano i finding ARERA/Gazzetta/Normattiva non
+collegati o non interpretati; non vanno classificati tutti a mano.
+
+Replay diagnostico (non workflow) con la risposta Normattiva live e le nuove
+regole: 1011 record, 3 supportati, 1002 in review, 6 irrilevanti per regola
+versionata; review residue 39 ARERA, 914 Gazzetta, 49 Normattiva.
+
+### Snapshot storico — 2026-10-05 (superato da stato 2026-10-07)
+
+Spec 014/ADR 0017 governano la pipeline `discovery → acquire → parse → map →
+validate → candidate → verify → stage → promote`. M1–M14 Core e Platform Spec
+013 P1 sono implementati localmente: il Core fornisce anchor v2, fatti
+`Decimal`, parser/mapping esatti, coverage e review auditabili, workflow
+`refresh_regulatory_state`, `source_preflight` e `resolve_active`; la Platform
+fornisce il worker giornaliero, store PostgreSQL/Blob, CAS e gate del catalogo.
+Il confronto cliente usa snapshot persistiti e resta offline.
+
+Core gate 2026-10-05 dopo M14: 626 test, 95,01% branch coverage, Ruff
+check/format, mypy su `src tests`, `uv lock --check --offline` e
+`git diff --check` verdi. Una scansione live limitata
+`2026-09-04`–`2026-10-05` ha completato tutti i canali: ARERA atti
+(43 pagine/29 record), ARERA tariffe (1), ADM (1), Gazzetta (775) e Normattiva
+(1 pagina/49 atti). Il report contiene 853 finding ancora da interpretare;
+`scans_complete=true` non significa assenza di review. La scansione precedente
+del 2026-10-04 aveva 919 finding su una finestra diversa. Il path ufficiale
+Gazzetta usa `caricaDettaglioAtto`; classifier e test ora corrispondono ai
+record live `26A04702` e `26A04766`, che ottengono le rispettive regole esatte.
+Il client urllib locale non valida la catena Normattiva; la risposta è stata
+acquisita in precedenza con macOS SecureTransport, TLS verificato, e validata
+dall'adapter Core. Il registry parser ora supporta il workbook ARERA Spec 005,
+le due disposizioni VAT AKN del DPR 633/1972 e la riga domestica del PDF ADM.
+Il replay offline end-to-end del PDF ADM privato ha prodotto `0.0227 EUR/kWh`
+con digest uguale alla fonte nell'anchor; nessun fetch live è stato eseguito
+in questa tranche. `343/2026/R/com` è stato individuato, ma il PDF non è ancora
+nel workspace: l'utente lo inserirà appena disponibile. Mancano la catena Core
+di effetti per l'atto e l'interpretazione degli altri finding fiscali. L'URL
+PDF estratto dalla pagina ufficiale è stato
+richiesto via Core client, curl e browser: ha restituito HTTP 502 e non ha
+prodotto bytes/hash. L'anchor packaged è scaduto il 2026-10-01 e
+`source_preflight.ready` resta false.
+
+La pagina ufficiale ARERA di riepilogo conferma i gruppi di componenti Q4, ma
+Spec 014 §19 richiede ancora l'atto e la disposizione puntuale per ogni fact;
+il PDF 343 rimane HTTP 502 nell'ultima verifica registrata. Il trasporto
+urllib va allineato al trust store del runtime Platform prima che il worker usi
+questa via localmente.
+
+Il classifier Core predefinito assegna `known-q4-act-review/v1.0.0` all'esatto
+record ARERA `343/2026/R/com`, ancora da interpretare. Dopo verifica degli
+artt. 12 e 32 della Gazzetta ufficiale, `26A04702` riceve la regola puntuale
+`gazzetta-dl148-domestic-electricity-rates-out-of-scope/v1.0.0`: non produce
+facts e non cambia le aliquote domestiche elettriche modellate. La regola
+`gazzetta-diesel-excise-out-of-scope/v1.0.0` continua a escludere l'esatto
+`26A04766`, relativo al gasolio carburante dal 6 al 10 settembre. Non si usano
+keyword/titoli o ID simili; altri finding e metadati discordanti restano review.
+La discovery è completa, ma restano finding da interpretare, il preflight è
+chiuso e non esiste un candidate Q4 reale.
+
+Platform gate locale: 233 test unitari passati, coverage raw 90,10%,
+Ruff check/format, strict mypy, architecture scan, Compose config e diff check
+verdi. I due test PostgreSQL 17 sul repository rollover passano con il sorgente
+Core locale; il baseline precedente riportava sei test PostgreSQL e migration
+upgrade/downgrade/upgrade verdi. Il container locale è stato buildato con
+wheel Core 0.13.0 e il contract smoke è passato; PyPI continua a fornire solo
+0.12.0, quindi nessuna release né certificazione d'uso pubblicata.
+
+Decisioni correnti: discovery/parsing/mapping versionati, nessun guessing di
+PDF, `carry_forward` solo con prova normativa, candidate/anchor immutabili,
+intervalli half-open, promotion CAS, refresh legacy compatibile. Le stime
+regolatorie future restano ipotesi. Il rilascio 0.13.0 resta un gate separato;
+nessun commit, tag, push o release.
+
+Discovery snapshot/report e rollover report ora serializzano v2. Ogni snapshot
+conserva decisione di classificazione e record sorgente; le review irrisolte
+restano visibili fuori dalla finestra di overlap. Il repository Platform ignora
+snapshot incompleti nella scelta del checkpoint, pur conservando le letture v1
+storiche. Il gate resta chiuso: l'ultima discovery live ha 919 finding, nessun
+candidate Q4 e nessuna promozione; la persistenza v2 non certifica
+l'interpretazione di atti o imposte.
+
+Verifica fonti del 2026-10-05: sono state acquisite le pagine tariffarie
+ufficiali ARERA, con digest `8510582e29e18c908ccc030729c0db6fab5c785ae3f41cc78d6126e6c98ad8a7`
+(oneri) e `69edbde3f83dee3bee3ea2fc1b90ded7229a237cd63d752851143742bf14c0f8`
+(tariffe gas). Indicano conferme per A_SOS/A_RIM e componenti GS/RE/RS/UG1/UG3,
+ma non bastano da sole secondo Spec 014 §19 a formare tutti i fatti profilo/quota.
+Il workbook ARERA 227/Q3 di 50.308 byte è stato riacquisito e il suo digest
+coincide con quello congelato nell'anchor. Il PDF 343 collegato continua a
+restituire HTTP 502. I testi ufficiali del D.Lgs. 148/2026 hanno chiuso solo il
+finding esatto per i tassi domestici elettrici con la regola M12; gli altri atti
+fiscali e il mapping Q4 restano da verificare. Nessun candidate Q4 reale è
+costruito o promosso; `source_preflight.ready` resta false.
+
+## Snapshot storico — implementazione locale 2026-10-01
+
+Spec 014 e ADR 0017 governano la pipeline `discovery → acquire → parse → map →
+validate → candidate → verify → stage → promote`. M1–M8 sono complete
+localmente; Platform P1 resta separata. Anchor v2, facts `Decimal`, build key,
+digest artefatto, parser/mapping versionati, coverage e review auditabili,
+repository append-only in-memory e CAS sono implementati. M7 aggiunge
+`RegulatoryRolloverService.refresh_regulatory_state`, report tipizzato,
+`source_preflight` e `resolve_active`; test sintetici coprono staging il
+30/09/2026, promozione il 01/10/2026, rerun, outage, review, digest cambiato e
+compare offline. M8 aggiunge capability e schema ID al manifest, envelope
+canonici e compatibilità del confronto con la nuova evidence. Il CLI mantiene
+`--refresh-anchor` per il significato precedente; non esiste `--rollover`.
+Gate finale Core: 498 test, 95,09% branch coverage, Ruff, format, mypy e
+`git diff --check` verdi. Nessun adapter ufficiale live è certificato, i
+parser fiscali non sono supportati e nessun anchor successivo reale è stato
+prodotto o promosso. Nessun commit, tag, push o release.
+
+La working tree contiene modifiche locali preesistenti su Spec 013/ADR 0016,
+`RegulatoryCoverageEvidence`, `refresh_regulatory_anchor`, CLI e test, oltre
+alle aggiunte Spec 014/M1–M8; tutte sono state preservate e i gate sono stati
+eseguiti. Il package incluso ha un solo anchor `as_of=2026-09-27`, valido
+`[2026-09-01, 2026-10-01)`. Il validator v1 resta mensile; `refresh_regulatory_anchor`
+verifica ancora solo gli otto documenti noti e non scopre atti né costruisce B.
+Al 2026-10-01 l'anchor packaged ha raggiunto `valid_until` e il suo preflight
+resta fail-closed; la fixture A→B trimestrale della Spec 014 resta sintetica
+e distinta.
+
+Decisioni principali: lead time configurabile con default 30 giorni; discovery
+completa ARERA/ADM/Gazzetta/Normattiva con cursor e cross-check; parser e
+mapping versionati, nessun guessing di PDF; `carry_forward` solo con prova;
+candidate e anchor immutabili, build key distinto da artifact digest; validity
+half-open e `snapshot_as_of` potenzialmente precedente a `valid_from` nel v2;
+stage/promotion CAS transazionali nel repository Platform, selezione Core per
+validità e coverage fresca. Il vecchio refresh mantiene la semantica e gli
+envelope v1 restano leggibili. Il confronto rimane offline e le applicazioni
+regolatorie future della beta restano stime/ipotesi.
+
+La lettura in sola lettura della Platform ha confermato il worker che acquisisce
+solo l'anchor packaged, `anchor.as_of == today` nel gate locale e il pin
+`>=0.12.0,<0.13.0`. P1 dovrà salvare current/staged/history/evidenze e
+invocare `resolve_active`/`source_preflight` Core, senza duplicare logica
+normativa. La consultazione web di indici ufficiali ha informato la strategia
+di discovery, ma non è una scansione live certificata dei registri né una
+verifica di valori successivi. P1 deve implementare persistenza di
+current/staged/history, snapshot/cursori, evidenze, eventi e CAS, poi invocare
+`regulatory_anchor_rollover`, `source_preflight` Core e il gate catalogo
+Platform. Parser e policy fiscali restano in Core. Lead time default 30 giorni,
+coverage freshness default un giorno civile. Nessun `--rollover` CLI finché
+non esistono adapter live certificati e repository durevole; layout o atti
+ignoti restano in review. Rischi live: fonti ufficiali e API Normattiva di
+produzione non certificate.
+
+## Refresh esplicito dell’anchor — 2026-09-29
+
+Implementato localmente il contratto `REGULATORY_ANCHOR_REFRESH` e lo schema
+`italian-energy/regulatory-anchor-refresh-result/v1`. L’API
+`ProjectedDomesticEnergyService.refresh_regulatory_anchor(as_of,
+registry_reviews)` e la CLI `projection_cli --refresh-anchor` riscaricano gli
+otto documenti dell’anchor incluso, ne confrontano gli SHA-256, conservano
+`anchor.as_of` e producono un envelope riusabile offline. Non acquisiscono
+catalogo o GME. Anchor scaduto, fonte mutata, revisione assente, atto incerto o
+applicabile bloccano il risultato.
+
+Limite esplicito: il refresh non scopre né interpreta da solo nuove
+pubblicazioni e non genera un anchor aggiornato per periodi non coperti. La
+revisione dei registri è ancora un input datato; per automatizzare nuovi valori
+servono parser/mapping versionati delle nuove fonti e una milestone separata.
+La Platform non è stata modificata; deve usare la nuova capability di refresh
+per ottenere l’evidenza e `source_preflight(...).ready` per il gate. Nessun
+commit, tag, push o release.
+Gate locali 2026-09-29: 326 test, 95,27% branch coverage, Ruff check/format,
+mypy e `git diff --check` verdi. I controlli usano fixture, senza refresh live
+dei registri in questa sessione.
+
+## Correzione riuso anchor — 2026-09-29
+
+Implementata localmente la correzione Spec 013/ADR 0016 per l’anchor incluso:
+`as_of=2026-09-27` resta la data dello snapshot; validità half-open
+`[2026-09-01, 2026-10-01)` consente il confronto del 29 settembre solo con
+evidenza specifica per quella data. Il pacchetto non va riscaricato ogni
+giorno. Dal 1° ottobre serve un anchor applicabile.
+
+`RegulatoryCoverageEvidence` lega digest canonico e ID dell’anchor, data del
+confronto, verifica degli otto documenti e revisione datata delle fonti
+ufficiali successive (responsabile, ricerche, atti e decisioni di applicabilità).
+Hash invariati da soli non attestano assenza di nuovi atti. Il gate Core
+`ProjectedDomesticEnergyService.source_preflight(...).ready` e il preflight
+cliente sono offline e fail-closed; la CLI distingue acquisizione/verifica live
+dal replay deterministico di `ProjectedSourceBundle`. I valori futuri restano
+stime (`future_values_verified=false`).
+
+Verifica locale 2026-09-29: 321 test, branch coverage 95,42%, Ruff check e
+format, mypy, `git diff --check` verdi. Non è stata eseguita né attestata una
+nuova revisione live dei quattro registri il 29 settembre; le fixture dei test
+sono sintetiche. La Platform non è stata modificata: deve sostituire il
+controllo locale `anchor.as_of == today` con `source_preflight(...).ready`,
+insieme alla propria regola di freschezza catalogo, e invocare
+`preflight(request, ...).ready` prima di `compare`. Nessun commit o nuova
+pubblicazione.
+
 Release Core `v0.12.0` del 2026-09-28: Spec 013, importer GME, anchor
 ARERA/fiscale, envelope e CLI di verifica sono inclusi nel package. La release
 GitHub allega wheel, sdist e checksum; PyPI viene pubblicato dal workflow OIDC.

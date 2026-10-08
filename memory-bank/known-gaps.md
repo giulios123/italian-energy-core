@@ -1,5 +1,13 @@
 # Known gaps
 
+- Spec 014 M1–M23 sono implementate localmente e il candidate Q4 è verificato,
+  staged e promosso nel repository Core in-memory dopo discovery completa e
+  applicazione della matrice di scope versionata. Anchor e coverage inclusi
+  sono pronti per `as_of=2026-10-08`; la coverage va aggiornata per date
+  successive. La release Core 0.13.0 procede con gate Core e smoke wheel verdi.
+  Il test Platform su PostgreSQL 17, restart, concorrenza e job persistente è
+  stato escluso da questa release su richiesta e resta un gate di produzione
+  Platform separato.
 - Gli evaluator fixed e indexed e il Billing Engine sono pubblicati nella
   release GitHub `v0.4.0`; la pubblicazione del package su PyPI non è stata
   richiesta né verificata.
@@ -53,10 +61,15 @@
   `as_of`; applicarla da ottobre 2026 in poi è un'assunzione esplicita, non una
   verifica normativa futura. Aggiornare data e fonti prima di confronti con un
   diverso `as_of`.
+- Il refresh legacy `refresh_regulatory_anchor` (alias semantico
+  `refresh_regulatory_coverage`) verifica un anchor esistente e non genera un
+  successore. `RegulatoryRolloverService` esegue discovery e candidate tramite
+  adapter configurati. Le evidenze Q4 packaged sono specifiche alla data
+  `2026-10-08`; non vanno riutilizzate come prova per confronti successivi.
 - La proposta forward della Spec 012 richiede curve base/stress e consumo
   futuro forniti dal caller; la beta Spec 013 non produce forecast.
 - Il contratto JSON v1 è fail-closed e non migra payload automaticamente; una
   modifica incompatibile richiederà un nuovo schema ID o una nuova versione.
-- L'adapter della repository Platform verso la capability prospettica non è
-  ancora implementato. Il vincolo attuale `italian-energy>=0.11.1,<0.12.0`
-  esclude `v0.12.0` e dovrà essere aggiornato nella milestone Platform.
+- Prima di consumare la capability di rollover, la Platform deve allineare il
+  proprio vincolo al Core 0.13.0 e verificare worker, persistenza e preflight
+  nel repository Platform; questa release Core non modifica quel repository.

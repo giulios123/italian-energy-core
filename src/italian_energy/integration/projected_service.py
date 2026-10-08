@@ -14,6 +14,8 @@ from italian_energy.arera.projection import (
     DomesticProjectionAnchor,
     load_domestic_projection_anchor,
 )
+from italian_energy.arera.rollover_coverage import RegulatoryAnchorCoverageEvidence
+from italian_energy.arera.rollover_models import RegulatoryRolloverReason
 from italian_energy.billing.engine import BillingRequest
 from italian_energy.billing.regulatory import BillingError, RegulatoryBillingEngine
 from italian_energy.comparison import (
@@ -73,9 +75,16 @@ from .projected import (
     ProjectedDomesticRecommendationRequest,
     ProjectedDomesticRecommendationResult,
     ProjectedScenarioComparison,
+    ProjectedSourcePreflightResult,
     ProjectedVerifiedInputs,
+    RegulatoryAnchorRefreshResult,
+    RegulatoryCoverageEvidence,
+    RegulatoryRegistry,
+    RegulatoryRegistryReview,
+    projection_anchor_digest,
     validate_consumption_periods,
 )
+from .regulatory_acquisition import fetch_official_source, verify_anchor_source_digests
 from .service import (
     DEFAULT_PERCENTAGE_ROUNDING_POLICY,
     DEFAULT_ROUNDING_POLICY,
@@ -83,6 +92,12 @@ from .service import (
 )
 
 _INDEX_DELTA = Decimal("0.20")
+_REQUIRED_REGISTRIES: tuple[RegulatoryRegistry, ...] = (
+    "ARERA",
+    "ADM",
+    "Gazzetta Ufficiale",
+    "Normattiva",
+)
 
 
 class ProjectedDomesticEnergyService:
@@ -118,15 +133,110 @@ class ProjectedDomesticEnergyService:
             ) from exc
 
     @staticmethod
-    def acquire_regulatory_anchor() -> DomesticProjectionAnchor:
-        """Load the versioned ARERA/ADM source-backed anchor artifact."""
+    def acquire_regulatory_anchor(as_of: date | None = None) -> DomesticProjectionAnchor:
+        """Load the packaged anchor active on the requested civil date."""
         try:
-            return load_domestic_projection_anchor()
+            return load_domestic_projection_anchor(as_of)
         except ValueError as exc:
             raise CoreContractError(
                 CoreErrorCode.COVERAGE_UNAVAILABLE,
                 "verified regulatory projection anchor is unavailable",
             ) from exc
+
+    def refresh_regulatory_coverage(
+        self,
+        as_of: date,
+        registry_reviews: tuple[RegulatoryRegistryReview, ...] = (),
+        fetch_source: Callable[[str], bytes] = fetch_official_source,
+    ) -> RegulatoryAnchorRefreshResult:
+        """Refresh coverage of the packaged anchor; this does not build a successor."""
+        anchor = self.acquire_regulatory_anchor(as_of)
+        date_valid = (
+            anchor.status == VerificationStatus.VERIFIED
+            and anchor.as_of <= as_of
+            and anchor.validity.start <= as_of < anchor.validity.end
+        )
+        source_checks = (
+            verify_anchor_source_digests(anchor, fetch_source, self._clock) if date_valid else ()
+        )
+        now = self._clock()
+        evidence = RegulatoryCoverageEvidence(
+            anchor_id=anchor.anchor_id,
+            anchor_sha256=projection_anchor_digest(anchor),
+            comparison_as_of=as_of,
+            checked_at=now,
+            source_checks=source_checks,
+            registry_reviews=registry_reviews,
+        )
+        expected_sources = {source.source_id: source.sha256 for source in anchor.sources}
+        observed_sources = {check.source_id: check for check in source_checks}
+        digests_match = set(observed_sources) == set(expected_sources) and all(
+            expected is not None
+            and observed_sources[source_id].expected_sha256 == expected
+            and observed_sources[source_id].observed_sha256 == expected
+            for source_id, expected in expected_sources.items()
+        )
+        reviews = {review.registry: review for review in registry_reviews}
+        review_complete = set(reviews) == set(_REQUIRED_REGISTRIES) and all(
+            review.as_of == as_of and review.reviewed_at <= now for review in reviews.values()
+        )
+        applicable = any(
+            finding.applicability == "applicable"
+            for review in registry_reviews
+            for finding in review.findings
+        )
+        uncertain = any(
+            finding.applicability == "uncertain"
+            for review in registry_reviews
+            for finding in review.findings
+        )
+        checks = {
+            "anchor_verified": anchor.status == VerificationStatus.VERIFIED,
+            "anchor_valid_at_as_of": date_valid,
+            "source_digests_match": digests_match,
+            "registry_reviews_complete": review_complete,
+            "no_applicable_later_regulatory_act": not applicable,
+            "no_uncertain_later_regulatory_act": not uncertain,
+        }
+        reasons: list[str] = []
+        if not date_valid:
+            reasons.append(
+                CoreErrorCode.COVERAGE_EXPIRED.value
+                if as_of >= anchor.validity.end
+                else CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value
+            )
+        if not digests_match:
+            changed = any(
+                check.observed_sha256 is not None and check.expected_sha256 != check.observed_sha256
+                for check in source_checks
+            )
+            reasons.append(
+                CoreErrorCode.REGULATORY_SOURCE_CHANGED.value
+                if changed
+                else CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value
+            )
+        if not review_complete or uncertain:
+            reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+        if applicable:
+            reasons.append(CoreErrorCode.APPLICABLE_REGULATORY_ACT.value)
+        return RegulatoryAnchorRefreshResult(
+            as_of=as_of,
+            anchor=anchor,
+            coverage_evidence=evidence,
+            ready=all(checks.values()),
+            checks=checks,
+            reason_codes=tuple(dict.fromkeys(reasons)),
+        )
+
+    def refresh_regulatory_anchor(
+        self,
+        as_of: date,
+        registry_reviews: tuple[RegulatoryRegistryReview, ...] = (),
+        fetch_source: Callable[[str], bytes] = fetch_official_source,
+    ) -> RegulatoryAnchorRefreshResult:
+        """Compatibility alias for refresh_regulatory_coverage."""
+
+        return self.refresh_regulatory_coverage(as_of, registry_reviews, fetch_source)
 
     def preflight(
         self,
@@ -134,19 +244,23 @@ class ProjectedDomesticEnergyService:
         catalog: CurrentCatalogSnapshot | None = None,
         market_history: GmeMarketHistory | None = None,
         anchor: DomesticProjectionAnchor | None = None,
+        coverage_evidence: RegulatoryCoverageEvidence
+        | RegulatoryAnchorCoverageEvidence
+        | None = None,
     ) -> ProjectedDomesticPreflightResult:
         """Report official-data availability separately from projection readiness."""
         horizon = future_period(request.as_of)
+        source_gate = self.source_preflight(
+            request.as_of, catalog, market_history, anchor, coverage_evidence
+        )
         checks = {
             "request_supported": True,
-            "catalog_verified": False,
-            "market_window_verified": False,
-            "regulatory_anchor_verified": False,
+            **source_gate.checks,
             "baseline_contract_covers_horizon": False,
             "baseline_calculable": False,
             "supported_candidate_available": False,
         }
-        reasons: list[str] = []
+        reasons: list[str] = list(source_gate.reason_codes)
         normalized_count = 0
         eligible_count = 0
         excluded_count = 0
@@ -158,36 +272,6 @@ class ProjectedDomesticEnergyService:
             reasons.append(
                 exc.code.value if isinstance(exc, CoreContractError) else "unsupported_scenario"
             )
-
-        if catalog is not None:
-            checks["catalog_verified"] = (
-                catalog.dataset_date <= request.as_of
-                and catalog.snapshot.offers.status == VerificationStatus.VERIFIED
-                and all(
-                    item.status == VerificationStatus.VERIFIED
-                    for item in catalog.snapshot.offers.files
-                )
-            )
-            if not checks["catalog_verified"]:
-                reasons.append(CoreErrorCode.SOURCE_VALIDATION_FAILED.value)
-        else:
-            reasons.append("catalog_snapshot_missing")
-
-        if market_history is not None:
-            checks["market_window_verified"] = self._market_history_matches(
-                market_history, request.as_of
-            )
-            if not checks["market_window_verified"]:
-                reasons.append(CoreErrorCode.SOURCE_VALIDATION_FAILED.value)
-        else:
-            reasons.append("gme_market_history_missing")
-
-        if anchor is not None:
-            checks["regulatory_anchor_verified"] = self._anchor_matches(anchor, request.as_of)
-            if not checks["regulatory_anchor_verified"]:
-                reasons.append(CoreErrorCode.COVERAGE_UNAVAILABLE.value)
-        else:
-            reasons.append("regulatory_anchor_missing")
 
         try:
             self._contract_for_horizon(request, horizon)
@@ -242,10 +326,7 @@ class ProjectedDomesticEnergyService:
             if not checks["supported_candidate_available"]:
                 reasons.append(CoreErrorCode.SOURCE_VALIDATION_FAILED.value)
 
-        official_ready = all(
-            checks[name]
-            for name in ("catalog_verified", "market_window_verified", "regulatory_anchor_verified")
-        )
+        official_ready = source_gate.ready
         calculable = all(
             checks[name]
             for name in (
@@ -268,34 +349,264 @@ class ProjectedDomesticEnergyService:
             excluded_offer_count=excluded_count,
         )
 
+    def source_preflight(
+        self,
+        as_of: date,
+        catalog: CurrentCatalogSnapshot | None,
+        market_history: GmeMarketHistory | None,
+        anchor: DomesticProjectionAnchor | None,
+        coverage_evidence: RegulatoryCoverageEvidence | RegulatoryAnchorCoverageEvidence | None,
+    ) -> ProjectedSourcePreflightResult:
+        """Gate reusable official inputs without acquiring data or calculating offers."""
+        checks = {
+            "comparison_date_supported": False,
+            "catalog_verified": False,
+            "market_window_verified": False,
+            "regulatory_anchor_verified": False,
+            "regulatory_anchor_valid_at_as_of": False,
+            "regulatory_source_digests_match": False,
+            "regulatory_registry_coverage_complete": False,
+            "no_applicable_later_regulatory_act": False,
+        }
+        reasons: list[str] = []
+        try:
+            self._validate_as_of(as_of)
+            checks["comparison_date_supported"] = True
+        except CoreContractError as exc:
+            reasons.append(exc.code.value)
+
+        if catalog is None:
+            reasons.append("catalog_snapshot_missing")
+        else:
+            checks["catalog_verified"] = (
+                catalog.dataset_date <= as_of
+                and catalog.snapshot.offers.status == VerificationStatus.VERIFIED
+                and all(
+                    item.status == VerificationStatus.VERIFIED
+                    for item in catalog.snapshot.offers.files
+                )
+            )
+            if not checks["catalog_verified"]:
+                reasons.append(CoreErrorCode.SOURCE_VALIDATION_FAILED.value)
+
+        if market_history is None:
+            reasons.append("gme_market_history_missing")
+        else:
+            checks["market_window_verified"] = self._market_history_matches(market_history, as_of)
+            if not checks["market_window_verified"]:
+                reasons.append(CoreErrorCode.SOURCE_VALIDATION_FAILED.value)
+
+        if anchor is None:
+            reasons.append("regulatory_anchor_missing")
+        elif anchor.status != VerificationStatus.VERIFIED:
+            checks["regulatory_anchor_valid_at_as_of"] = False
+            reasons.append("regulatory_anchor_unverified")
+        else:
+            checks["regulatory_anchor_valid_at_as_of"] = (
+                anchor.as_of <= as_of and anchor.validity.start <= as_of < anchor.validity.end
+            )
+            if not checks["regulatory_anchor_valid_at_as_of"]:
+                if as_of >= anchor.validity.end:
+                    reasons.append(CoreErrorCode.COVERAGE_EXPIRED.value)
+                else:
+                    reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+
+        if anchor is not None and coverage_evidence is not None:
+            coverage_reasons = self._coverage_evidence_reasons(anchor, as_of, coverage_evidence)
+            reasons.extend(coverage_reasons)
+            checks["regulatory_source_digests_match"] = (
+                CoreErrorCode.REGULATORY_SOURCE_CHANGED.value not in coverage_reasons
+                and self._source_digests_complete(anchor, coverage_evidence)
+            )
+            if isinstance(coverage_evidence, RegulatoryAnchorCoverageEvidence):
+                checks["regulatory_registry_coverage_complete"] = not any(
+                    reason
+                    in {
+                        RegulatoryRolloverReason.INCOMPLETE_COVERAGE,
+                        RegulatoryRolloverReason.STALE_COVERAGE_EVIDENCE,
+                    }
+                    for reason in coverage_evidence.reason_codes
+                )
+                checks["no_applicable_later_regulatory_act"] = not any(
+                    reason
+                    in {
+                        RegulatoryRolloverReason.UNSUPPORTED_REGULATORY_SOURCE,
+                        RegulatoryRolloverReason.AMBIGUOUS_APPLICABILITY,
+                        RegulatoryRolloverReason.SOURCE_CHANGED_UNEXPECTEDLY,
+                    }
+                    for reason in coverage_evidence.reason_codes
+                )
+            else:
+                reviews = {item.registry: item for item in coverage_evidence.registry_reviews}
+                checks["regulatory_registry_coverage_complete"] = (
+                    set(reviews) == set(_REQUIRED_REGISTRIES)
+                    and all(item.as_of == as_of for item in reviews.values())
+                    and all(item.reviewed_at <= self._clock() for item in reviews.values())
+                )
+                checks["no_applicable_later_regulatory_act"] = not any(
+                    finding.applicability == "applicable"
+                    for review in coverage_evidence.registry_reviews
+                    for finding in review.findings
+                )
+            checks["regulatory_anchor_verified"] = (
+                checks["regulatory_anchor_valid_at_as_of"]
+                and checks["regulatory_source_digests_match"]
+                and checks["regulatory_registry_coverage_complete"]
+                and checks["no_applicable_later_regulatory_act"]
+                and not coverage_reasons
+            )
+        elif anchor is not None:
+            reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+
+        unique_reasons = tuple(dict.fromkeys(reasons))
+        return ProjectedSourcePreflightResult(
+            ready=all(checks[name] for name in checks),
+            as_of=as_of,
+            checks=checks,
+            reason_codes=unique_reasons,
+        )
+
+    def _coverage_evidence_reasons(
+        self,
+        anchor: DomesticProjectionAnchor,
+        as_of: date,
+        evidence: RegulatoryCoverageEvidence | RegulatoryAnchorCoverageEvidence,
+    ) -> tuple[str, ...]:
+        reasons: list[str] = []
+        if evidence.comparison_as_of != as_of:
+            reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+        if evidence.anchor_id != anchor.anchor_id:
+            reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+        if evidence.anchor_sha256 != projection_anchor_digest(anchor):
+            reasons.append(CoreErrorCode.REGULATORY_SOURCE_CHANGED.value)
+        if evidence.checked_at > self._clock():
+            reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+        if isinstance(evidence, RegulatoryAnchorCoverageEvidence):
+            reason_map = {
+                RegulatoryRolloverReason.SOURCE_CHANGED_UNEXPECTEDLY: (
+                    CoreErrorCode.REGULATORY_SOURCE_CHANGED.value
+                ),
+                RegulatoryRolloverReason.CURRENT_ANCHOR_EXPIRED: (
+                    CoreErrorCode.COVERAGE_EXPIRED.value
+                ),
+                RegulatoryRolloverReason.SOURCE_UNAVAILABLE: (
+                    CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value
+                ),
+                RegulatoryRolloverReason.INCOMPLETE_COVERAGE: (
+                    CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value
+                ),
+                RegulatoryRolloverReason.STALE_COVERAGE_EVIDENCE: (
+                    CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value
+                ),
+                RegulatoryRolloverReason.UNSUPPORTED_REGULATORY_SOURCE: (
+                    CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value
+                ),
+                RegulatoryRolloverReason.AMBIGUOUS_APPLICABILITY: (
+                    CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value
+                ),
+            }
+            reasons.extend(reason_map.get(reason, reason.value) for reason in evidence.reason_codes)
+            if not evidence.ready and not evidence.reason_codes:
+                reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+            anchor_checks_by_id = {item.source_id: item for item in evidence.source_checks}
+            expected_ids = {item.source_id for item in anchor.sources}
+            if set(anchor_checks_by_id) != expected_ids:
+                reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+            for source in anchor.sources:
+                anchor_check = anchor_checks_by_id.get(source.source_id)
+                if anchor_check is None:
+                    continue
+                if (
+                    source.sha256 is None
+                    or anchor_check.expected_sha256 != source.sha256
+                    or anchor_check.observed_sha256 is None
+                ):
+                    reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+                elif anchor_check.observed_sha256 != source.sha256:
+                    reasons.append(CoreErrorCode.REGULATORY_SOURCE_CHANGED.value)
+                if anchor_check.checked_at > self._clock():
+                    reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+            return tuple(dict.fromkeys(reasons))
+        checks_by_id = {item.source_id: item for item in evidence.source_checks}
+        expected_ids = {item.source_id for item in anchor.sources}
+        if set(checks_by_id) != expected_ids:
+            reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+        if any(item.checked_at > self._clock() for item in evidence.source_checks):
+            reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+        for source in anchor.sources:
+            check = checks_by_id.get(source.source_id)
+            if check is None:
+                continue
+            if (
+                source.sha256 is None
+                or check.expected_sha256 != source.sha256
+                or check.observed_sha256 is None
+            ):
+                reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+            elif check.observed_sha256 != source.sha256:
+                reasons.append(CoreErrorCode.REGULATORY_SOURCE_CHANGED.value)
+
+        reviews_by_registry = {item.registry: item for item in evidence.registry_reviews}
+        if set(reviews_by_registry) != set(_REQUIRED_REGISTRIES):
+            reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+        for review in evidence.registry_reviews:
+            if review.as_of != as_of or review.reviewed_at > self._clock():
+                reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+            if any(finding.applicability == "applicable" for finding in review.findings):
+                reasons.append(CoreErrorCode.APPLICABLE_REGULATORY_ACT.value)
+            if any(finding.applicability == "uncertain" for finding in review.findings):
+                reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
+        return tuple(dict.fromkeys(reasons))
+
+    @staticmethod
+    def _source_digests_complete(
+        anchor: DomesticProjectionAnchor,
+        evidence: RegulatoryCoverageEvidence | RegulatoryAnchorCoverageEvidence,
+    ) -> bool:
+        checks_by_id = {item.source_id: item for item in evidence.source_checks}
+        return set(checks_by_id) == {item.source_id for item in anchor.sources} and all(
+            source.sha256 is not None
+            and checks_by_id[source.source_id].expected_sha256 == source.sha256
+            and checks_by_id[source.source_id].observed_sha256 == source.sha256
+            for source in anchor.sources
+        )
+
     def compare(
         self,
         request: ProjectedDomesticComparisonRequest,
         catalog: CurrentCatalogSnapshot,
         market_history: GmeMarketHistory,
         anchor: DomesticProjectionAnchor,
+        coverage_evidence: RegulatoryCoverageEvidence
+        | RegulatoryAnchorCoverageEvidence
+        | None = None,
     ) -> ProjectedDomesticComparisonResult:
         """Return low/base/high monthly-billed future estimates from explicit snapshots."""
         self._validate_as_of(request.as_of)
         validate_consumption_periods(request.consumption, request.as_of)
-        if (
-            catalog.dataset_date > request.as_of
-            or catalog.snapshot.offers.status != VerificationStatus.VERIFIED
-        ):
-            raise CoreContractError(
-                CoreErrorCode.SOURCE_VALIDATION_FAILED,
-                "comparison requires a verified catalog acquired no later than as_of",
+        source_gate = self.source_preflight(
+            request.as_of, catalog, market_history, anchor, coverage_evidence
+        )
+        if not source_gate.ready:
+            errors = set(source_gate.reason_codes)
+            priority = (
+                CoreErrorCode.UNSUPPORTED_HORIZON.value,
+                CoreErrorCode.COVERAGE_EXPIRED.value,
+                CoreErrorCode.REGULATORY_SOURCE_CHANGED.value,
+                CoreErrorCode.APPLICABLE_REGULATORY_ACT.value,
+                CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value,
+                CoreErrorCode.SOURCE_VALIDATION_FAILED.value,
+                CoreErrorCode.COVERAGE_UNAVAILABLE.value,
             )
-        if not self._market_history_matches(market_history, request.as_of):
+            code = next((item for item in priority if item in errors), None)
+            if code is None:
+                code = CoreErrorCode.COVERAGE_UNAVAILABLE.value
             raise CoreContractError(
-                CoreErrorCode.COVERAGE_UNAVAILABLE,
-                "comparison requires exactly the twelve recent verified GME PUN months",
+                CoreErrorCode(code),
+                "projected comparison source preflight is not ready: "
+                + ", ".join(source_gate.reason_codes),
             )
-        if not self._anchor_matches(anchor, request.as_of):
-            raise CoreContractError(
-                CoreErrorCode.COVERAGE_UNAVAILABLE,
-                "comparison requires a verified regulatory anchor valid at as_of",
-            )
+        assert coverage_evidence is not None
 
         horizon = future_period(request.as_of)
         baseline_contract = self._contract_for_horizon(request, horizon)
@@ -350,12 +661,16 @@ class ProjectedDomesticEnergyService:
             regulatory_status=anchor.status,
             regulatory_anchor_date=anchor.as_of,
             regulatory_provenance=provenance,
+            comparison_as_of=request.as_of,
+            regulatory_anchor_validity=anchor.validity,
+            regulatory_coverage_as_of=coverage_evidence.comparison_as_of,
+            regulatory_coverage_id=coverage_evidence.evidence_id,
         )
         assumptions = ProjectedComparisonAssumptions(
             historical_consumption_period=history_period,
             historical_market_period=history_period,
             future_period=horizon,
-            regulatory_anchor_date=request.as_of,
+            regulatory_anchor_date=anchor.as_of,
             current_contract_continued=request.continuation_assumption,
         )
         digest = _digest(
@@ -365,6 +680,7 @@ class ProjectedDomesticEnergyService:
                 "catalog": catalog.snapshot.offers.snapshot_id,
                 "market_digests": [item.sha256 for item in evidence.market_report_provenance],
                 "anchor": anchor.anchor_id,
+                "regulatory_coverage": coverage_evidence.evidence_id,
                 "scenarios": [item.comparison.portal_result_id for item in scenarios],
                 "assumptions": assumptions.model_dump(mode="json"),
             }
@@ -707,14 +1023,6 @@ class ProjectedDomesticEnergyService:
                 for item in point.provenance
             )
             for report, point in zip(history.reports, history.market_data.points, strict=True)
-        )
-
-    @staticmethod
-    def _anchor_matches(anchor: DomesticProjectionAnchor, as_of: date) -> bool:
-        return (
-            anchor.status == VerificationStatus.VERIFIED
-            and anchor.as_of == as_of
-            and anchor.validity.start <= as_of < anchor.validity.end
         )
 
     def _validate_as_of(self, as_of: date) -> None:

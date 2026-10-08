@@ -203,6 +203,9 @@ class AreraDomesticRuleSetComposer:
             raise AreraCompositionError("a month is missing an executable source total")
         if any(charge.role != AreraChargeRole.TOTAL for charge in charges):
             raise AreraCompositionError("executable source components must be published totals")
+        observed_periods = tuple(sorted(by_period, key=lambda period: period.start))
+        if observed_periods == (bundle.validity,):
+            return
         expected_periods: list[DatePeriod] = []
         cursor = bundle.validity.start.replace(day=1)
         while cursor < bundle.validity.end:
@@ -213,7 +216,7 @@ class AreraDomesticRuleSetComposer:
             )
             expected_periods.append(DatePeriod(start=cursor, end=next_month))
             cursor = next_month
-        if tuple(sorted(by_period, key=lambda period: period.start)) != tuple(expected_periods):
+        if observed_periods != tuple(expected_periods):
             raise AreraCompositionError("source months are not contiguous across bundle validity")
 
     @staticmethod

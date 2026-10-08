@@ -24,5 +24,15 @@
   schema ID, orchestra replay storici e confronti domestici BT correnti o
   prospettici tramite façade distinte e serializza gli aggregati registrati
   senza introdurre trasporto o persistenza.
+- La Spec 014 è implementata nel Core fino alla façade Python, con discovery,
+  parser versionati, facts, mapping, candidate, coverage/review e repository
+  Protocol CAS (reference in-memory). Platform fornisce storage transazionale,
+  scheduler e adapter di trasporto/configurazione; la semantica regolatoria e i
+  parser restano Core. `source_preflight`, `resolve_active` e `compare` restano
+  offline. Il replay completo del 2026-10-08 ha prodotto candidate Q4 pronto,
+  una promozione unica e coverage `ready=true` per quella data. L'anchor Q4 è
+  incluso nel package; la coverage va aggiornata per date successive. Il replay
+  usa storage in-memory e non certifica il worker Platform persistente, il
+  restart o la concorrenza PostgreSQL.
 
 I modelli canonici sono Pydantic v2 frozen; gli importi usano Decimal.

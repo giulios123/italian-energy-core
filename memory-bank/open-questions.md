@@ -1,5 +1,13 @@
 # Open questions
 
+- Rollover Core: la coverage Q4 packaged è datata 2026-10-08; eseguire un nuovo
+  refresh/discovery prima di abilitare confronti con `as_of` successivo. Nuovi
+  collegamenti verso le disposizioni sorvegliate o fonti mutate restano
+  fail-closed finché non sono interpretati con regole versionate.
+- Gate Platform: prima di dichiarare verificata l'integrazione in produzione,
+  eseguire R4 in Spec 014 §24 su PostgreSQL 17 con Docker e database di test
+  dedicato, inclusi restart, crash recovery, doppio worker e CAS concorrente.
+  Questo test è stato differito su richiesta per il rilascio del package Core.
 - Il BillingRequest v0.6 resta compatibile con ruleset custom verificati; il
   ComparisonRequest v0.7 richiede invece la matrice nel proprio resolver.
 - Quale estensione futura, separata dalla v0.8, coprirà gas, nuovi formati o
@@ -16,5 +24,3 @@
   fonti ufficiali non sostituisce quella prova.
 - Quando riattivare la proposta differita Spec 012 e quale fonte forward
   verificata userà il caller per scenari base/stress?
-- Quando potrà essere pianificato l'allineamento della Platform al manifest e
-  agli envelope `italian-energy/contract/v1`?

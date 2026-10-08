@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-08
+
+### Added
+
+- Regulatory Anchor Rollover: versioned effects, five-channel discovery,
+  typed parser/review outcomes, immutable candidate workflow, late recovery,
+  and Core offline preflight/anchor resolution.
+- Production Core factory for official-source adapters and durable storage ports.
+- Audit timestamps are recorded after completed source fetches and digest checks,
+  so a freshly acquired regulatory assertion is not rejected as newer than its
+  candidate.
+- Q4 2026 domestic-BT anchor, its dated coverage evidence, and promotion event,
+  with explicit confirmations linked back to the Q3 facts.
+
+### Verification boundary
+
+- The official ARERA 343 PDF was fetched live on 2026-10-07 with TLS
+  verification enabled. Its 427,425 bytes and SHA-256
+  `685691673341be23f479823c61b18c37fe24360f629ff3f8b3c5c847888db30e` match
+  the user-supplied file; the versioned parser produced four non-numeric
+- The complete five-channel official snapshot acquired on 2026-10-08 was
+  replayed through the versioned field-to-source scope policy. The candidate
+  passed validation for 13 facts and 11 mapping decisions; stage and one
+  promotion succeeded. The packaged anchor is
+  `regulatory-anchor:8171d18ee60eac067092ee0e7653c475499da9966fdbcfda55c8770846337e1e`,
+  valid on `[2026-10-01, 2027-01-01)`, with dated evidence ready for
+  `as_of=2026-10-08`. That evidence must be refreshed for later comparison dates.
+- Core tests: 689 passed with 95.05% branch coverage. Ruff check/format, mypy,
+  `git diff --check`, wheel/sdist build, and isolated wheel import/capability
+  smoke pass. PostgreSQL/Platform restart and concurrency tests are outside
+  this Core package release and were not run.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added
