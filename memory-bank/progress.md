@@ -706,14 +706,22 @@
   `as_of=2026-10-08` e va rinnovata per date successive. Nessun commit, tag,
   push o release; la 0.13.0 non è pubblicata.
 
-## Release Core 0.13.0 — preparazione locale 2026-10-08
+## Release Core 0.13.0 — pubblicata 2026-10-08
 
 - Aggiornati changelog, README, Spec 014 §26 e stato roadmap per separare il
   rilascio del package Core dal gate persistente Platform, escluso su richiesta.
 - Gate locale Core: 689 test passati, 95,05% branch coverage, Ruff check e
   format, mypy `src tests`, lock check e `git diff --check` passati.
-- Wheel e sdist 0.13.0 costruite; smoke isolato della wheel conferma versione,
-  capability `regulatory_anchor_rollover`, anchor Q4 e coverage pronta al
-  2026-10-08. PyPI risponde 404 per 0.13.0 e il tag/release GitHub non esistono.
-- Pubblicazione autorizzata dall'utente; commit, push, tag e Trusted Publishing
-  sono in corso. Nessuna verifica PostgreSQL/Platform è inclusa.
+- Commit/tag sorgente `e8306161d8b5056135a18f2c594cd56c1550bde9` /
+  `v0.13.0` spinti; `bc97423095b87610250f9e02e7d4ceea0bedee23` corregge
+  l'input del workflow dispatch sul branch `main` senza alterare il tag.
+- CI GitHub verde su Python 3.12, 3.13 e 3.14; workflow Trusted Publishing
+  `37806544781` completato con build, asset GitHub, smoke e publish PyPI.
+- API PyPI conferma `italian-energy==0.13.0`. Hash pubblicati: wheel
+  `a3cc6c11e93b9d398aa8c2f8c83c65614765eb6ea447f84b06e05fa7b3ab8518`, sdist
+  `b65c065572f8c8f6d883d04ef4f0cd88f03d08142c41c6ffb3b49290f8aee327`;
+  corrispondono agli asset GitHub. Installazione isolata PyPI conferma versione,
+  capability `regulatory_anchor_rollover`, anchor Q4 e coverage pronta per
+  `as_of=2026-10-08`.
+- PostgreSQL, job persistente e accettazione Platform non sono inclusi; la
+  coverage packaged è datata e va aggiornata per confronti successivi.

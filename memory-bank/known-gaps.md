@@ -4,7 +4,8 @@
   staged e promosso nel repository Core in-memory dopo discovery completa e
   applicazione della matrice di scope versionata. Anchor e coverage inclusi
   sono pronti per `as_of=2026-10-08`; la coverage va aggiornata per date
-  successive. La release Core 0.13.0 procede con gate Core e smoke wheel verdi.
+  successive. La release Core 0.13.0 è pubblicata su PyPI/GitHub con gate Core
+  e smoke wheel verdi.
   Il test Platform su PostgreSQL 17, restart, concorrenza e job persistente è
   stato escluso da questa release su richiesta e resta un gate di produzione
   Platform separato.

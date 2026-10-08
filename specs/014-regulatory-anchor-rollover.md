@@ -14,10 +14,10 @@ validato (13 fatti, 11 decisioni); l'anchor promosso ha ID
 e digest `641c71a677d98cefe6ec562fd5665a54d3620059e61d70c6a00c397238073ddf`.
 La coverage e `source_preflight` sono pronti per `as_of=2026-10-08`; la prova
 è datata e non vale automaticamente per giorni successivi. I gate Core
-aggiornati sono in §25 e M23. Per decisione dell'utente, il rilascio del
-package Core 0.13.0 procede con i gate Core e smoke wheel completi; Docker,
+aggiornati sono in §25 e M23. Per decisione dell'utente, il package Core
+0.13.0 è stato pubblicato dopo i gate Core e lo smoke wheel; Docker,
 PostgreSQL e accettazione Platform persistente restano separati e differiti.
-Vedi §26 per confini e criteri di release.
+Vedi §26–27 per confini ed evidenza del rilascio.
 **Ambito:** elettricità domestica BT, residente e non residente, nel percorso
 prospettico della Spec 013. Nessun valore per un periodo successivo è attestato
 da questa spec. L'esempio A/B del 2026 è una fixture sintetica.
@@ -1290,8 +1290,8 @@ concorrenza PostgreSQL e Docker restano verifiche Platform separate.
 
 ## 26. Decisione di release del package Core 0.13.0 — 2026-10-08
 
-Su richiesta esplicita dell'utente, la release del package Core 0.13.0 procede
-dopo la chiusura locale M23 e i gate Core completi. La release contiene il
+Su richiesta esplicita dell'utente, la release del package Core 0.13.0 è stata
+pubblicata dopo la chiusura locale M23 e i gate Core completi. La release contiene il
 candidate Q4 validato, l'anchor promosso, la coverage datata e l'evento di
 promozione immutabile. Il preflight documentato è valido per `as_of=2026-10-08`;
 non certifica automaticamente date successive.
@@ -1303,9 +1303,31 @@ restano da eseguire prima di dichiarare verificata l'integrazione Platform in
 produzione. Docker e database di test sono stati esplicitamente esclusi
 dall'utente da questo rilascio.
 
-Il piano R1–R4/R5 della sezione 24 è superseded per il solo rilascio del package:
+Il piano R1–R4/R5 della sezione 24 è superato per il solo rilascio del package:
 R1–R3 sono chiusi localmente con la matrice versionata, il candidate validato
 e il replay/promozione; R4 resta un gate Platform separato. R5 per Core richiede
 la suite Core completa, build wheel/sdist, smoke installato isolato, commit,
 tag e pubblicazione PyPI tramite Trusted Publishing. Il rilascio non attesta
 che la Platform abbia già aggiornato il proprio vincolo o attivato il worker.
+
+## 27. Evidenza effettiva del rilascio 0.13.0 — 2026-10-08
+
+- Commit sorgente e tag `v0.13.0`:
+  `e8306161d8b5056135a18f2c594cd56c1550bde9`.
+- Correzione successiva del workflow dispatch sul branch `main`:
+  `bc97423095b87610250f9e02e7d4ceea0bedee23`; il tag continua a identificare
+  il commit sorgente immutabile precedente.
+- GitHub CI del commit sorgente verde su Python 3.12, 3.13 e 3.14. Il workflow
+  Trusted Publishing `37806544781` ha completato build, versione/tag check,
+  upload degli asset, smoke wheel e publish PyPI. La GitHub Release è
+  https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.0.
+- L'API PyPI riporta `italian-energy` versione `0.13.0`. SHA-256 wheel
+  `a3cc6c11e93b9d398aa8c2f8c83c65614765eb6ea447f84b06e05fa7b3ab8518`;
+  SHA-256 sdist
+  `b65c065572f8c8f6d883d04ef4f0cd88f03d08142c41c6ffb3b49290f8aee327`.
+  Entrambi coincidono con gli asset della GitHub Release.
+- Installazione isolata da PyPI verificata: import versione `0.13.0`, capability
+  `regulatory_anchor_rollover`, anchor Q4 atteso e coverage `ready=true` per
+  `as_of=2026-10-08`.
+- Il rilascio non certifica PostgreSQL/Platform, scheduler giornaliero o la
+  freschezza della coverage per date successive al 2026-10-08.

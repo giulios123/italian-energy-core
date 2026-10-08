@@ -27,10 +27,12 @@ Ruff check/format, mypy `src tests` e `git diff --check` tutti verdi.
 
 Il loader packaged seleziona l'anchor con `as_of` usando intervalli half-open;
 il CLI passa la data alla risoluzione. La coverage prova la data 2026-10-08 e
-deve essere aggiornata prima di confronti in date successive. Gate Core,
-build wheel/sdist e smoke isolato della 0.13.0 passano. Per decisione
-dell'utente la pubblicazione Core procede; archivio/job Platform, Docker e
-PostgreSQL restano un gate separato e non sono inclusi nel rilascio.
+deve essere aggiornata prima di confronti in date successive. La 0.13.0 è
+pubblicata su GitHub e PyPI dal tag `v0.13.0` sul commit
+`e8306161d8b5056135a18f2c594cd56c1550bde9`. CI Python 3.12–3.14 e Trusted
+Publishing sono verdi; l'installazione isolata da PyPI conferma capability e
+anchor Q4. Archivio/job Platform, Docker e PostgreSQL restano un gate separato
+e non sono inclusi nel rilascio.
 
 ### Snapshot storico M21 — collegamento TUA verificato (superato da M23)
 

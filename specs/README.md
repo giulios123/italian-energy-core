@@ -21,7 +21,7 @@ Le specifiche sono il contratto normativo del progetto. Una funzionalità rileva
 | 011 | Current Domestic Advisor | Rilasciata in `v0.11.1`; scenari deterministici, snapshot verificati, preflight tipizzato ed envelope correnti |
 | 012 | Confronto prospettico con forward e recommendation robusta | Differita; solo documentale, non implementata |
 | 013 | Confronto beta con scenari storici | Rilasciata in `v0.12.0`; fonti live e gate Core verificati |
-| 014 | Regulatory Anchor Rollover | Core M1–M23 implementate; Q4 promosso e verificato localmente con evidence al 2026-10-08; 689 test, 95,05% branch coverage, wheel/sdist e smoke isolato passano; Core 0.13.0 in release, accettazione Platform PostgreSQL differita |
+| 014 | Regulatory Anchor Rollover | Core M1–M23 implementate e Q4 incluso con evidence al 2026-10-08; 689 test, 95,05% branch coverage; Core 0.13.0 pubblicata su PyPI/GitHub; accettazione Platform PostgreSQL differita |
 
 Le spec pianificate non autorizzano ancora codice produttivo. I dettagli diventano vincolanti soltanto quando la spec viene scritta e accettata.
 
@@ -58,5 +58,5 @@ coverage inclusi nel package sono pronti per `as_of=2026-10-08`; l'evidence va
 aggiornata per date successive. Il refresh legacy verifica l'anchor esistente,
 mentre il nuovo servizio Core prepara il successore. I gate Core della 0.13.0
 passano; il test persistente PostgreSQL/Platform è separato e differito su
-richiesta dell'utente. Il dettaglio e i limiti della release sono in Spec 014
-§26.
+richiesta dell'utente. La release Core `v0.13.0` è pubblicata; il dettaglio e
+i limiti sono in Spec 014 §26–27.
