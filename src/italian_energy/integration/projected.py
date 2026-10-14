@@ -28,7 +28,10 @@ from italian_energy.integration.current import (
     CurrentScenario,
     future_period,
 )
-from italian_energy.market.gme import GmeMarketHistory
+from italian_energy.market.gme import (
+    GmeMarketHistory,
+    is_official_gme_monthly_provenance,
+)
 from italian_energy.portal_offers.models import (
     PortalComparisonResult,
     PortalEligibilityProfile,
@@ -341,14 +344,8 @@ class ProjectedVerifiedInputs(DomainModel):
         if self.market_period != expected_market_period:
             raise ValueError("market period must match the exact recent twelve-month window")
         for item, month in zip(self.market_report_provenance, recent, strict=True):
-            expected_identifier = f"MGP-monthly-baseload:{month:%Y-%m}"
-            expected_url_suffix = f"{month:%Y%m}_Dati_di_sintesi_mensile.pdf"
-            if (
-                item.source_identifier != expected_identifier
-                or item.url is None
-                or not item.url.startswith("https://gme.mercatoelettrico.org/Portals/0/")
-                or not item.url.endswith(expected_url_suffix)
-            ):
+            expected_period = DatePeriod(start=month, end=_add_months(month, 1))
+            if not is_official_gme_monthly_provenance(item, expected_period):
                 raise ValueError("market provenance must identify the matching official GME report")
         if self.regulatory_status != VerificationStatus.VERIFIED:
             raise ValueError("projected result requires a verified regulatory anchor")

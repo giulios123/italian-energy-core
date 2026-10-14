@@ -1,6 +1,7 @@
 # Spec 013 — Confronto beta domestico con scenari storici
 
-**Stato:** implementata e rilasciata in Core `v0.12.0` il 2026-09-28.
+**Stato:** base implementata e rilasciata in Core `v0.12.0` il 2026-09-28;
+addendum GME implementato in Core `v0.13.1` il 2026-10-14.
 
 ## Stato e scopo
 
@@ -60,6 +61,56 @@ per fascia sono indici distinti. Si supporta solo un mapping provato dalle
 specifiche del Portale e dalle fonti ufficiali. Un indice senza mapping o
 serie completa non è calcolato: l’offerta interessata è esclusa con motivo
 esplicito; se manca un indice necessario alla baseline, il preflight fallisce.
+
+### Acquisizione del PUN mensile GME
+
+Il report statistico mensile PDF resta la fonte primaria del PUN mensile. Il
+Core può ricavare lo stesso valore dallo ZIP annuale ufficiale «Dati storici»
+GME MGP solo se la richiesta del PDF del mese termina con una risposta HTTP
+404 esplicita. Un errore di rete, timeout, redirect non ammesso, altra risposta
+HTTP, integrità, struttura o parsing del PDF non attiva il fallback. Il
+fallback non maschera un errore di acquisizione o un layout non supportato.
+
+Per i periodi dal 1° ottobre 2025 il fallback usa la serie ufficiale
+`PUN INDEX GME` del foglio `Prezzi-Prices` del workbook annuale `_15`. La serie
+è riferita all’intervallo minimo MGP a 15 minuti; `_60` è una serie distinta
+ammessa come controllo di coerenza della selezione, mai come sostituzione
+automatica. Risolvere il foglio per nome e tramite le relazioni OOXML. Un nome,
+insieme di colonne o definizione diverso da quello supportato rende
+l’acquisizione non valida.
+
+Leggere dalla tabella soltanto data, ora, periodo e la colonna esatta
+`PUN INDEX GME`. Convertire i token numerici XML direttamente in `Decimal`,
+senza passaggi `float` e senza arrotondamento alla precisione del PDF. La media
+mensile aritmetica usa precisione decimale interna di 50 cifre: ogni periodo
+atteso ha durata uguale di 15 minuti. Convertire da EUR/MWh a EUR/kWh mediante
+divisione esatta per 1.000. Un confronto con il PDF usa soltanto le cifre
+pubblicate dal PDF; non implica una regola GME di arrotondamento oltre la
+precisione esposta.
+
+Ogni mese deve contenere tutti i giorni civili e tutti i periodi consecutivi
+attesi nel fuso `Europe/Rome`: 96 periodi nei giorni ordinari, 92 nel giorno
+primaverile di cambio d’ora e 100 nel giorno autunnale. Rifiutare duplicati,
+intervalli mancanti o fuori mese, periodi non consecutivi, formule, celle
+mancanti, valori non finiti, workbook non leggibile, nomi o colonne ambigui e
+archivi incompleti. I periodi devono corrispondere alle etichette locali di
+data, ora e quarto d’ora del workbook, incluso il trattamento esplicito della
+seconda occorrenza nell’ora autunnale.
+
+Scaricare lo ZIP al massimo una volta per anno durante una singola acquisizione
+della finestra e riutilizzare il workbook per i mesi mancanti. Conservare nella
+provenance il mese, l’URL esatto dello ZIP, SHA-256 dei byte ZIP scaricati, nome
+del workbook, foglio e intervallo delle celle usate. I validator accettano la
+provenance ufficiale PDF o ZIP; identificatore mensile, digest, periodo e
+valore della serie devono restare legati senza cambiare schema ID,
+capability o contratto economico.
+
+La lettura OOXML usa `defusedxml` e la libreria ZIP standard, senza introdurre
+una dipendenza runtime XLSX. Applicare allowlist di URL HTTPS per PDF e ZIP,
+verifica dell’host ufficiale a ogni redirect e massimo tre redirect. Limiti:
+64 MB per download, 48 MB per workbook, 320 MB complessivi per le parti OOXML,
+64 MB per singola parte e 40.000 righe. Rifiutare percorsi ZIP assoluti,
+parent traversal, duplicati e parti cifrate o sospette prima dell’estrazione.
 
 La finestra richiesta è una regola del servizio, non un fallback del provider:
 deve contenere esattamente i dodici mesi attesi, senza mesi futuri, buchi,
@@ -149,6 +200,14 @@ o AI.
 
 - Provenance, acquisizione verificata vs parsing offline, digest, layout,
   unità, mapping indice e fonti malformate.
+- PDF mensile primario; fallback al solo HTTP 404; errori di rete, integrità e
+  parsing non devono attivarlo. Coprire riuso dello ZIP annuale, valori
+  `Decimal`, digest e locator OOXML, layout anomali e limiti di sicurezza.
+- Serie `_15` completa in `Europe/Rome`, compresi i giorni a 92 e 100 periodi;
+  duplicati, gap, formule, celle mancanti e archivi incompleti devono fallire
+  chiusi. Confrontare la media con la precisione esposta dai PDF ufficiali.
+- Envelope di storico che round-trippa entrambe le provenance senza cambiare
+  manifest, schema ID o capability.
 - Dodici mesi esatti; rifiuto di gap, duplicati, buchi interni, copertura
   incompleta, dataset arretrato e unità/granularità incompatibili.
 - Abbinamento stagionale, anche con cambio anno, febbraio e bisestili; fattori
@@ -189,6 +248,9 @@ somiglianza testuale.
 ## Fonti normative
 
 - [GME — PUN Index GME, DTF 25 MPE](https://gme.mercatoelettrico.org/Portals/0/Documents/it-IT/20250101DTF25MPE.pdf)
+- [GME — Avvio prodotti MGP a 15 minuti dal 1° ottobre 2025](https://gme.mercatoelettrico.org/it-it/Home/AvvisieComunicati/AvvisieComunicatiME?id=7113)
+- [GME — Dati storici MGP](https://gme.mercatoelettrico.org/Home/Esiti/Elettricita/MGP/Statistiche/DatiStorici)
+- GME — PDF mensili: ottobre 2025, giugno–settembre 2026; usare i documenti ufficiali del rispettivo mese per il controllo alla precisione pubblicata.
 - [GME — Prezzi medi per fasce](https://gme.mercatoelettrico.org/it-it/Home/Pubblicazioni/PrezzoMedioFasce)
 - [Portale Offerte — Open Data](https://www.ilportaleofferte.it/portaleOfferte/it/open-data.page)
 - [ARERA — Delibera 575/2025/R/eel](https://www.arera.it/atti-e-provvedimenti/dettaglio/25/575-25)

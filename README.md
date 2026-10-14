@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Release `0.13.0` — rollover degli anchor regolatori e anchor domestico Q4 2026.
+> Release Core `0.13.1` — storico PUN GME con fallback ufficiale allo ZIP annuale.
 
 Il package installabile è disponibile come wheel e sdist. L'importer Portale
 Offerte opera solo su cataloghi open-data ufficiali, replay storici esatti e
@@ -24,8 +24,11 @@ uv run pytest
 Installazione del package dalla release pubblicata:
 
 ```bash
-pip install italian-energy==0.13.0
+pip install italian-energy==0.13.1
 ```
+
+La release `0.13.1` conserva il contratto Core esistente e aggiunge il fallback
+GME descritto sotto. Il base runtime non aggiunge dipendenze XLSX.
 
 ## Architettura
 
@@ -126,6 +129,16 @@ Il mapping automatico verificato è PUN Index GME: media mensile MGP Baseload,
 pubblicata in EUR/MWh e convertita in EUR/kWh con `Decimal`. I prezzi medi GME
 F1/F2/F3 restano una serie distinta dal PUN e dai codici PE; il Core non li
 assegna automaticamente a un'offerta senza un mapping commerciale esplicito.
+Il report statistico mensile PDF è la fonte primaria. Solo il suo HTTP 404
+esplicito attiva il fallback allo ZIP annuale ufficiale GME; rete, integrità,
+layout o parsing non validi restano errori. Il fallback usa la colonna esatta
+`PUN INDEX GME` della serie `_15`, controlla tutti i periodi attesi in
+`Europe/Rome` (inclusi i giorni con 92 o 100 quarti d'ora) e conserva digest
+ZIP e locator OOXML nella provenance. I token numerici restano `Decimal`; la
+media interna usa 50 cifre e la conversione divide per 1.000 senza arrotondare
+al centesimo. L'acquisizione di più mesi dello stesso anno riusa un solo ZIP.
+Il lettore usa `defusedxml` già incluso nelle dipendenze base e non aggiunge
+una dipendenza XLSX runtime.
 Le componenti ARERA e fiscali sono quelle ufficiali applicabili alla data del
 confronto e vengono riutilizzate nel futuro come assunzione, senza prolungare la
 la loro validità verificata. L’anchor incluso nel package ha `as_of=2026-10-08`
@@ -167,3 +180,16 @@ per abilitare globalmente i confronti, insieme alla propria regola di freschezza
 del catalogo, e `preflight(request, ...).ready` prima del confronto cliente.
 Questo percorso è locale alla Core; l'allineamento e la persistenza Platform
 restano separati.
+
+### Handoff Platform del wheel 0.13.1
+
+La Platform mantiene il vincolo SemVer
+`required-version = ">=0.13.0,<0.14.0"`. Per accettare il wheel Core `0.13.1`,
+una milestone Platform separata aggiornerà il pin puntuale di versione e SHA-256 in
+`pyproject.toml`, i valori attesi e il nome del wheel in
+`scripts/verify_core_artifact.py` e `scripts/verify_core_runtime.py`, e il
+percorso del wheel nel `Dockerfile`. Il verificatore runtime dovrà continuare a
+provare il wheel esatto; poi andranno rieseguiti i gate Platform inclusi quelli
+PostgreSQL/worker. Questo aggiornamento Core non modifica la Platform. La
+disponibilità del solo storico GME non attesta freschezza del catalogo né
+copertura regolatoria pronta.

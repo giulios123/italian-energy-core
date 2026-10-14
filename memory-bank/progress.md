@@ -725,3 +725,55 @@
   `as_of=2026-10-08`.
 - PostgreSQL, job persistente e accettazione Platform non sono inclusi; la
   coverage packaged è datata e va aggiornata per confronti successivi.
+
+## Dependabot — aggiornamento virtualenv — 2026-10-08
+
+- Risolti localmente i quattro finding Dependabot su virtualenv 21.7.8:
+  GHSA-p58f-9548-mpm2 (corretto da 21.7.13), GHSA-x78j-v8h9-3j2q
+  (21.7.12), GHSA-94p9-xgh2-xp45 (21.7.12), GHSA-9h9j-4vrj-gf7g (21.7.11).
+- `uv lock --upgrade-package virtualenv` ha aggiornato `virtualenv` a 21.14.6
+  e `python-discovery` a 1.6.1, salvando i digest PyPI in `uv.lock`. Il reverse
+  dependency tree conferma che virtualenv è usato solo dal gruppo `dev` tramite
+  pre-commit; i metadati di `pyproject.toml` e la versione applicativa restano
+  invariati.
+- Verifiche: `uv lock --check --offline`, Ruff check, Ruff format check, mypy
+  `src tests`, `pytest --cov=italian_energy --cov-branch` (689 passati,
+  95,05% branch coverage) e `git diff --check` verdi.
+- Il lockfile è locale e non committato. GitHub potrà chiudere gli alert dopo
+  aver acquisito la modifica sul branch predefinito; non è stato pubblicato un
+  nuovo rilascio Core.
+
+## Core 0.13.1 — fallback storico mensile PUN GME — 2026-10-09
+
+- Estesa la Spec 013 e l'ADR 0016 prima dell'implementazione. Il PDF mensile
+  resta primario; solo HTTP 404 esplicito attiva lo ZIP annuale ufficiale.
+  Errori di rete, integrità, layout e parsing non attivano il fallback. `_15`
+  è la sola serie calcolata; `_60` resta controllo e non è un sostituto.
+- Il parser OOXML usa ZIP standard e `defusedxml` già dipendenza base, risolve
+  `Prezzi-Prices` tramite relazioni, legge solo data/ora/periodo/PUN e mantiene
+  i token `Decimal`. Media a precisione interna 50, conversione EUR/MWh a
+  EUR/kWh dividendo per 1.000, completezza giornaliera in `Europe/Rome`, digest
+  SHA-256 e locator OOXML per la provenance. Nessuna dipendenza XLSX runtime.
+- La verifica live dello ZIP `Anno2026.zip` del 2026-10-08 registra URL
+  ufficiale, 23.672.630 byte, digest
+  `55a8e0fc7efe71ab4830a42991802415e0b03bc11fa434e444a59a9385a686a0` e
+  settembre `D23326:D26205` (2.880 periodi), media
+  `207.54221705555555556979166666666666666666666666667 EUR/MWh`. La finestra
+  `as_of=2026-10-08` live ha prodotto dodici mesi, ottobre 2025–settembre 2026.
+- Il calcolo _15 coincide alla precisione esposta nei PDF GME di ottobre 2025
+  (`111,04`), giugno 2026 (`132,50`), luglio (`157,04`) e agosto (`180,00`).
+  Non si attribuisce al GME una regola di arrotondamento non documentata.
+- Verifiche locali: 764 test passati, 95,04% branch coverage, Ruff check e
+  format, mypy `src tests`, pre-commit, lock check offline e diff check
+  passati. Wheel e sdist costruiti; smoke del wheel installato in venv separato
+  conferma 0.13.1, 19 capability, 46 schema ID, dipendenze runtime senza
+  `openpyxl` e `uv pip check` pulito.
+- Artefatti locali: wheel SHA-256
+  `5a042f2c8aa3f5f4043b0d509f23dc876d2c0d47eb266ff6eef334710a7f2f59`, sdist
+  SHA-256 `0b61a9434824cef2196f6c49d932de7057efd5a15b092c48023a30b60dedb056`.
+  Nessuna pubblicazione, commit, tag o push.
+- Handoff Platform: non modificata; mantenere
+  `required-version = ">=0.13.0,<0.14.0"`. Quando il wheel 0.13.1 sarà
+  autorizzato e disponibile, aggiornare pin puntuale/hash, verificatori
+  artefatto/runtime e path del Dockerfile, poi ripetere i gate Platform inclusi
+  PostgreSQL e worker. Lo storico GME non attesta catalogo o copertura ARERA.

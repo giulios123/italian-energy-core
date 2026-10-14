@@ -20,7 +20,7 @@ Le specifiche sono il contratto normativo del progetto. Una funzionalità rileva
 | 010 | Contratto d'integrazione Core–Platform | Implementata localmente in `v0.10.0`; manifest, façade storica, envelope JSON e errori stabili |
 | 011 | Current Domestic Advisor | Rilasciata in `v0.11.1`; scenari deterministici, snapshot verificati, preflight tipizzato ed envelope correnti |
 | 012 | Confronto prospettico con forward e recommendation robusta | Differita; solo documentale, non implementata |
-| 013 | Confronto beta con scenari storici | Rilasciata in `v0.12.0`; fonti live e gate Core verificati |
+| 013 | Confronto beta con scenari storici | Base rilasciata in `v0.12.0`; fallback GME rilasciato in `v0.13.1` |
 | 014 | Regulatory Anchor Rollover | Core M1–M23 implementate e Q4 incluso con evidence al 2026-10-08; 689 test, 95,05% branch coverage; Core 0.13.0 pubblicata su PyPI/GitHub; accettazione Platform PostgreSQL differita |
 
 Le spec pianificate non autorizzano ancora codice produttivo. I dettagli diventano vincolanti soltanto quando la spec viene scritta e accettata.

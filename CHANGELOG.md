@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-10-14
+
+### Added
+
+- Fallback dello storico mensile PUN allo ZIP annuale ufficiale GME soltanto
+  dopo HTTP 404 del PDF, con serie `_15`, controlli Europe/Rome, media
+  `Decimal` a precisione 50 e provenance digest/locator.
+- Parser OOXML hardened basato su `defusedxml` già incluso nel runtime; ZIP
+  annuale riusato per più mesi della stessa acquisizione e contratto
+  Core–Platform invariato.
+
+### Verification
+
+- 764 test passano con 95,04% branch coverage; Ruff, format, mypy,
+  pre-commit, lock check, build wheel/sdist e smoke del wheel passano.
+- La finestra GME live `as_of=2026-10-08` copre ottobre 2025–settembre 2026.
+  Lo ZIP 2026 verificato ha digest
+  `55a8e0fc7efe71ab4830a42991802415e0b03bc11fa434e444a59a9385a686a0`;
+  settembre contiene 2.880 intervalli e media `_15`
+  `207.54221705555555556979166666666666666666666666667 EUR/MWh`.
+- La Platform non fa parte di questa release Core; il suo vincolo SemVer resta
+  `>=0.13.0,<0.14.0` e l'accettazione PostgreSQL/worker è separata.
+
 ## [0.13.0] - 2026-10-08
 
 ### Added

@@ -1,5 +1,43 @@
 # Active context
 
+## Core 0.13.1 — fallback storico mensile PUN GME, 2026-10-09
+
+Spec 013 e ADR 0016 ora vincolano PDF mensile primario e fallback al solo HTTP
+404 esplicito. Il fallback usa `_15`, intervalli consecutivi a 15 minuti in
+`Europe/Rome`, token `Decimal` e provenance ZIP con digest e locator OOXML.
+`_60` non è una sostituzione automatica; rete, integrità e parsing falliscono
+chiusi.
+
+La ripetizione live dello ZIP ufficiale `Anno2026.zip` del 2026-10-08 ha
+registrato SHA-256
+`55a8e0fc7efe71ab4830a42991802415e0b03bc11fa434e444a59a9385a686a0`.
+Settembre copre le 2.880 celle `D23326:D26205` e dà
+`207.54221705555555556979166666666666666666666666667 EUR/MWh`. L'acquisizione
+live `as_of=2026-10-08` ha restituito i dodici mesi ottobre 2025–settembre
+2026. Medie _15 per ottobre 2025, giugno, luglio e agosto 2026 concordano con
+i PDF GME alla precisione pubblicata.
+
+Preparazione locale, non pubblicata: `0.13.1`, nessun cambio a capability,
+schema ID o contratto, nessuna modifica Platform. Gate: 764 test, 95,04%
+branch coverage, Ruff, mypy, pre-commit, lock check, build wheel/sdist e smoke
+wheel isolato verdi. SHA-256 wheel
+`5a042f2c8aa3f5f4043b0d509f23dc876d2c0d47eb266ff6eef334710a7f2f59`.
+Per l'accettazione Platform mantenere `>=0.13.0,<0.14.0`; aggiornare il pin
+puntuale e i verificatori del wheel solo quando l'artefatto sarà autorizzato.
+
+## Dependabot virtualenv — fix locale, 2026-10-08
+
+GitHub ha quattro alert aperti sul `virtualenv` bloccato in `uv.lock` alla
+versione 21.7.8: GHSA-p58f-9548-mpm2, GHSA-x78j-v8h9-3j2q,
+GHSA-94p9-xgh2-xp45 e GHSA-9h9j-4vrj-gf7g. Il pacchetto arriva solo dal gruppo
+`dev`, tramite `pre-commit`; non è un requisito runtime pubblicato su PyPI.
+`uv.lock` ora blocca `virtualenv` 21.14.6 e `python-discovery` 1.6.1, con
+hash PyPI. La versione supera la minima correttiva indicata in tutti e quattro
+gli advisory. Suite Core completa: 689 test, 95,05% branch coverage; Ruff,
+mypy, lock check offline e diff check verdi. Modifica ancora locale: gli alert
+GitHub verranno ricalcolati quando il lockfile aggiornato arriverà sul branch
+predefinito. Nessun bump o rilascio di versione applicativa.
+
 ## Regulatory Anchor Rollover — Q4 promosso localmente, 2026-10-08
 
 Il Core ha promosso l'anchor Q4 da un replay deterministico dello snapshot

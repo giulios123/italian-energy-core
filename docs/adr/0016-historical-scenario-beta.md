@@ -47,6 +47,26 @@ chiave. Generare un anchor per un periodo ulteriore richiede nuovi parser e
 mapping versionati. Acquisizione e discovery restano fuori dal percorso offline
 di calcolo.
 
+Per il PUN mensile, il report PDF è la fonte primaria. Il Core usa il file
+annuale ufficiale GME MGP soltanto dopo un HTTP 404 esplicito del relativo PDF;
+timeout, errori di rete, altri status HTTP, contenuto corrotto e parsing
+fallito restano errori e non attivano il fallback. Dal 1° ottobre 2025 il
+fallback usa `PUN INDEX GME` a 15 minuti nel foglio `Prezzi-Prices` del
+workbook `_15`; `_60` non è un sostituto automatico. La media mensile è la
+media aritmetica dei periodi consecutivi e di pari durata in `Europe/Rome`,
+validati giorno per giorno (92, 96 o 100 quarti d’ora). I token numerici XML
+restano `Decimal`, con precisione interna 50 e conversione EUR/MWh→EUR/kWh
+dividendo per 1.000. Il PDF è confrontato soltanto alla sua precisione
+pubblicata.
+
+La provenance dello ZIP lega mese, URL ufficiale, digest dei byte scaricati,
+workbook, foglio e celle. Un unico ZIP annuale può servire più mesi della
+stessa acquisizione. Il lettore OOXML usa la libreria ZIP standard e
+`defusedxml`; limiti di byte, righe, parti e redirect, allowlist HTTPS e
+controlli dei percorsi ZIP fanno parte della validazione della fonte. Layout
+diverso, copertura incompleta o contenuto ambiguo falliscono chiusi. Restano
+invariati i modelli economici, gli schema ID e le capability pubbliche.
+
 Si aggiungono un servizio e schema ID/capability d’integrazione; i contratti
 correnti restano compatibili. La recommendation riusa policy e soglie esistenti
 sullo scenario base senza rivalutare i costi. Il percorso forward della

@@ -4,7 +4,6 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from hashlib import sha256
 from types import SimpleNamespace
-from urllib import request as urllib_request
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -487,8 +486,8 @@ def test_fetch_helpers_verify_official_redirects_and_exact_month_calls(
             return b"%PDF-synthetic"
 
     monkeypatch.setattr(
-        urllib_request,
-        "urlopen",
+        gme,
+        "_open_official",
         lambda _request, timeout: Response(report_url(month)),
     )
     monkeypatch.setattr(
@@ -522,24 +521,24 @@ def test_fetch_helpers_verify_official_redirects_and_exact_month_calls(
         "20260902PrezzomedioperfasceAgosto2026.pdf"
     )
     monkeypatch.setattr(
-        urllib_request,
-        "urlopen",
+        gme,
+        "_open_official",
         lambda _request, timeout: Response(band_url),
     )
     band_report = fetch_monthly_band_report(date(2026, 8, 1), band_url)
     assert band_report.status == VerificationStatus.VERIFIED
     assert len(band_report.provenance) == 3
     monkeypatch.setattr(
-        urllib_request,
-        "urlopen",
+        gme,
+        "_open_official",
         lambda _request, timeout: Response("https://example.com/report.pdf"),
     )
     with pytest.raises(GmeImportError, match="redirected outside"):
         fetch_monthly_band_report(date(2026, 8, 1), band_url)
 
     monkeypatch.setattr(
-        urllib_request,
-        "urlopen",
+        gme,
+        "_open_official",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(urllib.error.URLError("offline")),
     )
     with pytest.raises(GmeImportError, match="acquisition failed for 2025-09"):

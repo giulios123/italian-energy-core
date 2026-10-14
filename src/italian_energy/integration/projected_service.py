@@ -49,6 +49,7 @@ from italian_energy.integration.errors import CoreContractError, CoreErrorCode
 from italian_energy.market.gme import (
     GmeMarketHistory,
     fetch_recent_market_history,
+    is_official_gme_monthly_provenance,
     recent_months,
 )
 from italian_energy.portal_offers.importer import PortalOffersImporter
@@ -1001,10 +1002,7 @@ class ProjectedDomesticEnergyService:
         if any(report.status != VerificationStatus.VERIFIED for report in history.reports):
             return False
         if any(
-            report.provenance.source != "GME"
-            or not report.provenance.sha256
-            or report.provenance.url is None
-            or report.provenance.effective_period != report.parsed.period
+            not is_official_gme_monthly_provenance(report.provenance, report.parsed.period)
             for report in history.reports
         ):
             return False

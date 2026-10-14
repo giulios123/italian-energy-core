@@ -2,6 +2,7 @@ import json
 from copy import deepcopy
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from hashlib import sha256
 
 import pytest
 from pydantic import ValidationError
@@ -9,7 +10,8 @@ from pydantic import ValidationError
 from italian_energy.domain.consumption import ConsumptionBucket, ConsumptionProfile
 from italian_energy.domain.money import EnergyQuantity, Power, RateUnit, UnitRate
 from italian_energy.domain.offer import Contract
-from italian_energy.domain.regulatory import SupplyClassification, VoltageLevel
+from italian_energy.domain.provenance import ProvenanceLocator
+from italian_energy.domain.regulatory import SupplyClassification, VerificationStatus, VoltageLevel
 from italian_energy.domain.supply import SupplyPoint
 from italian_energy.domain.tariff import BandPrice, FixedTariff
 from italian_energy.domain.time import DatePeriod, Granularity, TimeInterval
@@ -36,6 +38,11 @@ from italian_energy.integration.projected import (
     RegulatoryRegistryReview,
     RegulatorySourceDigestCheck,
     validate_consumption_periods,
+)
+from italian_energy.market.gme import (
+    GmeMonthlyIndexSnapshot,
+    annual_archive_url,
+    history_from_reports,
 )
 from italian_energy.portal_offers.models import PortalEligibilityProfile, PortalTerritory
 
@@ -138,6 +145,74 @@ def test_projected_request_and_canonical_envelope_round_trip() -> None:
     assert isinstance(restored, ProjectedDomesticComparisonRequest)
     assert restored.as_of == AS_OF
     assert restored.consumption.total_energy().kwh == Decimal("1200")
+
+
+def test_archive_backed_gme_history_round_trips_without_contract_changes() -> None:
+    from test_projected_service import _catalog, _coverage, _history
+
+    from italian_energy.arera.projection import load_domestic_projection_anchor
+
+    anchor = load_domestic_projection_anchor()
+    pdf_history = _history(AS_OF)
+    archive_month = date(2026, 8, 1)
+    original = next(
+        report for report in pdf_history.reports if report.parsed.period.start == archive_month
+    )
+    archive_provenance = original.provenance.model_copy(
+        update={
+            "source_identifier": "MGP-monthly-baseload:2026-08",
+            "sha256": sha256(b"official annual archive test fixture").hexdigest(),
+            "url": annual_archive_url(2026),
+            "locator": ProvenanceLocator(
+                document="Anno 2026_09_15.xlsx",
+                sheet="Prezzi-Prices",
+                cell="D2:D2977",
+                section="PUN INDEX GME; _15; 15-minute average",
+            ),
+        }
+    )
+    archive_report = GmeMonthlyIndexSnapshot(
+        parsed=original.parsed,
+        status=VerificationStatus.VERIFIED,
+        provenance=archive_provenance,
+    )
+    reports = tuple(
+        archive_report if item.parsed.period.start == archive_month else item
+        for item in pdf_history.reports
+    )
+    history = history_from_reports(AS_OF, reports)
+    prior_check = _projected_result().verified_inputs
+    validated_inputs = type(prior_check).model_validate(
+        prior_check.model_dump(mode="python")
+        | {"market_report_provenance": tuple(item.provenance for item in history.reports)}
+    )
+    definition_check = GmeDefinitionCheck(
+        expected_sha256="b" * 64,
+        observed_sha256="b" * 64,
+        checked_at=datetime(2026, 9, 27, 12, tzinfo=UTC),
+    )
+    bundle = ProjectedSourceBundle(
+        as_of=AS_OF,
+        catalog=_catalog(AS_OF),
+        market_history=history,
+        anchor=anchor,
+        coverage_evidence=_coverage(anchor, AS_OF),
+        gme_definition_check=definition_check,
+    )
+
+    restored = load_envelope(dump_envelope(bundle))
+
+    assert isinstance(restored, ProjectedSourceBundle)
+    report = next(
+        item
+        for item in restored.market_history.reports
+        if item.parsed.period.start == archive_month
+    )
+    assert report.provenance.url == annual_archive_url(2026)
+    assert report.provenance.locator is not None
+    assert report.provenance.locator.sheet == "Prezzi-Prices"
+    assert restored.gme_definition_check == definition_check
+    assert validated_inputs.market_report_provenance[-1].url == annual_archive_url(2026)
 
 
 def test_regulatory_anchor_refresh_envelope_round_trip() -> None:
