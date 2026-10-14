@@ -743,7 +743,7 @@
   aver acquisito la modifica sul branch predefinito; non è stato pubblicato un
   nuovo rilascio Core.
 
-## Core 0.13.1 — fallback storico mensile PUN GME — 2026-10-09
+## Core 0.13.1 — fallback storico mensile PUN GME — pubblicata 2026-10-14
 
 - Estesa la Spec 013 e l'ADR 0016 prima dell'implementazione. Il PDF mensile
   resta primario; solo HTTP 404 esplicito attiva lo ZIP annuale ufficiale.
@@ -768,12 +768,17 @@
   passati. Wheel e sdist costruiti; smoke del wheel installato in venv separato
   conferma 0.13.1, 19 capability, 46 schema ID, dipendenze runtime senza
   `openpyxl` e `uv pip check` pulito.
-- Artefatti locali: wheel SHA-256
-  `5a042f2c8aa3f5f4043b0d509f23dc876d2c0d47eb266ff6eef334710a7f2f59`, sdist
-  SHA-256 `0b61a9434824cef2196f6c49d932de7057efd5a15b092c48023a30b60dedb056`.
-  Nessuna pubblicazione, commit, tag o push.
+- Commit/tag `4f507ae28775e96b19ff3d2e67334abb8f2d2012` / `v0.13.1` pubblicati
+  su GitHub. CI verde sui run `38526576472` (main) e `38526575943` (tag).
+- Release GitHub: https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.1
+  con wheel, sdist e `SHA256SUMS`. Workflow Trusted Publishing
+  `38526766297` completato; PyPI conferma `italian-energy==0.13.1`, Trusted
+  Publishing e attestazione GitHub Actions.
+- SHA-256 pubblicati e verificati identici su PyPI e GitHub: wheel
+  `3796f74fce84d3e121b00c235abf86eb50f25cdd3085d32b2e24f58fbd53edf8`, sdist
+  `d2e7f30d0e5cd5dd93cd2797eceee8e76fc617caaf57615669a4361882659a90`.
 - Handoff Platform: non modificata; mantenere
-  `required-version = ">=0.13.0,<0.14.0"`. Quando il wheel 0.13.1 sarà
-  autorizzato e disponibile, aggiornare pin puntuale/hash, verificatori
-  artefatto/runtime e path del Dockerfile, poi ripetere i gate Platform inclusi
-  PostgreSQL e worker. Lo storico GME non attesta catalogo o copertura ARERA.
+  `required-version = ">=0.13.0,<0.14.0"`. Per l'accettazione aggiornare pin
+  puntuale/hash, verificatori artefatto/runtime e path del Dockerfile, poi
+  ripetere i gate Platform inclusi PostgreSQL e worker. Lo storico GME non
+  attesta catalogo o copertura ARERA.

@@ -1,6 +1,6 @@
 # Active context
 
-## Core 0.13.1 — fallback storico mensile PUN GME, 2026-10-09
+## Core 0.13.1 — fallback storico mensile PUN GME, pubblicata 2026-10-14
 
 Spec 013 e ADR 0016 ora vincolano PDF mensile primario e fallback al solo HTTP
 404 esplicito. Il fallback usa `_15`, intervalli consecutivi a 15 minuti in
@@ -17,13 +17,18 @@ live `as_of=2026-10-08` ha restituito i dodici mesi ottobre 2025–settembre
 2026. Medie _15 per ottobre 2025, giugno, luglio e agosto 2026 concordano con
 i PDF GME alla precisione pubblicata.
 
-Preparazione locale, non pubblicata: `0.13.1`, nessun cambio a capability,
-schema ID o contratto, nessuna modifica Platform. Gate: 764 test, 95,04%
-branch coverage, Ruff, mypy, pre-commit, lock check, build wheel/sdist e smoke
-wheel isolato verdi. SHA-256 wheel
-`5a042f2c8aa3f5f4043b0d509f23dc876d2c0d47eb266ff6eef334710a7f2f59`.
-Per l'accettazione Platform mantenere `>=0.13.0,<0.14.0`; aggiornare il pin
-puntuale e i verificatori del wheel solo quando l'artefatto sarà autorizzato.
+Release Core `0.13.1` pubblicata su GitHub Releases e PyPI dal workflow
+Trusted Publishing. Commit `4f507ae28775e96b19ff3d2e67334abb8f2d2012`, tag
+`v0.13.1`; CI verde su Python 3.12, 3.13 e 3.14, workflow release
+`38526766297` completato. PyPI mostra entrambi gli artefatti e l'attestazione
+Trusted Publishing. SHA-256 wheel
+`3796f74fce84d3e121b00c235abf86eb50f25cdd3085d32b2e24f58fbd53edf8`, sdist
+`d2e7f30d0e5cd5dd93cd2797eceee8e76fc617caaf57615669a4361882659a90`; gli
+hash coincidono con gli asset della GitHub Release. Verifiche Core: 764 test,
+95,04% branch coverage, Ruff, mypy, pre-commit, lock check, build wheel/sdist
+e smoke wheel isolato verdi. Capability, schema ID e contratto invariati.
+Nessuna modifica Platform: mantenere `>=0.13.0,<0.14.0` e aggiornare il pin
+puntuale/hash e i verificatori dell'artefatto nella milestone Platform.
 
 ## Dependabot virtualenv — fix locale, 2026-10-08
 
