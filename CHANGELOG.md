@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-10-16
+
+### Changed
+
+- Il catalogo Mercato Libero conserva `TIPO_OFFERTA=04` come record non
+  supportato ed esclude la singola offerta con `unsupported_offer_type`, senza
+  interpretarne le componenti economiche o interrompere le altre righe.
+- Il parser distingue la policy temporanea per il valore esatto `04` dagli
+  altri tipi sconosciuti, che continuano a richiedere revisione.
+
+### Verification
+
+- 770 test passano con 95,04% di branch coverage; Ruff check/format, mypy,
+  pre-commit, lock check offline e `git diff --check` passano.
+- Wheel e sdist costruiti; lo smoke test isolato importa `italian_energy`
+  dal wheel e verifica la versione `0.13.2`.
+
 ## [0.13.1] - 2026-10-14
 
 ### Added

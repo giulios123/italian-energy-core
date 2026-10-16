@@ -22,6 +22,21 @@ I corrispettivi commerciali annui usano il pro-rata mensile a dodicesimi con
 frazioni giorni/365. Le offerte indexed richiedono market data verificati e
 copertura esatta, senza interpolazione o carry-forward.
 
+### Decisione temporanea — 2026-10-16
+
+Su richiesta dell'utente, il valore esatto `TIPO_OFFERTA=04` del catalogo
+Mercato Libero viene escluso economicamente senza interrompere il resto
+dell'importazione. Il parser v2 conserva il record come `unsupported`,
+con raw fields e provenance, senza interpretarne i prezzi. Il normalizzatore
+produce `unsupported_offer_type`, codice `04` e locator nel dettaglio e
+contabilizza il record tra ricevuti ed esclusi.
+
+Questa decisione non assegna un significato economico generale al codice
+`04`, non lo converte in fixed/indexed e non accetta altri tipi sconosciuti.
+Identificativi e date obbligatori, namespace e controlli d'integrità restano
+vincolanti. Il supporto economico del tipo `04` richiederà una decisione
+successiva basata sul mapping ufficiale.
+
 ## Conseguenze
 
 - Il dominio rimane indipendente da web framework, browser, database, cloud e

@@ -39,10 +39,12 @@ class PortalAcquisitionPolicy(StrEnum):
 class PortalOfferType(StrEnum):
     FIXED = "fixed"
     INDEXED = "indexed"
+    UNSUPPORTED = "unsupported"
 
 
 class PortalOfferExclusionCode(StrEnum):
     UNSUPPORTED_COMMODITY = "unsupported_commodity"
+    UNSUPPORTED_OFFER_TYPE = "unsupported_offer_type"
     NOT_CURRENT = "not_current"
     PERIOD_NOT_COVERED = "period_not_covered"
     TERRITORY_NOT_COVERED = "territory_not_covered"

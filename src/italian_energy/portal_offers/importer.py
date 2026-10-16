@@ -39,7 +39,7 @@ PORTAL_HOST = "www.ilportaleofferte.it"
 PORTAL_BASE = "https://www.ilportaleofferte.it"
 PORTAL_SCHEMA_VERSION = "OffertaRetail/01"
 PORTAL_XML_NAMESPACE = "http://www.acquirenteunico.it/schemas/SII_AU/OffertaRetail/01"
-PORTAL_PARSER_VERSION = "008-portal-offers-v1"
+PORTAL_PARSER_VERSION = "008-portal-offers-v2"
 PORTAL_INDEX_URL = (
     f"{PORTAL_BASE}/portaleOfferte/resources/cms/documents/5d6f1085b4d5f20821af55764e647671.csv"
 )
@@ -603,16 +603,20 @@ def _parse_market_free_xml(file: PortalFileSnapshot) -> tuple[PortalOfferRecord,
             or not supplier_id
             or not start_text
             or not end_text
-            or kind not in {"01", "02"}
+            or kind not in {"01", "02", "04"}
         ):
             raise PortalImportError(f"malformed Mercato Libero offer at row {number}")
         period = DatePeriod(
             start=_parse_date(start_text, field="DATA_INIZIO"),
             end=_parse_date(end_text, field="DATA_FINE") + timedelta(days=1),
         )
-        offer_type = PortalOfferType.FIXED if kind == "01" else PortalOfferType.INDEXED
+        if kind == "04":
+            offer_type = PortalOfferType.UNSUPPORTED
+        else:
+            offer_type = PortalOfferType.FIXED if kind == "01" else PortalOfferType.INDEXED
         components: list[PortalEconomicComponent] = []
-        for component in offer:
+        component_elements = () if offer_type == PortalOfferType.UNSUPPORTED else offer
+        for component in component_elements:
             if _local_name(component.tag) != "ComponenteImpresa":
                 continue
             code = _text(component, "NOME") or "component"

@@ -1,5 +1,10 @@
 # Decisions
 
+- 2026-10-16, decisione temporanea dell'utente (Spec 008/ADR 0012): ignorare
+  economicamente soltanto `TIPO_OFFERTA=04` del catalogo Mercato Libero.
+  Conservare il record `unsupported`, i raw fields e la provenance e produrre
+  l'esclusione `unsupported_offer_type`; proseguire sulle altre offerte senza
+  convertire `04` in fixed/indexed. L'eventuale supporto resta differito.
 - ADR 0017/Spec 014 (M1–M16 implementate localmente): la façade Core
   `refresh_regulatory_state` orchestra fasi interne separate; Platform fornisce
   scheduler, porte di trasporto e repository CAS, non semantica regolatoria.

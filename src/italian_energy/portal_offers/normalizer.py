@@ -387,6 +387,15 @@ def normalize_offers(
                 )
             )
             continue
+        if record.offer_type == PortalOfferType.UNSUPPORTED:
+            exclusions.append(
+                _exclude(
+                    record,
+                    PortalOfferExclusionCode.UNSUPPORTED_OFFER_TYPE,
+                    "TIPO_OFFERTA=04 is temporarily excluded by policy",
+                )
+            )
+            continue
         applicability = _record_applicability(record, eligibility, period_start, period_end)
         if applicability is not None:
             exclusions.append(applicability)

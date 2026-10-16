@@ -1,5 +1,29 @@
 # Progress
 
+## Portale Offerte — esclusione temporanea tipo `04` — 2026-10-16
+
+- Decisione esplicita dell'utente registrata in Spec 008, ADR 0012 e
+  `memory-bank/decisions.md`: ignorare economicamente solo il valore esatto
+  `TIPO_OFFERTA=04`, conservando record e provenance e continuando il catalogo.
+- Aggiunti il tipo sorgente `unsupported` e il codice di esclusione
+  `unsupported_offer_type`. Il normalizzatore lo registra prima del mapping
+  tariffario; raw fields e locator restano auditabili nei conteggi. Il parser
+  v2 non interpreta i prezzi del record escluso. Tipi diversi sconosciuti e
+  metadati obbligatori mancanti continuano a produrre errore.
+- Test prima del fix: due regressioni fallite sul parser. Dopo il fix:
+  29 test dell'importer e suite Core completa 770 passati, branch coverage
+  95,04%, Ruff check/format e mypy `src tests` passati.
+- Replay offline sul file Mercato Libero ufficiale del 14 ottobre, digest
+  `7de4c0df3fc0dcc22589a4d28e43ac09dd75ed088bdad3da2af1e3f27f627dee`:
+  3.540 record letti (646 fixed, 2.893 indexed, uno unsupported), byte
+  originali invariati. Il record escluso è Alperia Power Eco Neves,
+  `000368ESVML01XX5015672X261011XVE`. Non è un'acquisizione live corrente.
+- Release Core 0.13.2 preparata localmente: 770 test, 95,04% branch coverage,
+  Ruff check/format, mypy, pre-commit, lock check, build wheel/sdist e smoke
+  wheel isolato passano. La wheel Platform resta alla 0.13.1 e l'adozione è
+  separata; nessun controllo normativo è stato modificato. Push e pubblicazione
+  sono in corso.
+
 ## M22 — rubrica ufficiale Gazzetta e replay live — 2026-10-08
 
 - L'adapter Gazzetta ora conserva la rubrica canonica letta dal markup

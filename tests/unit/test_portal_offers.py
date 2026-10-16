@@ -165,6 +165,94 @@ def test_parser_rejects_schema_and_transport_drift() -> None:
         importer.parse_offers(snapshot.offers)
 
 
+@pytest.mark.parametrize("customer_type", ["01", "02"])
+def test_type_04_is_audited_and_excluded_without_losing_supported_offers(
+    customer_type: str,
+) -> None:
+    ignored_xml = (
+        XML.replace(b"<COD_OFFERTA>XML1</COD_OFFERTA>", b"<COD_OFFERTA>IGNORED04</COD_OFFERTA>")
+        .replace(b"<TIPO_OFFERTA>01</TIPO_OFFERTA>", b"<TIPO_OFFERTA>04</TIPO_OFFERTA>")
+        .replace(
+            b"<TIPO_CLIENTE>01</TIPO_CLIENTE>",
+            f"<TIPO_CLIENTE>{customer_type}</TIPO_CLIENTE>".encode(),
+        )
+        .replace(b"<PREZZO>0.20</PREZZO>", b"<PREZZO>not-interpreted</PREZZO>")
+    )
+    indexed_xml = (
+        XML.replace(b"<COD_OFFERTA>XML1</COD_OFFERTA>", b"<COD_OFFERTA>INDEXED1</COD_OFFERTA>")
+        .replace(b"<TIPO_OFFERTA>01</TIPO_OFFERTA>", b"<TIPO_OFFERTA>02</TIPO_OFFERTA>")
+        .replace(
+            b"</offerta>",
+            b"<RiferimentiPrezzoEnergia><IDX_PREZZO_ENERGIA>01</IDX_PREZZO_ENERGIA></RiferimentiPrezzoEnergia></offerta>",
+        )
+    )
+    root = ET.fromstring(XML)
+    root.append(ET.fromstring(ignored_xml)[0])
+    root.append(ET.fromstring(indexed_xml)[0])
+    transport = _transport()
+    transport.contents = {**transport.contents, "offerteML": (ET.tostring(root), "application/xml")}
+    importer = PortalOffersImporter(transport=transport)
+    snapshot = importer.fetch(DATE)
+    records = importer.parse_offers(snapshot.offers)
+    ignored = next(record for record in records if record.source_offer_id == "IGNORED04")
+
+    assert ignored.offer_type == portal_models.PortalOfferType.UNSUPPORTED
+    assert ignored.components == ()
+    assert ignored.source_provenance
+    assert any(
+        key.startswith("TIPO_OFFERTA:") and value == "04" for key, value in ignored.raw_fields
+    )
+    assert portal_models.PortalOfferRecord.model_validate_json(ignored.model_dump_json()) == ignored
+    assert snapshot.indexes is not None
+    result = normalize_offers(
+        snapshot.offers,
+        records,
+        _eligibility(),
+        DATE,
+        date(2026, 2, 1),
+        market_data=importer.parse_market_data(snapshot.indexes),
+    )
+
+    assert result.received_count == 4
+    assert result.eligible_count == 3
+    assert result.excluded_count == 1
+    assert {offer.offer_id for offer in result.eligible_offers} == {
+        "portal:market_free:XML1",
+        "portal:market_free:INDEXED1",
+        "portal:placet:PL1",
+    }
+    exclusion = result.exclusions[0]
+    assert exclusion.offer_id == "portal:market_free:IGNORED04"
+    assert exclusion.code == PortalOfferExclusionCode.UNSUPPORTED_OFFER_TYPE
+    assert "TIPO_OFFERTA=04" in exclusion.detail
+    assert exclusion.locator == ignored.source_provenance[0].locator
+    assert result.snapshot == snapshot.offers
+
+
+@pytest.mark.parametrize("kind", ["03", "99", ""])
+def test_type_04_policy_does_not_accept_other_unknown_types(kind: str) -> None:
+    xml = XML.replace(
+        b"<TIPO_OFFERTA>01</TIPO_OFFERTA>", f"<TIPO_OFFERTA>{kind}</TIPO_OFFERTA>".encode()
+    )
+    transport = _transport()
+    transport.contents = {**transport.contents, "offerteML": (xml, "application/xml")}
+    importer = PortalOffersImporter(transport=transport)
+    snapshot = importer.fetch(DATE, include_indexes=False)
+    with pytest.raises(PortalImportError, match="malformed Mercato Libero offer at row 1"):
+        importer.parse_offers(snapshot.offers)
+
+
+def test_type_04_still_requires_source_identity() -> None:
+    xml = XML.replace(b"<TIPO_OFFERTA>01</TIPO_OFFERTA>", b"<TIPO_OFFERTA>04</TIPO_OFFERTA>")
+    xml = xml.replace(b"<COD_OFFERTA>XML1</COD_OFFERTA>", b"<COD_OFFERTA></COD_OFFERTA>")
+    transport = _transport()
+    transport.contents = {**transport.contents, "offerteML": (xml, "application/xml")}
+    importer = PortalOffersImporter(transport=transport)
+    snapshot = importer.fetch(DATE, include_indexes=False)
+    with pytest.raises(PortalImportError, match="malformed Mercato Libero offer at row 1"):
+        importer.parse_offers(snapshot.offers)
+
+
 def test_normalizer_keeps_fixed_offer_and_excludes_non_domestic() -> None:
     snapshot = PortalOffersImporter(transport=_transport()).fetch(DATE, include_indexes=False)
     records = PortalOffersImporter.parse_offers(snapshot.offers)

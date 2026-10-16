@@ -1,5 +1,29 @@
 # Active context
 
+## Portale Offerte — esclusione temporanea tipo `04`, 2026-10-16
+
+Su richiesta dell'utente, il parser Mercato Libero v2 conserva
+`TIPO_OFFERTA=04` come record `unsupported` e il normalizzatore lo esclude
+con `unsupported_offer_type`, codice originale e locator. Non interpreta le
+componenti economiche del tipo `04`, non lo converte in fixed/indexed e non
+interrompe la lettura delle altre offerte. La decisione temporanea è
+registrata in Spec 008, ADR 0012 e `memory-bank/decisions.md`.
+
+Regressione prima della correzione: i due casi con tipo `04` fallivano nel
+parser. Dopo la correzione: 29 test importer e 770 test Core passati, branch
+coverage 95,04%; Ruff check/format e mypy `src tests` passati. Il replay
+offline dei byte ufficiali del 14 ottobre, SHA-256
+`7de4c0df3fc0dcc22589a4d28e43ac09dd75ed088bdad3da2af1e3f27f627dee`, legge
+tutti i 3.540 record: 646 fixed, 2.893 indexed e un `unsupported` (Alperia
+Power Eco Neves, codice `000368ESVML01XX5015672X261011XVE`). Il file resta
+invariato; questa prova non è un nuovo download né un confronto economico.
+
+Release Core `0.13.2` preparata localmente: 770 test, 95,04% branch coverage,
+Ruff, format, mypy, pre-commit, lock check, wheel/sdist e smoke wheel isolato
+passano. La wheel Platform resta alla `0.13.1`; il suo aggiornamento è una
+milestone separata. Nessun controllo normativo è stato modificato. Push e
+pubblicazione di questa release sono in corso.
+
 ## Core 0.13.1 — fallback storico mensile PUN GME, pubblicata 2026-10-14
 
 Spec 013 e ADR 0016 ora vincolano PDF mensile primario e fallback al solo HTTP

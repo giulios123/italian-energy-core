@@ -112,6 +112,22 @@ calcolabile. L'assenza di una componente, una validità ambigua, una formula
 non supportata o un'applicabilità non dimostrabile producono un'esclusione
 candidate, non un'approssimazione.
 
+### Esclusione temporanea del tipo offerta `04` — 2026-10-16
+
+Su decisione dell'utente, `TIPO_OFFERTA=04` nel catalogo XML Mercato Libero
+viene conservato come record `unsupported` e non partecipa al confronto.
+Il normalizzatore registra una singola esclusione `unsupported_offer_type`
+con codice sorgente e locator; il record resta nei conteggi ricevuti/esclusi.
+Non si interpretano né si calcolano le sue componenti economiche e non si
+converte il tipo `04` in fixed o indexed. Raw fields, bytes e provenance
+restano disponibili. Le altre offerte continuano a essere importate.
+
+L'eccezione riguarda soltanto il valore esatto `04`: campi identificativi o
+date obbligatori mancanti, XML/namespace errati e altri tipi sconosciuti
+mantengono il comportamento di errore. Il parser passa a
+`008-portal-offers-v2`; l'eventuale supporto economico del tipo `04` richiede
+una decisione successiva e un mapping verificato.
+
 Il dataset ufficiale e la pagina di dettaglio del portale restano fonti
 distinte. Se una pagina contiene una condizione non presente nel dataset, la
 condizione viene conservata come testo/provenance e non modifica il costo,
