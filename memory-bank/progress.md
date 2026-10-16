@@ -18,11 +18,16 @@
   3.540 record letti (646 fixed, 2.893 indexed, uno unsupported), byte
   originali invariati. Il record escluso è Alperia Power Eco Neves,
   `000368ESVML01XX5015672X261011XVE`. Non è un'acquisizione live corrente.
-- Release Core 0.13.2 preparata localmente: 770 test, 95,04% branch coverage,
-  Ruff check/format, mypy, pre-commit, lock check, build wheel/sdist e smoke
-  wheel isolato passano. La wheel Platform resta alla 0.13.1 e l'adozione è
-  separata; nessun controllo normativo è stato modificato. Push e pubblicazione
-  sono in corso.
+- Release Core 0.13.2 pubblicata su GitHub/PyPI il 2026-10-16. Il tag
+  `v0.13.2` punta al commit `d8ac5c0bacf04f607e962571133ea72a751b76e8`;
+  Trusted Publishing `38883880466` e CI su Python 3.12–3.14 per `main` e tag
+  sono verdi.
+- PyPI espone wheel e sdist; i digest coincidono con GitHub `SHA256SUMS`:
+  wheel `bbdc5b429ea367c9159ca5830b240c3b28cead124e5a73574565bef0fce40dbe`,
+  sdist `3a15585851aea318558be7f714f45fd0044e822a73d6a700ea198905df2d4a6e`.
+  L'installazione isolata dalla release PyPI importa la versione `0.13.2`.
+- La wheel Platform resta alla 0.13.1 e l'adozione è separata; nessun
+  controllo normativo è stato modificato.
 
 ## M22 — rubrica ufficiale Gazzetta e replay live — 2026-10-08
 

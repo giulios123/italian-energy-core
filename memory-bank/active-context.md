@@ -18,11 +18,16 @@ tutti i 3.540 record: 646 fixed, 2.893 indexed e un `unsupported` (Alperia
 Power Eco Neves, codice `000368ESVML01XX5015672X261011XVE`). Il file resta
 invariato; questa prova non è un nuovo download né un confronto economico.
 
-Release Core `0.13.2` preparata localmente: 770 test, 95,04% branch coverage,
-Ruff, format, mypy, pre-commit, lock check, wheel/sdist e smoke wheel isolato
-passano. La wheel Platform resta alla `0.13.1`; il suo aggiornamento è una
-milestone separata. Nessun controllo normativo è stato modificato. Push e
-pubblicazione di questa release sono in corso.
+Release Core `0.13.2` pubblicata su [GitHub](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.2)
+e PyPI il 2026-10-16. Il tag punta al commit
+`d8ac5c0bacf04f607e962571133ea72a751b76e8`; CI GitHub è verde su Python 3.12,
+3.13 e 3.14 (`38883696900`, `38883695969`). Trusted Publishing
+`38883880466` ha pubblicato wheel e sdist. SHA-256 wheel
+`bbdc5b429ea367c9159ca5830b240c3b28cead124e5a73574565bef0fce40dbe`, sdist
+`3a15585851aea318558be7f714f45fd0044e822a73d6a700ea198905df2d4a6e`; entrambi
+corrispondono a GitHub `SHA256SUMS` e PyPI. L'installazione isolata da PyPI
+conferma `0.13.2`. La wheel Platform resta alla `0.13.1`; l'adozione è una
+milestone separata. Nessun controllo normativo è stato modificato.
 
 ## Core 0.13.1 — fallback storico mensile PUN GME, pubblicata 2026-10-14
 

@@ -18,6 +18,14 @@
   pre-commit, lock check offline e `git diff --check` passano.
 - Wheel e sdist costruiti; lo smoke test isolato importa `italian_energy`
   dal wheel e verifica la versione `0.13.2`.
+- CI GitHub verde su Python 3.12, 3.13 e 3.14 per `main` e tag
+  (`38883696900`, `38883695969`). Release pubblicata su
+  [GitHub](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.2);
+  il workflow Trusted Publishing `38883880466` è riuscito e l'installazione
+  isolata da PyPI conferma `0.13.2`.
+- I digest pubblicati su PyPI corrispondono agli asset GitHub:
+  wheel `bbdc5b429ea367c9159ca5830b240c3b28cead124e5a73574565bef0fce40dbe`,
+  sdist `3a15585851aea318558be7f714f45fd0044e822a73d6a700ea198905df2d4a6e`.
 
 ## [0.13.1] - 2026-10-14
 
