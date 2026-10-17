@@ -17,7 +17,7 @@ from italian_energy.arera.discovery import (
     RegulatoryDiscoveryReport,
     RegulatoryRegistryChannel,
 )
-from italian_energy.arera.projection import DomesticProjectionAnchor
+from italian_energy.arera.projection import DomesticProjectionAnchor, ProjectionAnchorSource
 from italian_energy.arera.rollover_models import (
     RegulatoryAnchorCandidate,
     RegulatoryEffectAssertion,
@@ -458,6 +458,32 @@ def _review_clears_current_finding(
     )
 
 
+def _anchor_already_covers_assertion(
+    *,
+    assertion: RegulatoryEffectAssertion,
+    anchor: DomesticProjectionAnchor,
+    source_by_id: dict[str, ProjectionAnchorSource],
+) -> bool:
+    """Recognize an assertion already incorporated from the exact anchor source."""
+
+    source = source_by_id.get(assertion.source_id)
+    if (
+        source is None
+        or source.sha256 != assertion.source_sha256
+        or source.source_identifier != assertion.act_id
+        or source.url != assertion.source_url
+        or assertion.validity.start > anchor.validity.start
+        or assertion.validity.end < anchor.validity.end
+    ):
+        return False
+    return any(
+        reference.source_id == assertion.source_id
+        and assertion.locator in reference.section
+        for charge in anchor.charges
+        for reference in charge.references
+    )
+
+
 def verify_regulatory_anchor_coverage(
     *,
     anchor: DomesticProjectionAnchor,
@@ -590,6 +616,11 @@ def verify_regulatory_anchor_coverage(
                     and fact.validity.start <= assertion.validity.start
                     and fact.validity.end >= assertion.validity.end
                     for fact in related_facts
+                )
+                and not _anchor_already_covers_assertion(
+                    assertion=assertion,
+                    anchor=anchor,
+                    source_by_id=source_by_id,
                 )
                 for assertion in related_assertions
             ):

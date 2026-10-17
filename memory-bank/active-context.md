@@ -1,5 +1,28 @@
 # Active context
 
+## Refresh Core 2026-10-17 — correzione coverage rollover
+
+Corretto il refresh giornaliero in `rollover_coverage.py` e
+`rollover_scope.py`. La coverage ora riconosce una conferma ARERA già
+incorporata solo se coincidono ID e digest della fonte, atto, URL, validità e
+locator conservato nei riferimenti dell'anchor. Lo scope tariffario mantiene
+anche finding `SUPPORTED` correnti e precedenti quando lo snapshot incrementale
+non contiene righe indicizzate.
+
+La causa era una perdita di contesto tra run: il parser della 343 produceva
+assertion senza facts, mentre la coverage del giorno successivo le trattava
+come non risolte; inoltre l'indice vuoto poteva far perdere il legame con gli
+atti tariffari e bloccare la coverage per finding non correlati. Refresh
+operativo locale del 2026-10-17: snapshot `89b8a00c-2b3a-407a-98da-49bac1752d64`,
+`comparisons_enabled=true`, nessun `reason_code`. La preparazione di un anchor
+successore Q1 2027 resta separatamente bloccata da `incomplete_coverage`.
+
+`git diff --check` e parsing AST dei due moduli sono stati verificati; non è
+stata eseguita la suite automatizzata. Il push del sorgente su `main` non
+pubblica una nuova wheel né aggiorna da solo immagini/worker Platform: per
+rendere la correzione disponibile ai refresh standard serve una successiva
+release Core e adozione Platform.
+
 ## Portale Offerte — esclusione temporanea tipo `04`, 2026-10-16
 
 Su richiesta dell'utente, il parser Mercato Libero v2 conserva

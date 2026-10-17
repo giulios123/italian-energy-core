@@ -98,8 +98,17 @@ def scope_domestic_projection_discovery(
     old_tariff_snapshot = old_snapshots.get(RegulatoryRegistryChannel.ARERA_TARIFFS)
     old_normattiva_snapshot = old_snapshots.get(RegulatoryRegistryChannel.NORMATTIVA_UPDATES)
     tariff_act_ids = {record.act_id for record in tariff_snapshot.records}
+    tariff_act_ids.update(record.document_id for record in tariff_snapshot.records)
+    tariff_findings = list(tariff_snapshot.findings)
     if old_tariff_snapshot is not None:
         tariff_act_ids.update(record.act_id for record in old_tariff_snapshot.records)
+        tariff_act_ids.update(record.document_id for record in old_tariff_snapshot.records)
+        tariff_findings.extend(old_tariff_snapshot.findings)
+    for finding in tariff_findings:
+        if finding.disposition == DiscoveryActDisposition.SUPPORTED:
+            tariff_act_ids.add(finding.act_id)
+            if finding.source_record is not None:
+                tariff_act_ids.add(finding.source_record.document_id)
     if not tariff_act_ids:
         # A structurally complete but empty tariff index is not evidence that
         # the broad ARERA acts index has no impact on this anchor.

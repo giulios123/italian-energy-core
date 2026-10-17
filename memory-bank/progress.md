@@ -811,3 +811,20 @@
   puntuale/hash, verificatori artefatto/runtime e path del Dockerfile, poi
   ripetere i gate Platform inclusi PostgreSQL e worker. Lo storico GME non
   attesta catalogo o copertura ARERA.
+
+## Correzione refresh giornaliero — 2026-10-17
+
+- Individuate due cause del blocco del refresh: la coverage rivalutava come
+  ambigua una assertion ARERA già recepita nell'anchor; l'indice tariffario
+  incrementale vuoto poteva perdere gli act ID attestati dai finding supportati.
+- Core ora lega il riuso dell'assertion a fonte/digest, atto, URL, intervallo e
+  locator esatti dell'anchor, e usa i finding `SUPPORTED` presenti negli
+  snapshot tariffari corrente/precedente per costruire lo scope.
+- Refresh operativo con sorgente Core locale: snapshot
+  `89b8a00c-2b3a-407a-98da-49bac1752d64`, data 2026-10-17,
+  `comparisons_enabled=true`, `reason_codes=[]`. Il successore Q1 2027 resta
+  bloccato da `incomplete_coverage`; non è stato promosso.
+- Verificati `git diff --check` e parsing AST dei moduli modificati. Nessuna
+  suite automatizzata eseguita in questa correzione.
+- Questa modifica sorgente non è una release e non aggiorna i worker Platform;
+  serve una successiva pubblicazione e adozione del Core aggiornato.
