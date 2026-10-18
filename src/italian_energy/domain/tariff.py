@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from italian_energy.domain.base import DomainModel
 from italian_energy.domain.common import BandCode
+from italian_energy.domain.costs import ComponentMeaning, ComponentPricingTreatment
 from italian_energy.domain.formula import PriceExpression
 from italian_energy.domain.money import Money, UnitRate
 from italian_energy.domain.provenance import Provenance
@@ -40,6 +41,11 @@ class ChargeRule(DomainModel):
     band: BandCode | None = None
     validity: DatePeriod | None = None
     discount: bool = False
+    continuation_policy: Literal["follow_tariff"] | None = None
+    meaning: ComponentMeaning | None = None
+    pricing_treatment: ComponentPricingTreatment | None = None
+    losses_included: bool | None = None
+    included_semantics: tuple[ComponentMeaning, ...] = ()
     conditions: tuple[str, ...] = ()
     provenance: tuple[Provenance, ...] = ()
 

@@ -1,6 +1,7 @@
 import hashlib
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import Literal
 
 import pytest
 from test_portal_offers import _transport
@@ -13,19 +14,38 @@ from italian_energy.arera.projection import (
 )
 from italian_energy.billing.regulatory import BillingError
 from italian_energy.domain.consumption import ConsumptionProfile
-from italian_energy.domain.costs import BillingResult, PricingResult
+from italian_energy.domain.costs import (
+    BillingResult,
+    ComponentMeaning,
+    ComponentPricingTreatment,
+    CostComponent,
+    CostZeroReason,
+    PricingResult,
+)
 from italian_energy.domain.formula import AddPrice, IndexReference, PriceConstant
 from italian_energy.domain.market import MarketData
 from italian_energy.domain.money import (
     EnergyQuantity,
+    Money,
     RateUnit,
     RoundingMode,
     RoundingPolicy,
     UnitRate,
 )
 from italian_energy.domain.offer import Contract
-from italian_energy.domain.regulatory import RegulatoryRuleSet, VerificationStatus
-from italian_energy.domain.tariff import BandFormula, IndexedTariff
+from italian_energy.domain.regulatory import (
+    BillingCategory,
+    RegulatoryRuleSet,
+    VerificationStatus,
+)
+from italian_energy.domain.tariff import (
+    BandFormula,
+    BandPrice,
+    ChargeBasis,
+    ChargeRule,
+    FixedTariff,
+    IndexedTariff,
+)
 from italian_energy.domain.time import DatePeriod, Granularity
 from italian_energy.integration import (
     ProjectedDomesticComparisonRequest,
@@ -559,6 +579,85 @@ def test_source_preflight_rejects_misbound_incomplete_and_future_coverage_eviden
     assert CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value in before_validity.reason_codes
 
 
+def test_projected_source_preflight_validates_current_rollover_evidence() -> None:
+    from test_regulatory_rollover_service import AS_OF as ROLLOVER_AS_OF
+    from test_regulatory_rollover_service import _service
+
+    from italian_energy.arera.rollover_models import RegulatoryRolloverReason
+
+    rollover_service, repository, _ = _service()
+    report = rollover_service.refresh_regulatory_state(ROLLOVER_AS_OF)
+    anchor = repository.read_current_anchor()
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 30, 13, tzinfo=UTC))
+
+    ready = service.source_preflight(
+        ROLLOVER_AS_OF,
+        _catalog(ROLLOVER_AS_OF),
+        _history(ROLLOVER_AS_OF),
+        anchor,
+        report.current_coverage,
+    )
+    assert ready.ready
+
+    first_check = report.current_coverage.source_checks[0]
+    altered_evidence = (
+        report.current_coverage.model_copy(update={"ready": False, "reason_codes": ()}),
+        report.current_coverage.model_copy(
+            update={
+                "reason_codes": (RegulatoryRolloverReason.PARSER_FAILURE,),
+                "ready": False,
+            }
+        ),
+        report.current_coverage.model_copy(update={"source_checks": ()}),
+        report.current_coverage.model_copy(
+            update={
+                "source_checks": (
+                    first_check.model_copy(update={"expected_sha256": "f" * 64}),
+                    *report.current_coverage.source_checks[1:],
+                )
+            }
+        ),
+        report.current_coverage.model_copy(
+            update={
+                "source_checks": (
+                    first_check.model_copy(update={"observed_sha256": None}),
+                    *report.current_coverage.source_checks[1:],
+                )
+            }
+        ),
+        report.current_coverage.model_copy(
+            update={
+                "source_checks": (
+                    first_check.model_copy(update={"observed_sha256": "f" * 64}),
+                    *report.current_coverage.source_checks[1:],
+                )
+            }
+        ),
+        report.current_coverage.model_copy(
+            update={
+                "source_checks": (
+                    first_check.model_copy(
+                        update={"checked_at": datetime(2026, 10, 1, 12, tzinfo=UTC)}
+                    ),
+                    *report.current_coverage.source_checks[1:],
+                )
+            }
+        ),
+    )
+
+    reasons = tuple(
+        service._coverage_evidence_reasons(anchor, ROLLOVER_AS_OF, evidence)
+        for evidence in altered_evidence
+    )
+    assert CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value in reasons[0]
+    assert RegulatoryRolloverReason.PARSER_FAILURE.value in reasons[1]
+    assert CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value in reasons[2]
+    assert CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value in reasons[3]
+    assert CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value in reasons[4]
+    assert CoreErrorCode.REGULATORY_SOURCE_CHANGED.value in reasons[5]
+    assert CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value in reasons[6]
+
+
 def test_projected_preflight_reports_stale_sources_and_no_candidate() -> None:
     service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
     request = _indexed_request()
@@ -992,6 +1091,7 @@ def test_current_baseline_continuation_requires_explicit_assumption() -> None:
         as_of=request.as_of,
         classification=request.classification,
         eligibility=request.eligibility,
+        current_component_coverage=request.current_component_coverage,
     )
     catalog = _catalog(AS_OF)
     history = _history(AS_OF)
@@ -1016,6 +1116,241 @@ def test_current_baseline_continuation_requires_explicit_assumption() -> None:
     )
 
 
+def _fixed_annual_continuation_request(
+    *,
+    continuation: bool,
+    continuation_policy: Literal["follow_tariff"] | None = "follow_tariff",
+    charge_validity: DatePeriod | None = None,
+    full_horizon: bool = False,
+) -> ProjectedDomesticComparisonRequest:
+    request = _request()
+    horizon = future_period(AS_OF)
+    original_tariff_validity = (
+        horizon if full_horizon else DatePeriod(start=date(2026, 12, 5), end=date(2027, 4, 1))
+    )
+    original_contract_validity = DatePeriod(
+        start=date(2026, 9, 1), end=horizon.end if full_horizon else original_tariff_validity.end
+    )
+    ordinary_rule = ChargeRule(
+        code="fixed_annual",
+        description="Commercial fixed fee",
+        basis=ChargeBasis.PER_YEAR,
+        value=UnitRate(amount=Decimal("84"), unit=RateUnit.EUR_PER_YEAR),
+        validity=charge_validity or original_tariff_validity,
+        continuation_policy=continuation_policy,
+    )
+    promotional_rule = ChargeRule(
+        code="promo_annual",
+        description="Temporary annual discount",
+        basis=ChargeBasis.PER_YEAR,
+        value=UnitRate(amount=Decimal("-84"), unit=RateUnit.EUR_PER_YEAR),
+        validity=DatePeriod(start=date(2026, 12, 5), end=date(2027, 4, 1)),
+        discount=True,
+        continuation_policy="follow_tariff",
+    )
+    tariff = FixedTariff(
+        tariff_id="current-fixed-annual",
+        validity=original_tariff_validity,
+        prices=(
+            BandPrice(
+                band="ALL",
+                rate=UnitRate(amount=Decimal("0.10"), unit=RateUnit.EUR_PER_KWH),
+            ),
+        ),
+        fixed_charges=(ordinary_rule,),
+        discounts=(promotional_rule,),
+    )
+    contract = request.current_contract.model_copy(
+        update={"validity": original_contract_validity, "tariff": tariff}
+    )
+    return request.model_copy(
+        update={
+            "current_contract": contract,
+            "continuation_assumption": continuation,
+        }
+    )
+
+
+def test_projected_continuation_extends_only_explicit_ordinary_annual_fixed_charge() -> None:
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
+    catalog = _catalog(AS_OF)
+    history = _history(AS_OF)
+    anchor = load_domestic_projection_anchor()
+    coverage = _coverage(anchor, AS_OF)
+    horizon = future_period(AS_OF)
+    short_validity = DatePeriod(start=date(2026, 12, 5), end=date(2027, 4, 1))
+
+    continued = service.compare(
+        _fixed_annual_continuation_request(continuation=True),
+        catalog,
+        history,
+        anchor,
+        coverage,
+    ).base.comparison_result
+    full_term = service.compare(
+        _fixed_annual_continuation_request(continuation=False, full_horizon=True),
+        catalog,
+        history,
+        anchor,
+        coverage,
+    ).base.comparison_result
+
+    fixed_fee = next(
+        item
+        for item in continued.current_pricing.breakdown.components
+        if item.code == "fixed:fixed_annual"
+    )
+    promo = next(
+        item
+        for item in continued.current_pricing.breakdown.components
+        if item.code == "discount:promo_annual"
+    )
+    assert fixed_fee.amount.amount == Decimal("84.00")
+    assert fixed_fee.quantity is not None
+    assert fixed_fee.quantity.quantize(Decimal("0.000001")) == Decimal("1.000000")
+    assert fixed_fee.period == horizon
+    assert fixed_fee.applied_periods == (horizon,)
+    assert promo.amount.amount == Decimal("-27.21")
+    assert promo.applied_periods == (short_validity,)
+
+    assert continued.current_billing is not None
+    assert full_term.current_billing is not None
+    current_bill = continued.current_billing.bill
+    full_bill = full_term.current_billing.bill
+    vat = next(
+        item for item in current_bill.breakdown.components if item.category == BillingCategory.VAT
+    )
+    assert vat.amount.amount > 0
+    assert current_bill.breakdown.total == sum(
+        (item.amount for item in current_bill.breakdown.components),
+        Money(amount=Decimal(0)),
+    )
+    assert current_bill.breakdown.total == full_bill.breakdown.total
+    assert continued.alternatives == full_term.alternatives
+
+    with pytest.raises(CoreContractError, match="continuation was not declared"):
+        service.compare(
+            _fixed_annual_continuation_request(continuation=False),
+            catalog,
+            history,
+            anchor,
+            coverage,
+        )
+
+
+def test_projected_continuation_does_not_infer_policy_or_extend_ambiguous_validity() -> None:
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
+    catalog = _catalog(AS_OF)
+    history = _history(AS_OF)
+    anchor = load_domestic_projection_anchor()
+    coverage = _coverage(anchor, AS_OF)
+
+    untagged = service.compare(
+        _fixed_annual_continuation_request(continuation=True, continuation_policy=None),
+        catalog,
+        history,
+        anchor,
+        coverage,
+    ).base.comparison_result
+    untagged_fee = next(
+        item
+        for item in untagged.current_pricing.breakdown.components
+        if item.code == "fixed:fixed_annual"
+    )
+    assert untagged_fee.amount.amount == Decimal("27.21")
+    assert untagged_fee.applied_periods == (
+        DatePeriod(start=date(2026, 12, 5), end=date(2027, 4, 1)),
+    )
+
+    ambiguous_validity = service.compare(
+        _fixed_annual_continuation_request(
+            continuation=True,
+            charge_validity=DatePeriod(start=date(2026, 12, 6), end=date(2027, 4, 1)),
+        ),
+        catalog,
+        history,
+        anchor,
+        coverage,
+    ).base.comparison_result
+    ambiguous_fee = next(
+        item
+        for item in ambiguous_validity.current_pricing.breakdown.components
+        if item.code == "fixed:fixed_annual"
+    )
+    assert ambiguous_fee.amount.amount == Decimal("26.98")
+    assert ambiguous_fee.applied_periods == (
+        DatePeriod(start=date(2026, 12, 6), end=date(2027, 4, 1)),
+    )
+
+
+def test_cost_component_effective_periods_default_and_merge_only_contiguous_windows() -> None:
+    from italian_energy.integration.projected_service import _aggregate_components
+
+    horizon = future_period(AS_OF)
+    october = DatePeriod(start=date(2026, 10, 1), end=date(2026, 11, 1))
+    december = DatePeriod(start=date(2026, 12, 1), end=date(2027, 1, 1))
+    component = CostComponent(
+        code="test:period",
+        description="Period test",
+        amount=Money(amount=Decimal("1")),
+        period=october,
+        formula="test",
+    )
+    assert component.applied_periods == (october,)
+    assert CostComponent.model_validate(component.model_dump()) == component
+    legacy_component = CostComponent.model_validate(
+        {key: value for key, value in component.model_dump().items() if key != "applied_periods"}
+    )
+    assert legacy_component.applied_periods == (october,)
+
+    with pytest.raises(ValueError, match="zero_reason is valid only for a zero-valued component"):
+        CostComponent.model_validate(
+            component.model_dump()
+            | {
+                "amount": Money(amount=Decimal("1")),
+                "zero_reason": CostZeroReason.MONTHLY_RESIDENT_EXEMPTION,
+            }
+        )
+
+    aggregated = _aggregate_components(
+        (
+            component,
+            CostComponent(
+                code=component.code,
+                description=component.description,
+                amount=Money(amount=Decimal("2")),
+                period=december,
+                formula=component.formula,
+            ),
+        ),
+        horizon,
+    )[0]
+    assert aggregated.period == horizon
+    assert aggregated.applied_periods == (october, december)
+
+    extended = _aggregate_components(
+        (
+            component,
+            CostComponent(
+                code=component.code,
+                description=component.description,
+                amount=Money(amount=Decimal("2")),
+                period=DatePeriod(start=date(2026, 10, 15), end=date(2026, 12, 15)),
+                formula=component.formula,
+            ),
+            CostComponent(
+                code=component.code,
+                description=component.description,
+                amount=Money(amount=Decimal("3")),
+                period=december,
+                formula=component.formula,
+            ),
+        ),
+        horizon,
+    )[0]
+    assert extended.applied_periods == (DatePeriod(start=october.start, end=december.end),)
+
+
 def test_refresh_regulatory_coverage_is_compatible_alias_for_anchor_refresh() -> None:
     service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 29, 12, tzinfo=UTC))
     anchor = load_domestic_projection_anchor()
@@ -1033,3 +1368,374 @@ def test_refresh_regulatory_coverage_is_compatible_alias_for_anchor_refresh() ->
     )
 
     assert semantic == legacy
+
+
+def _request_with_component_coverage(
+    request: ProjectedDomesticComparisonRequest, coverage: dict[str, object] | None
+) -> ProjectedDomesticComparisonRequest:
+    payload = request.model_dump(mode="python")
+    payload["current_component_coverage"] = coverage
+    return ProjectedDomesticComparisonRequest.model_validate(payload)
+
+
+def test_current_component_coverage_missing_or_unknown_blocks_preflight_and_comparison() -> None:
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
+    request = _request_with_component_coverage(_indexed_request(), None)
+    catalog = _catalog(AS_OF)
+    history = _history(AS_OF)
+    anchor = load_domestic_projection_anchor()
+    coverage = _coverage(anchor, AS_OF)
+
+    preflight = service.preflight(request, catalog, history, anchor, coverage)
+    expected = {
+        CoreErrorCode.CURRENT_NETWORK_LOSSES_COVERAGE_UNKNOWN.value,
+        CoreErrorCode.CURRENT_DISPATCHING_CAPACITY_COVERAGE_UNKNOWN.value,
+    }
+    assert preflight.checks["current_component_coverage_complete"] is False
+    assert preflight.checks["baseline_calculable"] is False
+    assert expected.issubset(set(preflight.reason_codes))
+
+    with pytest.raises(CoreContractError) as error:
+        service.compare(request, catalog, history, anchor, coverage)
+    assert error.value.code == CoreErrorCode.CURRENT_NETWORK_LOSSES_COVERAGE_UNKNOWN
+    with pytest.raises(CoreContractError) as error:
+        service._contract_with_current_component_coverage(request, request.current_contract)
+    assert error.value.code == CoreErrorCode.CURRENT_NETWORK_LOSSES_COVERAGE_UNKNOWN
+
+
+@pytest.mark.parametrize(
+    ("missing_component", "expected_code"),
+    [
+        ("network_losses", CoreErrorCode.CURRENT_NETWORK_LOSSES_RATE_MISSING),
+        ("dispatching_capacity", CoreErrorCode.CURRENT_DISPATCHING_CAPACITY_RATE_MISSING),
+    ],
+)
+def test_separate_current_component_without_rate_blocks_with_component_code(
+    missing_component: str, expected_code: CoreErrorCode
+) -> None:
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
+    declarations: dict[str, object] = {
+        "network_losses": {"treatment": "included"},
+        "dispatching_capacity": {"treatment": "included"},
+    }
+    declarations[missing_component] = {"treatment": "separate"}
+    request = _request_with_component_coverage(_indexed_request(), declarations)
+    catalog = _catalog(AS_OF)
+    history = _history(AS_OF)
+    anchor = load_domestic_projection_anchor()
+    coverage = _coverage(anchor, AS_OF)
+
+    preflight = service.preflight(request, catalog, history, anchor, coverage)
+    assert preflight.checks["current_component_coverage_complete"] is False
+    assert expected_code.value in preflight.reason_codes
+    with pytest.raises(CoreContractError) as error:
+        service.compare(request, catalog, history, anchor, coverage)
+    assert error.value.code == expected_code
+
+
+def test_projected_preflight_classifies_core_and_input_validation_errors() -> None:
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
+    base = _request_with_component_coverage(
+        _indexed_request(),
+        {
+            "network_losses": {"treatment": "included"},
+            "dispatching_capacity": {"treatment": "included"},
+        },
+    )
+    catalog = _catalog(AS_OF)
+    history = _history(AS_OF)
+    anchor = load_domestic_projection_anchor()
+    coverage = _coverage(anchor, AS_OF)
+
+    future = service.preflight(
+        base.model_copy(update={"as_of": date(2026, 10, 1)}), catalog, history, anchor, coverage
+    )
+    empty_consumption = base.model_copy(
+        update={"consumption": base.consumption.model_copy(update={"buckets": ()})}
+    )
+    invalid_profile = service.preflight(empty_consumption, catalog, history, anchor, coverage)
+
+    assert future.checks["request_supported"] is False
+    assert CoreErrorCode.UNSUPPORTED_HORIZON.value in future.reason_codes
+    assert invalid_profile.checks["request_supported"] is False
+    assert "unsupported_scenario" in invalid_profile.reason_codes
+
+
+def test_current_component_coverage_adds_separate_rates_once_to_baseline_only() -> None:
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
+    request = _indexed_request("100")
+    included_request = _request_with_component_coverage(
+        request,
+        {
+            "network_losses": {"treatment": "included"},
+            "dispatching_capacity": {"treatment": "included"},
+        },
+    )
+    separate_request = _request_with_component_coverage(
+        request,
+        {
+            "network_losses": {
+                "treatment": "separate",
+                "unit_rate": UnitRate(amount=Decimal("0.015"), unit=RateUnit.EUR_PER_KWH),
+            },
+            "dispatching_capacity": {
+                "treatment": "separate",
+                "unit_rate": UnitRate(amount=Decimal("0.002"), unit=RateUnit.EUR_PER_KWH),
+            },
+        },
+    )
+    catalog = _catalog(AS_OF)
+    history = _history(AS_OF)
+    anchor = load_domestic_projection_anchor()
+    coverage = _coverage(anchor, AS_OF)
+    included_projected = service.compare(included_request, catalog, history, anchor, coverage)
+    separate_projected = service.compare(separate_request, catalog, history, anchor, coverage)
+    included = included_projected.base.comparison_result
+    separate = separate_projected.base.comparison_result
+
+    assert included.current_billing is not None
+    assert separate.current_billing is not None
+    included_codes = {item.code for item in included.current_pricing.breakdown.components}
+    assert "additional:current_component_network_losses" not in included_codes
+    assert "additional:current_component_dispatching_capacity" not in included_codes
+    separate_pricing = separate.current_pricing.breakdown
+    separate_lines = {
+        item.code: item
+        for item in separate_pricing.components
+        if item.code.startswith("additional:")
+    }
+    network = separate_lines["additional:current_component_network_losses"]
+    dispatch = separate_lines["additional:current_component_dispatching_capacity"]
+    assert network.amount.amount == Decimal("18.00")
+    assert dispatch.amount.amount == Decimal("2.40")
+    assert network.applied_periods == (future_period(AS_OF),)
+    assert dispatch.applied_periods == (future_period(AS_OF),)
+    assert network.meaning == ComponentMeaning.NETWORK_LOSSES
+    assert network.pricing_treatment == ComponentPricingTreatment.SEPARATE
+    assert network.losses_included is False
+    assert dispatch.meaning == ComponentMeaning.DISPATCHING_CAPACITY_AGGREGATE
+    assert dispatch.included_semantics == (
+        ComponentMeaning.DISPATCHING,
+        ComponentMeaning.CAPACITY_MARKET,
+    )
+    assert (
+        separate_projected.current_component_coverage == separate_request.current_component_coverage
+    )
+    coverage_json = separate_projected.model_dump(mode="json")["current_component_coverage"]
+    assert coverage_json["network_losses"]["treatment"] == "separate"
+    assert coverage_json["dispatching_capacity"]["unit_rate"]["unit"] == "EUR/kWh"
+    assert sum(item.code == network.code for item in separate_pricing.components) == 1
+    assert sum(item.code == dispatch.code for item in separate_pricing.components) == 1
+
+    separate_bill = separate.current_billing.bill.breakdown
+    bill_lines = {item.code: item for item in separate_bill.components}
+    assert bill_lines[network.code].amount.amount == Decimal("18.00")
+    assert bill_lines[dispatch.code].amount.amount == Decimal("2.40")
+    assert bill_lines[network.code].meaning == ComponentMeaning.NETWORK_LOSSES
+    assert bill_lines[network.code].pricing_treatment == ComponentPricingTreatment.SEPARATE
+    assert bill_lines[network.code].losses_included is False
+    assert bill_lines[dispatch.code].meaning == ComponentMeaning.DISPATCHING_CAPACITY_AGGREGATE
+    assert bill_lines[dispatch.code].included_semantics == (
+        ComponentMeaning.DISPATCHING,
+        ComponentMeaning.CAPACITY_MARKET,
+    )
+    assert sum(item.code == network.code for item in separate_bill.components) == 1
+    assert sum(item.code == dispatch.code for item in separate_bill.components) == 1
+
+    included_vat = next(
+        item
+        for item in included.current_billing.bill.breakdown.components
+        if item.category == BillingCategory.VAT
+    )
+    separate_vat = next(
+        item for item in separate_bill.components if item.category == BillingCategory.VAT
+    )
+    assert separate_vat.amount.amount - included_vat.amount.amount == Decimal("2.04")
+    assert (
+        separate_bill.total.amount - included.current_billing.bill.breakdown.total.amount
+        == Decimal("22.44")
+    )
+    assert separate_bill.total == sum(
+        (item.amount for item in separate_bill.components), Money(amount=Decimal(0))
+    )
+    assert tuple(item.offer_id for item in separate.alternatives) == tuple(
+        item.offer_id for item in included.alternatives
+    )
+    assert all(
+        current.pricing == baseline.pricing and current.billing == baseline.billing
+        for current, baseline in zip(separate.alternatives, included.alternatives, strict=True)
+    )
+    assert separate.ranking == included.ranking
+
+
+def test_current_component_coverage_rejects_conflicts_and_reuses_exact_charge() -> None:
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
+    base_request = _indexed_request("100")
+    network_rate = UnitRate(amount=Decimal("0.015"), unit=RateUnit.EUR_PER_KWH)
+    existing_charge = ChargeRule(
+        code="current_component_network_losses",
+        description="Declared network losses",
+        basis=ChargeBasis.PER_KWH,
+        value=network_rate,
+    )
+    tariff = base_request.current_contract.tariff
+    contract_with_charge = base_request.current_contract.model_copy(
+        update={
+            "tariff": tariff.model_copy(
+                update={"additional_charges": (*tariff.additional_charges, existing_charge)}
+            )
+        }
+    )
+    covered_contract = base_request.model_copy(update={"current_contract": contract_with_charge})
+
+    included = _request_with_component_coverage(
+        covered_contract,
+        {
+            "network_losses": {"treatment": "included"},
+            "dispatching_capacity": {"treatment": "included"},
+        },
+    )
+    conflict_preflight = service.preflight(
+        included,
+        _catalog(AS_OF),
+        _history(AS_OF),
+        load_domestic_projection_anchor(),
+        _coverage(load_domestic_projection_anchor(), AS_OF),
+    )
+    assert conflict_preflight.checks["current_component_coverage_complete"] is False
+    assert CoreErrorCode.CURRENT_COMPONENT_CHARGE_CONFLICT.value in conflict_preflight.reason_codes
+    with pytest.raises(CoreContractError) as error:
+        service._contract_with_current_component_coverage(included, included.current_contract)
+    assert error.value.code == CoreErrorCode.CURRENT_COMPONENT_CHARGE_CONFLICT
+
+    separate = _request_with_component_coverage(
+        covered_contract,
+        {
+            "network_losses": {"treatment": "separate", "unit_rate": network_rate},
+            "dispatching_capacity": {"treatment": "included"},
+        },
+    )
+    reused = service._contract_with_current_component_coverage(separate, separate.current_contract)
+    assert reused is separate.current_contract
+    assert (
+        sum(
+            item.code == "current_component_network_losses"
+            for item in reused.tariff.additional_charges
+        )
+        == 1
+    )
+
+    mismatched = _request_with_component_coverage(
+        separate,
+        {
+            "network_losses": {
+                "treatment": "separate",
+                "unit_rate": UnitRate(amount=Decimal("0.02"), unit=RateUnit.EUR_PER_KWH),
+            },
+            "dispatching_capacity": {"treatment": "included"},
+        },
+    )
+    mismatch_preflight = service.preflight(
+        mismatched,
+        _catalog(AS_OF),
+        _history(AS_OF),
+        load_domestic_projection_anchor(),
+        _coverage(load_domestic_projection_anchor(), AS_OF),
+    )
+    assert CoreErrorCode.CURRENT_COMPONENT_CHARGE_CONFLICT.value in mismatch_preflight.reason_codes
+    with pytest.raises(CoreContractError) as error:
+        service._contract_with_current_component_coverage(mismatched, mismatched.current_contract)
+    assert error.value.code == CoreErrorCode.CURRENT_COMPONENT_CHARGE_CONFLICT
+
+
+def test_projected_excise_zero_reason_is_resident_and_monthly() -> None:
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
+    resident_request = _indexed_request("100", residential=True)
+    non_resident_request = _indexed_request("100", residential=False)
+    catalog = _catalog(AS_OF)
+    history = _history(AS_OF)
+    anchor = load_domestic_projection_anchor()
+    coverage = _coverage(anchor, AS_OF)
+
+    resident = service.compare(
+        resident_request, catalog, history, anchor, coverage
+    ).base.comparison_result
+    non_resident = service.compare(
+        non_resident_request, catalog, history, anchor, coverage
+    ).base.comparison_result
+    assert resident.current_billing is not None
+    assert non_resident.current_billing is not None
+    resident_excise = tuple(
+        item
+        for item in resident.current_billing.bill.breakdown.components
+        if item.code.startswith("regulatory:excise:")
+    )
+    non_resident_excise = tuple(
+        item
+        for item in non_resident.current_billing.bill.breakdown.components
+        if item.code.startswith("regulatory:excise:")
+    )
+    assert resident_excise and non_resident_excise
+    assert all(item.amount.amount == 0 for item in resident_excise)
+    assert all(
+        item.zero_reason == CostZeroReason.MONTHLY_RESIDENT_EXEMPTION for item in resident_excise
+    )
+    assert all(item.amount.amount > 0 for item in non_resident_excise)
+    assert all(item.zero_reason is None for item in non_resident_excise)
+
+    concentrated_buckets = tuple(
+        bucket.model_copy(
+            update={
+                "energy": EnergyQuantity(
+                    kwh=(
+                        Decimal("180")
+                        if index == 0
+                        else Decimal("20")
+                        if index == 1
+                        else Decimal("100")
+                    )
+                )
+            }
+        )
+        for index, bucket in enumerate(resident_request.consumption.buckets)
+    )
+    concentrated_request = resident_request.model_copy(
+        update={
+            "consumption": resident_request.consumption.model_copy(
+                update={"buckets": concentrated_buckets}
+            )
+        }
+    )
+    assert (
+        concentrated_request.consumption.total_energy().kwh
+        == resident_request.consumption.total_energy().kwh
+    )
+    assert all(bucket.energy.kwh > 0 for bucket in concentrated_request.consumption.buckets)
+    concentrated = service.compare(
+        concentrated_request, catalog, history, anchor, coverage
+    ).base.comparison_result
+    assert concentrated.current_billing is not None
+    concentrated_excise = tuple(
+        item
+        for item in concentrated.current_billing.bill.breakdown.components
+        if item.code.startswith("regulatory:excise:")
+    )
+    assert sum((item.amount.amount for item in concentrated_excise), Decimal(0)) > sum(
+        (item.amount.amount for item in resident_excise), Decimal(0)
+    )
+    assert any(item.zero_reason is None and item.amount.amount > 0 for item in concentrated_excise)
+
+
+def test_current_component_coverage_rejects_non_eur_per_kwh_rate() -> None:
+    request = _indexed_request()
+    with pytest.raises(ValueError, match="EUR/kWh"):
+        _request_with_component_coverage(
+            request,
+            {
+                "network_losses": {
+                    "treatment": "separate",
+                    "unit_rate": UnitRate(amount=Decimal("15"), unit=RateUnit.EUR_PER_MWH),
+                },
+                "dispatching_capacity": {"treatment": "included"},
+            },
+        )

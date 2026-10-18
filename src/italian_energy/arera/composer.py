@@ -391,6 +391,7 @@ class AreraDomesticRuleSetComposer:
                         rate=fiscal_policy.excise_rate,
                         parameter_codes=("domestic_excise_rate",),
                         status=VerificationStatus.VERIFIED,
+                        zero_reason_when_zero="monthly_resident_exemption",
                         provenance=excise_provenance,
                     )
                 )

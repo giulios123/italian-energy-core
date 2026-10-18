@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Release Core `0.13.2` — esclusione auditabile delle offerte Mercato Libero `TIPO_OFFERTA=04`.
+> Release Core `0.13.3` — copertura esplicita dei costi correnti e componenti Portal verificabili.
 
 Il package installabile è disponibile come wheel e sdist. L'importer Portale
 Offerte opera solo su cataloghi open-data ufficiali, replay storici esatti e
@@ -24,13 +24,17 @@ uv run pytest
 Installazione del package dalla release pubblicata:
 
 ```bash
-pip install italian-energy==0.13.2
+pip install italian-energy==0.13.3
 ```
 
-La release `0.13.2` conserva il contratto Core e registra/esclude le offerte
-Mercato Libero con `TIPO_OFFERTA=04` senza interpretarne i prezzi. Include
-anche il fallback GME introdotto in `0.13.1`; il base runtime non aggiunge
-dipendenze XLSX.
+La release `0.13.3` conserva provenienza e semantica delle voci `Dispacciamento`
+fino alla bolletta, usa `VALORE_DISP` del codice Portal `99` solo come addebito
+separato e blocca i riferimenti senza un importo verificato. Aggiunge inoltre
+la copertura esplicita delle perdite e di dispacciamento/capacità sul contratto
+corrente, le finestre effettivamente applicate e la motivazione verificata
+dell'accisa zero per l'esenzione mensile residente. Mantiene l'esclusione
+auditabile di `TIPO_OFFERTA=04` e il fallback GME 0.13.1; il base runtime non
+aggiunge dipendenze XLSX.
 
 ## Architettura
 
@@ -183,15 +187,17 @@ del catalogo, e `preflight(request, ...).ready` prima del confronto cliente.
 Questo percorso è locale alla Core; l'allineamento e la persistenza Platform
 restano separati.
 
-### Handoff Platform del wheel 0.13.2
+### Handoff Platform del wheel 0.13.3
 
 La Platform mantiene il vincolo SemVer
-`required-version = ">=0.13.0,<0.14.0"`. Per accettare il wheel Core `0.13.2`,
+`required-version = ">=0.13.0,<0.14.0"`. Per accettare il wheel Core `0.13.3`,
 una milestone Platform separata aggiornerà il pin puntuale di versione e SHA-256 in
 `pyproject.toml`, i valori attesi e il nome del wheel in
 `scripts/verify_core_artifact.py` e `scripts/verify_core_runtime.py`, e il
 percorso del wheel nel `Dockerfile`. Il verificatore runtime dovrà continuare a
 provare il wheel esatto; poi andranno rieseguiti i gate Platform inclusi quelli
-PostgreSQL/worker. La release rende disponibile la policy `TIPO_OFFERTA=04`
-nel Core; la pubblicazione del wheel non attesta la freschezza del catalogo
-né la copertura regolatoria pronta nella Platform.
+PostgreSQL/worker. La release rende disponibili la policy `TIPO_OFFERTA=04`
+e i campi additivi per copertura e semantica delle componenti nel Core. La
+Platform deve inviare `current_component_coverage` completa e gestire i nuovi
+metadati `CostComponent`; il rilascio non attesta da solo la freschezza del
+catalogo né la copertura regolatoria pronta nella Platform.

@@ -28,6 +28,8 @@ from italian_energy.domain.consumption import ConsumptionProfile
 from italian_energy.domain.costs import (
     Bill,
     BillingResult,
+    ComponentMeaning,
+    ComponentPricingTreatment,
     CostBreakdown,
     CostComponent,
     PricingResult,
@@ -37,6 +39,7 @@ from italian_energy.domain.money import Money, RoundingPolicy
 from italian_energy.domain.offer import Contract, Offer
 from italian_energy.domain.provenance import Provenance
 from italian_energy.domain.regulatory import RegulatoryRuleSet, VerificationStatus
+from italian_energy.domain.tariff import ChargeBasis, ChargeRule
 from italian_energy.domain.time import DatePeriod
 from italian_energy.integration.current import (
     CurrentCatalogSnapshot,
@@ -69,6 +72,8 @@ from italian_energy.recommendation import (
 )
 
 from .projected import (
+    ComponentCoverageDeclaration,
+    ComponentCoverageTreatment,
     ProjectedComparisonAssumptions,
     ProjectedDomesticComparisonRequest,
     ProjectedDomesticComparisonResult,
@@ -93,6 +98,22 @@ from .service import (
 )
 
 _INDEX_DELTA = Decimal("0.20")
+_CURRENT_COMPONENT_RULES = (
+    (
+        "network_losses",
+        "current_component_network_losses",
+        "Perdite di rete dichiarate come addebito separato",
+        CoreErrorCode.CURRENT_NETWORK_LOSSES_COVERAGE_UNKNOWN,
+        CoreErrorCode.CURRENT_NETWORK_LOSSES_RATE_MISSING,
+    ),
+    (
+        "dispatching_capacity",
+        "current_component_dispatching_capacity",
+        "Dispacciamento e mercato capacità dichiarati come addebito separato",
+        CoreErrorCode.CURRENT_DISPATCHING_CAPACITY_COVERAGE_UNKNOWN,
+        CoreErrorCode.CURRENT_DISPATCHING_CAPACITY_RATE_MISSING,
+    ),
+)
 _REQUIRED_REGISTRIES: tuple[RegulatoryRegistry, ...] = (
     "ARERA",
     "ADM",
@@ -254,14 +275,17 @@ class ProjectedDomesticEnergyService:
         source_gate = self.source_preflight(
             request.as_of, catalog, market_history, anchor, coverage_evidence
         )
+        component_coverage_reasons = self._current_component_coverage_reason_codes(request)
         checks = {
             "request_supported": True,
             **source_gate.checks,
+            "current_component_coverage_complete": not component_coverage_reasons,
             "baseline_contract_covers_horizon": False,
             "baseline_calculable": False,
             "supported_candidate_available": False,
         }
         reasons: list[str] = list(source_gate.reason_codes)
+        reasons.extend(code.value for code in component_coverage_reasons)
         normalized_count = 0
         eligible_count = 0
         excluded_count = 0
@@ -275,14 +299,21 @@ class ProjectedDomesticEnergyService:
             )
 
         try:
-            self._contract_for_horizon(request, horizon)
+            baseline_contract = self._contract_for_horizon(request, horizon)
             checks["baseline_contract_covers_horizon"] = True
+            if checks["current_component_coverage_complete"]:
+                try:
+                    self._contract_with_current_component_coverage(request, baseline_contract)
+                except CoreContractError as exc:
+                    checks["current_component_coverage_complete"] = False
+                    reasons.append(exc.code.value)
         except CoreContractError as exc:
             reasons.append(exc.code.value)
 
         if (
             checks["request_supported"]
             and checks["baseline_contract_covers_horizon"]
+            and checks["current_component_coverage_complete"]
             and checks["market_window_verified"]
             and checks["regulatory_anchor_verified"]
         ):
@@ -291,9 +322,12 @@ class ProjectedDomesticEnergyService:
                 assert market_history is not None
                 ruleset = self._ruleset(anchor, request.classification.residential)
                 consumption = project_consumption(request.consumption, request.as_of)
+                baseline_contract = self._contract_with_current_component_coverage(
+                    request, self._contract_for_horizon(request, horizon)
+                )
                 self._evaluate_contract(
                     request,
-                    self._contract_for_horizon(request, horizon),
+                    baseline_contract,
                     consumption,
                     project_market_data(
                         market_history.market_data,
@@ -304,13 +338,9 @@ class ProjectedDomesticEnergyService:
                     ruleset,
                 )
                 checks["baseline_calculable"] = True
-            except (
-                CoreContractError,
-                BillingError,
-                FixedPricingError,
-                IndexedPricingError,
-                ValueError,
-            ):
+            except CoreContractError as exc:
+                reasons.append(exc.code.value)
+            except (BillingError, FixedPricingError, IndexedPricingError, ValueError):
                 reasons.append(CoreErrorCode.COMPARISON_FAILED.value)
 
         if checks["catalog_verified"] and checks["market_window_verified"]:
@@ -585,6 +615,14 @@ class ProjectedDomesticEnergyService:
         """Return low/base/high monthly-billed future estimates from explicit snapshots."""
         self._validate_as_of(request.as_of)
         validate_consumption_periods(request.consumption, request.as_of)
+        component_coverage_reasons = self._current_component_coverage_reason_codes(request)
+        if component_coverage_reasons:
+            component_code = component_coverage_reasons[0]
+            raise CoreContractError(
+                component_code,
+                "current contract component coverage is incomplete: "
+                + ", ".join(item.value for item in component_coverage_reasons),
+            )
         source_gate = self.source_preflight(
             request.as_of, catalog, market_history, anchor, coverage_evidence
         )
@@ -610,7 +648,9 @@ class ProjectedDomesticEnergyService:
         assert coverage_evidence is not None
 
         horizon = future_period(request.as_of)
-        baseline_contract = self._contract_for_horizon(request, horizon)
+        baseline_contract = self._contract_with_current_component_coverage(
+            request, self._contract_for_horizon(request, horizon)
+        )
         ruleset = self._ruleset(anchor, request.classification.residential)
         projected_consumption = project_consumption(request.consumption, request.as_of)
         import_result = self._normalize(request, catalog, market_history)
@@ -682,6 +722,11 @@ class ProjectedDomesticEnergyService:
                 "market_digests": [item.sha256 for item in evidence.market_report_provenance],
                 "anchor": anchor.anchor_id,
                 "regulatory_coverage": coverage_evidence.evidence_id,
+                "current_component_coverage": request.current_component_coverage.model_dump(
+                    mode="json"
+                )
+                if request.current_component_coverage is not None
+                else None,
                 "scenarios": [item.comparison.portal_result_id for item in scenarios],
                 "assumptions": assumptions.model_dump(mode="json"),
             }
@@ -693,6 +738,7 @@ class ProjectedDomesticEnergyService:
             assumptions=assumptions,
             verified_inputs=evidence,
             scenarios=tuple(scenarios),
+            current_component_coverage=request.current_component_coverage,
         )
 
     def recommend(
@@ -959,7 +1005,22 @@ class ProjectedDomesticEnergyService:
                 CoreErrorCode.UNSUPPORTED_HORIZON,
                 "current contract does not cover the projection and continuation was not declared",
             )
-        tariff = contract.tariff.model_copy(update={"validity": horizon})
+        original_tariff_validity = contract.tariff.validity
+        fixed_charges = tuple(
+            rule.model_copy(update={"validity": horizon})
+            if (
+                rule.code == "fixed_annual"
+                and not rule.discount
+                and rule.basis == ChargeBasis.PER_YEAR
+                and rule.validity == original_tariff_validity
+                and rule.continuation_policy == "follow_tariff"
+            )
+            else rule
+            for rule in contract.tariff.fixed_charges
+        )
+        tariff = contract.tariff.model_copy(
+            update={"validity": horizon, "fixed_charges": fixed_charges}
+        )
         return contract.model_copy(
             update={
                 "contract_id": f"{contract.contract_id}:continued",
@@ -967,6 +1028,108 @@ class ProjectedDomesticEnergyService:
                 "tariff": tariff,
                 "conditions": (*contract.conditions, "continuation_assumption=true"),
             }
+        )
+
+    @staticmethod
+    def _current_component_coverage_reason_codes(
+        request: ProjectedDomesticComparisonRequest,
+    ) -> tuple[CoreErrorCode, ...]:
+        coverage = request.current_component_coverage
+        reasons: list[CoreErrorCode] = []
+        for attribute, _, _, unknown_code, missing_rate_code in _CURRENT_COMPONENT_RULES:
+            declaration = getattr(coverage, attribute, None) if coverage is not None else None
+            if declaration is None or declaration.treatment == ComponentCoverageTreatment.UNKNOWN:
+                reasons.append(unknown_code)
+            elif (
+                declaration.treatment == ComponentCoverageTreatment.SEPARATE
+                and declaration.unit_rate is None
+            ):
+                reasons.append(missing_rate_code)
+        return tuple(reasons)
+
+    @staticmethod
+    def _contract_with_current_component_coverage(
+        request: ProjectedDomesticComparisonRequest, contract: Contract
+    ) -> Contract:
+        reasons = ProjectedDomesticEnergyService._current_component_coverage_reason_codes(request)
+        if reasons:
+            raise CoreContractError(
+                reasons[0],
+                "current contract component coverage is incomplete: "
+                + ", ".join(item.value for item in reasons),
+            )
+        coverage = request.current_component_coverage
+        assert coverage is not None
+
+        tariff = contract.tariff
+        additions = list(tariff.additional_charges)
+        grouped_rules = (
+            ("fixed", tariff.fixed_charges),
+            ("additional", tariff.additional_charges),
+            ("discount", tariff.discounts),
+        )
+        for attribute, code, description, _, _ in _CURRENT_COMPONENT_RULES:
+            declaration: ComponentCoverageDeclaration | None = getattr(coverage, attribute)
+            assert declaration is not None
+            matches = [
+                (group, rule)
+                for group, rules in grouped_rules
+                for rule in rules
+                if rule.code == code
+            ]
+            if declaration.treatment == ComponentCoverageTreatment.INCLUDED:
+                if matches:
+                    raise CoreContractError(
+                        CoreErrorCode.CURRENT_COMPONENT_CHARGE_CONFLICT,
+                        f"current component {attribute} is marked included but has "
+                        "a separate charge",
+                    )
+                continue
+
+            assert declaration.treatment == ComponentCoverageTreatment.SEPARATE
+            assert declaration.unit_rate is not None
+            if matches:
+                if (
+                    len(matches) == 1
+                    and matches[0][0] == "additional"
+                    and not matches[0][1].discount
+                    and matches[0][1].basis == ChargeBasis.PER_KWH
+                    and matches[0][1].value == declaration.unit_rate
+                    and matches[0][1].validity in (None, tariff.validity)
+                ):
+                    continue
+                raise CoreContractError(
+                    CoreErrorCode.CURRENT_COMPONENT_CHARGE_CONFLICT,
+                    f"current component {attribute} conflicts with an existing tariff charge",
+                )
+            additions.append(
+                ChargeRule(
+                    code=code,
+                    description=description,
+                    basis=ChargeBasis.PER_KWH,
+                    value=declaration.unit_rate,
+                    meaning=(
+                        ComponentMeaning.NETWORK_LOSSES
+                        if attribute == "network_losses"
+                        else ComponentMeaning.DISPATCHING_CAPACITY_AGGREGATE
+                    ),
+                    pricing_treatment=ComponentPricingTreatment.SEPARATE,
+                    losses_included=False if attribute == "network_losses" else None,
+                    included_semantics=(
+                        (
+                            ComponentMeaning.DISPATCHING,
+                            ComponentMeaning.CAPACITY_MARKET,
+                        )
+                        if attribute == "dispatching_capacity"
+                        else ()
+                    ),
+                )
+            )
+
+        if tuple(additions) == tariff.additional_charges:
+            return contract
+        return contract.model_copy(
+            update={"tariff": tariff.model_copy(update={"additional_charges": tuple(additions)})}
         )
 
     @staticmethod
@@ -1095,6 +1258,11 @@ def _aggregate_components(
             item.quota,
             item.reconciliation_key,
             item.unit_rate.unit if item.unit_rate is not None else None,
+            item.meaning,
+            item.pricing_treatment,
+            item.losses_included,
+            item.included_semantics,
+            item.zero_reason,
         )
         groups[key].append(item)
 
@@ -1128,9 +1296,31 @@ def _aggregate_components(
                 category=items[0].category,
                 quota=items[0].quota,
                 reconciliation_key=items[0].reconciliation_key,
+                meaning=items[0].meaning,
+                pricing_treatment=items[0].pricing_treatment,
+                losses_included=items[0].losses_included,
+                included_semantics=items[0].included_semantics,
+                zero_reason=items[0].zero_reason,
+                applied_periods=_merge_applied_periods(
+                    applied_period for item in items for applied_period in item.applied_periods
+                ),
             )
         )
     return tuple(result)
+
+
+def _merge_applied_periods(periods: Iterable[DatePeriod]) -> tuple[DatePeriod, ...]:
+    """Merge only overlapping or adjacent effective windows, retaining gaps."""
+    ordered = sorted(periods, key=lambda item: (item.start, item.end))
+    merged: list[DatePeriod] = []
+    for current in ordered:
+        if merged and current.start <= merged[-1].end:
+            previous = merged[-1]
+            if current.end > previous.end:
+                merged[-1] = DatePeriod(start=previous.start, end=current.end)
+            continue
+        merged.append(current)
+    return tuple(merged)
 
 
 def _aggregate_pricing(results: Sequence[PricingResult], period: DatePeriod) -> PricingResult:

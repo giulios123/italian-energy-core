@@ -1,6 +1,37 @@
 # Changelog
 
-## [Unreleased]
+## [0.13.3] - 2026-10-18
+
+### Added
+
+- Spec 015: copertura esplicita delle perdite e dei costi aggregati di
+  dispacciamento/capacità nel contratto corrente. Il preflight blocca copertura
+  ignota, tariffa separata mancante e conflitti; le componenti dichiarate
+  separate entrano una sola volta nella baseline.
+- Le righe costo conservano semantica, trattamento, perdite incluse, finestre
+  effettive e motivazione verificata dell'accisa zero mensile residente.
+- Mapping versionato `portale-dispacciamento-v1`: il codice `99` usa solo
+  `VALORE_DISP` esplicito come addebito separato; i codici `01`–`14` senza
+  importo economico verificato restano riferimenti e non diventano zero o
+  componenti ricostruite.
+
+### Changed
+
+- Il parser Portal conserva campi raw, validità, semantica e provenance delle
+  voci `Dispacciamento` fino a `Bill.components[]`, evitando doppi conteggi di
+  CdispD aggregato e addebiti separati.
+- La quota fissa annuale ordinaria segue la tariffa solo con policy esplicita;
+  promozioni e altre scadenze restano nelle rispettive finestre.
+- Il refresh regolatorio riusa un'asserzione solo quando fonte, digest, atto,
+  URL, validità e locator coincidono con l'anchor; lo scope incrementale
+  conserva i finding tariffari supportati precedenti.
+
+### Verification
+
+- 801 test passano con 95,21% di copertura (branch inclusa); Ruff check e
+  format, mypy, pre-commit, lock check e `git diff --check` passano.
+- Golden privato verificato; wheel e sdist costruiti e smoke isolato del wheel
+  conferma l'import di `italian-energy==0.13.3`.
 
 ## [0.13.2] - 2026-10-16
 

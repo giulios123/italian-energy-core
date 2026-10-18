@@ -21,7 +21,11 @@ from italian_energy.arera.discovery import (
     discover_regulatory_sources,
 )
 from italian_energy.arera.models import AreraCustomerSegment
-from italian_energy.arera.projection import load_domestic_projection_anchor
+from italian_energy.arera.projection import (
+    ProjectionAnchorSource,
+    ProjectionAnchorSourceReference,
+    load_domestic_projection_anchor,
+)
 from italian_energy.arera.rollover_coverage import (
     RegulatoryAnchorSourceCheck,
     RegulatoryCandidateCoverageResult,
@@ -29,6 +33,7 @@ from italian_energy.arera.rollover_coverage import (
     RegulatoryManualReview,
     RegulatoryReviewOutcome,
     RegulatoryReviewSourceCheck,
+    _anchor_already_covers_assertion,
     verify_regulatory_anchor_coverage,
     verify_regulatory_candidate_coverage,
 )
@@ -385,6 +390,174 @@ def test_non_numeric_confirmation_is_accepted_after_expiry_and_blocks_if_unappli
 
     assert future_effect.ready
     assert RegulatoryRolloverReason.AMBIGUOUS_APPLICABILITY in overlapping_effect.reason_codes
+
+
+def test_current_anchor_reference_clears_exact_overlapping_confirmation() -> None:
+    anchor = load_domestic_projection_anchor()
+    checked_at = datetime(2026, 10, 8, 12, tzinfo=UTC)
+    source_id = "arera_343_fixture"
+    source_url = "https://www.arera.it/atti-e-provvedimenti/dettaglio/26/343-26"
+    locator = "Article 6 paragraph 6.1 confirms ASOS"
+    source = ProjectionAnchorSource(
+        source_id=source_id,
+        source="ARERA",
+        source_identifier=ACT_ID,
+        url=source_url,
+        retrieved_at=checked_at,
+        published_at=anchor.as_of,
+        effective_period=anchor.validity,
+        sha256=ACT_SHA256,
+        document="fixture-343.pdf",
+    )
+    first_charge = anchor.charges[0].model_copy(
+        update={
+            "references": (
+                *anchor.charges[0].references,
+                ProjectionAnchorSourceReference(source_id=source_id, section=locator),
+            )
+        }
+    )
+    anchor = anchor.model_copy(
+        update={
+            "sources": (*anchor.sources, source),
+            "charges": (first_charge, *anchor.charges[1:]),
+        }
+    )
+    assertion = RegulatoryEffectAssertion(
+        assertion_id="fixture-confirmation:current-anchor",
+        component_code="ASOS",
+        prior_effective_from=date(2026, 7, 1),
+        validity=anchor.validity,
+        segments=tuple(AreraCustomerSegment),
+        quotas=tuple(BillingQuota),
+        source_id=source_id,
+        source_url=source_url,
+        source_sha256=ACT_SHA256,
+        act_id=ACT_ID,
+        document="fixture-343.pdf",
+        published_at=anchor.as_of,
+        fetched_at=checked_at,
+        parser_id="fixture-343-parser",
+        parser_version="1.0.0",
+        locator=locator,
+        raw_value_token="sono confermati",
+    )
+    discovery = _discovery(act_channel=RegulatoryRegistryChannel.ARERA_TARIFFS)
+    discovery = discovery.model_copy(
+        update={
+            "as_of": anchor.as_of,
+            "snapshots": tuple(
+                snapshot.model_copy(update={"discovered_at": checked_at})
+                for snapshot in discovery.snapshots
+            ),
+            "findings": tuple(
+                finding.model_copy(
+                    update={
+                        "disposition": DiscoveryActDisposition.SUPPORTED,
+                        "rationale": "fixture is exactly present in the current anchor",
+                        "rule_id": "fixture-anchor-reference",
+                        "rule_version": "1.0.0",
+                    }
+                )
+                if finding.act_id == ACT_ID
+                else finding
+                for finding in discovery.findings
+            ),
+        }
+    )
+    source_checks = tuple(
+        RegulatoryAnchorSourceCheck(
+            source_id=item.source_id,
+            expected_sha256=item.sha256,
+            observed_sha256=item.sha256,
+            checked_at=checked_at,
+        )
+        for item in anchor.sources
+        if item.sha256 is not None
+    )
+    assert len(source_checks) == len(anchor.sources)
+
+    result = verify_regulatory_anchor_coverage(
+        anchor=anchor,
+        discovery=discovery,
+        source_checks=source_checks,
+        as_of=anchor.as_of,
+        checked_at=checked_at,
+        effect_assertions=(assertion,),
+    )
+
+    assert result.ready
+    assert RegulatoryRolloverReason.AMBIGUOUS_APPLICABILITY not in result.reason_codes
+
+
+@pytest.mark.parametrize(
+    "change",
+    (
+        {"source_id": "unknown-source"},
+        {"source_sha256": "f" * 64},
+        {"act_id": "different-act"},
+        {"source_url": "https://www.arera.it/other.pdf"},
+        {"validity": DatePeriod(start=date(2026, 10, 2), end=date(2027, 1, 1))},
+        {"validity": DatePeriod(start=date(2026, 10, 1), end=date(2026, 12, 31))},
+        {"locator": "missing reference locator"},
+    ),
+)
+def test_anchor_confirmation_reuse_requires_exact_source_and_locator(
+    change: dict[str, object],
+) -> None:
+    anchor = load_domestic_projection_anchor()
+    checked_at = datetime(2026, 10, 8, 12, tzinfo=UTC)
+    source_id = "arera_343_fixture"
+    source_url = "https://www.arera.it/atti-e-provvedimenti/dettaglio/26/343-26"
+    locator = "Article 6 paragraph 6.1 confirms ASOS"
+    source = ProjectionAnchorSource(
+        source_id=source_id,
+        source="ARERA",
+        source_identifier=ACT_ID,
+        url=source_url,
+        retrieved_at=checked_at,
+        published_at=anchor.as_of,
+        effective_period=anchor.validity,
+        sha256=ACT_SHA256,
+        document="fixture-343.pdf",
+    )
+    reference = ProjectionAnchorSourceReference(source_id=source_id, section=locator)
+    anchored = anchor.model_copy(
+        update={
+            "sources": (*anchor.sources, source),
+            "charges": (
+                anchor.charges[0].model_copy(
+                    update={"references": (*anchor.charges[0].references, reference)}
+                ),
+                *anchor.charges[1:],
+            ),
+        }
+    )
+    assertion = RegulatoryEffectAssertion(
+        assertion_id="fixture-confirmation:exact-source",
+        component_code="ASOS",
+        prior_effective_from=date(2026, 7, 1),
+        validity=anchor.validity,
+        segments=tuple(AreraCustomerSegment),
+        quotas=tuple(BillingQuota),
+        source_id=source_id,
+        source_url=source_url,
+        source_sha256=ACT_SHA256,
+        act_id=ACT_ID,
+        document="fixture-343.pdf",
+        published_at=anchor.as_of,
+        fetched_at=checked_at,
+        parser_id="fixture-343-parser",
+        parser_version="1.0.0",
+        locator=locator,
+        raw_value_token="sono confermati",
+    ).model_copy(update=change)
+
+    assert not _anchor_already_covers_assertion(
+        assertion=assertion,
+        anchor=anchored,
+        source_by_id={item.source_id: item for item in anchored.sources},
+    )
 
 
 def test_irrelevant_act_review_is_digest_bound_and_part_of_build_key() -> None:

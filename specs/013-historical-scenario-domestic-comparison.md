@@ -2,6 +2,8 @@
 
 **Stato:** base implementata e rilasciata in Core `v0.12.0` il 2026-09-28;
 addendum GME implementato in Core `v0.13.1` il 2026-10-14.
+**Addendum:** quota fissa corrente con policy `follow_tariff` e finestre
+applicate rilasciate in Core `v0.13.3` il 2026-10-18.
 
 ## Stato e scopo
 
@@ -45,6 +47,18 @@ il mese di `as_of`. Per `as_of = 2026-09-27`, il periodo è
 - Ripetere il costo del contratto corrente solo se il caller dichiara
   l’assunzione di continuità richiesta dalla Spec 011. Voci occasionali di
   bolletta non diventano costi ricorrenti.
+- Quando la continuità è dichiarata, estendere anche la validità della sola
+  quota fissa ordinaria se è una `ChargeRule` `fixed_annual`, annuale, non
+  sconto, con `continuation_policy="follow_tariff"` e validità uguale alla
+  validità originaria della tariffa. La regola segue la validità estesa della
+  tariffa sull’intero orizzonte. L’assenza della policy, una validità autonoma
+  o una condizione ambigua non autorizzano l’estensione; sconti e promozioni
+  mantengono sempre la propria scadenza.
+- Ogni `CostComponent` espone `applied_periods` con le finestre economiche
+  effettive. Se il campo manca in un payload legacy, vale il `period` originario.
+  Gli aggregati mantengono `period` come orizzonte di rendicontazione e uniscono
+  in `applied_periods` soltanto finestre sovrapposte o contigue, conservando i
+  vuoti temporali.
 
 ## Fonti e indici supportati
 
@@ -225,6 +239,10 @@ o AI.
   regole non valide per il suo periodo.
 - Scadenza offerte, sottoscrivibilità ad `as_of`, continuità esplicita,
   durata insufficiente e tariffa non modellabile.
+- Quota ordinaria da 84 EUR/anno su tariffa continuata: 84 EUR sui dodici mesi;
+  regola senza policy e promozione temporanea restano limitate alle rispettive
+  finestre. Verificare finestre aggregate, importi Decimal, IVA, totale,
+  blocco senza assunzione e invarianza delle alternative.
 - Recommendation invariata sul solo base; scenari stress non cambiano soglie,
   ranking o selezione. Envelope e golden storici invariati.
 - CLI/API di refresh separata dal confronto offline; verifica di ogni documento

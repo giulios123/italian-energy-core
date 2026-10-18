@@ -37,6 +37,19 @@ Identificativi e date obbligatori, namespace e controlli d'integrità restano
 vincolanti. Il supporto economico del tipo `04` richiederà una decisione
 successiva basata sul mapping ufficiale.
 
+### Decisione v0.8.1 — componenti `Dispacciamento`
+
+Dal parser `008-portal-offers-v3`, ogni nodo `Dispacciamento` viene conservato
+con il codice originale, i campi raw, la semantica versionata, la validità e
+provenance puntuale. I codici `01`–`14` descrivono riferimenti regolatori e non
+forniscono da soli un prezzo: senza un importo verificato l'offerta resta
+esclusa dal confronto. Il codice `14` resta un solo aggregato CdispD e non viene
+ripartito. Il codice `99` può entrare nella bolletta soltanto con
+`VALORE_DISP`, unità e validità espliciti, come addebito separato; non modifica
+il prezzo energia. I dettagli normativi del mapping `portale-dispacciamento-v1`
+e la proiezione fino a `Bill.components[]` sono definiti nell'addendum v0.8.1
+della Spec 008.
+
 ## Conseguenze
 
 - Il dominio rimane indipendente da web framework, browser, database, cloud e

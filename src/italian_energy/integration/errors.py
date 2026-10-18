@@ -21,6 +21,11 @@ class CoreErrorCode(StrEnum):
     SOURCE_VALIDATION_FAILED = "source_validation_failed"
     COMPARISON_FAILED = "comparison_failed"
     RECOMMENDATION_FAILED = "recommendation_failed"
+    CURRENT_NETWORK_LOSSES_COVERAGE_UNKNOWN = "current_network_losses_coverage_unknown"
+    CURRENT_DISPATCHING_CAPACITY_COVERAGE_UNKNOWN = "current_dispatching_capacity_coverage_unknown"
+    CURRENT_NETWORK_LOSSES_RATE_MISSING = "current_network_losses_rate_missing"
+    CURRENT_DISPATCHING_CAPACITY_RATE_MISSING = "current_dispatching_capacity_rate_missing"
+    CURRENT_COMPONENT_CHARGE_CONFLICT = "current_component_charge_conflict"
 
 
 class CoreContractError(Exception):

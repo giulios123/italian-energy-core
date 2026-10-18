@@ -16,8 +16,10 @@ from italian_energy.domain.costs import (
     BillingResult,
     BillReconciliation,
     ComponentDifference,
+    ComponentMeaning,
     CostBreakdown,
     CostComponent,
+    CostZeroReason,
     ExternalBillItem,
     ObservedBill,
     ObservedBillComponent,
@@ -114,6 +116,15 @@ def select_regulatory_profile(
             "regulatory profile selection is " + ("missing" if not candidates else "ambiguous")
         )
     return candidates[0]
+
+
+def _meaning_for_category(category: BillingCategory) -> ComponentMeaning:
+    return {
+        BillingCategory.EXCISE: ComponentMeaning.EXCISE,
+        BillingCategory.VAT: ComponentMeaning.VAT,
+        BillingCategory.NETWORK: ComponentMeaning.NETWORK_CHARGES,
+        BillingCategory.SYSTEM_CHARGES: ComponentMeaning.SYSTEM_CHARGES,
+    }.get(category, ComponentMeaning.OTHER)
 
 
 class RegulatoryBillingEngine:
@@ -376,10 +387,12 @@ class RegulatoryBillingEngine:
             quota = (
                 BillingQuota.CONSUMPTION if component.quantity is not None else BillingQuota.FIXED
             )
+        meaning = component.meaning or ComponentMeaning.COMMERCIAL_CHARGE
         return component.model_copy(
             update={
                 "category": BillingCategory.SALES,
                 "quota": quota,
+                "meaning": meaning,
                 "reconciliation_key": key,
             }
         )
@@ -426,6 +439,7 @@ class RegulatoryBillingEngine:
             quantity=quantity,
             unit_rate=unit_rate,
             period=window,
+            meaning=_meaning_for_category(rule.category),
             formula=formula,
             provenance=provenance,
             category=rule.category,
@@ -567,6 +581,22 @@ class RegulatoryBillingEngine:
             raise BillingError(f"threshold rule {rule.code} quantity unit does not match rate unit")
         raw_amount = quantity * rule.rate.amount
         self._validate_sign(rule.code, raw_amount, rule.credit)
+        zero_reason = None
+        if (
+            raw_amount == 0
+            and rule.zero_reason_when_zero == "monthly_resident_exemption"
+            and rule.status == VerificationStatus.VERIFIED
+            and rule.category == BillingCategory.EXCISE
+            and rule.rate.amount > 0
+            and quantity == 0
+            and request.classification is not None
+            and request.classification.residential is True
+        ):
+            monthly_consumption = self._measure_quantity(
+                request, "consumption_kwh", BillingMeasureUnit.KWH, window
+            )
+            if monthly_consumption > 0:
+                zero_reason = CostZeroReason.MONTHLY_RESIDENT_EXEMPTION
         return CostComponent(
             code=f"regulatory:{rule.code}",
             description=rule.description,
@@ -574,6 +604,8 @@ class RegulatoryBillingEngine:
             quantity=quantity,
             unit_rate=rule.rate,
             period=window,
+            meaning=_meaning_for_category(rule.category),
+            zero_reason=zero_reason,
             formula="threshold_quantity * rate",
             provenance=self._rule_provenance(rule, parameters),
             category=rule.category,
@@ -665,6 +697,7 @@ class RegulatoryBillingEngine:
             quantity=base,
             unit_rate=rule.rate,
             period=window,
+            meaning=_meaning_for_category(rule.category),
             formula="taxable_base * rate_percent / 100",
             provenance=RegulatoryBillingEngine._rule_provenance(rule, parameters),
             category=rule.category,

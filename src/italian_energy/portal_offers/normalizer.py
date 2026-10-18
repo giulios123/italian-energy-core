@@ -8,6 +8,7 @@ import json
 from collections import Counter
 from datetime import date
 
+from italian_energy.domain.costs import ComponentMeaning, ComponentPricingTreatment
 from italian_energy.domain.formula import (
     AddPrice,
     IndexReference,
@@ -19,6 +20,7 @@ from italian_energy.domain.formula import (
 from italian_energy.domain.market import MarketData
 from italian_energy.domain.money import RateUnit, UnitRate
 from italian_energy.domain.offer import Offer
+from italian_energy.domain.provenance import ProvenanceLocator
 from italian_energy.domain.regulatory import VerificationStatus
 from italian_energy.domain.tariff import (
     BandFormula,
@@ -32,13 +34,16 @@ from italian_energy.domain.time import DatePeriod, Granularity
 from italian_energy.portal_offers.models import (
     NormalizedPortalOffer,
     PortalCatalog,
+    PortalComponentSemantic,
     PortalEligibilityProfile,
+    PortalLossTreatment,
     PortalOfferExclusion,
     PortalOfferExclusionCode,
     PortalOfferRecord,
     PortalOffersImportResult,
     PortalOffersSnapshot,
     PortalOfferType,
+    PortalPricingTreatment,
 )
 
 _INDEX_CODES = {"01": "PUN", "05": "PUN", "08": "PE", "12": "PUN", "PUN": "PUN", "PE": "PE"}
@@ -48,6 +53,46 @@ _UNIT_MAP = {
     "EUR/year": RateUnit.EUR_PER_YEAR,
     "EUR/kW/year": RateUnit.EUR_PER_KW_YEAR,
 }
+
+_COMPONENT_MEANING_MAP = {
+    PortalComponentSemantic.ENERGY_PRICE: ComponentMeaning.ENERGY_PRICE,
+    PortalComponentSemantic.COMMERCIAL_CHARGE: ComponentMeaning.COMMERCIAL_CHARGE,
+    PortalComponentSemantic.DISPATCHING: ComponentMeaning.DISPATCHING,
+    PortalComponentSemantic.CAPACITY_MARKET: ComponentMeaning.CAPACITY_MARKET,
+    PortalComponentSemantic.DISPATCHING_CAPACITY_AGGREGATE: (
+        ComponentMeaning.DISPATCHING_CAPACITY_AGGREGATE
+    ),
+    PortalComponentSemantic.SELLER_DEFINED_DISPATCHING: (
+        ComponentMeaning.SELLER_DEFINED_DISPATCHING
+    ),
+    PortalComponentSemantic.REGULATED_FIXED_DISPATCHING: (
+        ComponentMeaning.REGULATED_FIXED_DISPATCHING
+    ),
+    PortalComponentSemantic.SAFEGUARD_REINTEGRATION: ComponentMeaning.SAFEGUARD_REINTEGRATION,
+    PortalComponentSemantic.GRADUAL_PROTECTION_REINTEGRATION: (
+        ComponentMeaning.GRADUAL_PROTECTION_REINTEGRATION
+    ),
+    PortalComponentSemantic.UNSUPPORTED: ComponentMeaning.UNSUPPORTED,
+}
+_COMPONENT_PRICING_TREATMENT_MAP = {
+    PortalPricingTreatment.TARIFF_ADDITION: ComponentPricingTreatment.TARIFF_ADDITION,
+    PortalPricingTreatment.REGULATORY_REFERENCE: ComponentPricingTreatment.REGULATORY_REFERENCE,
+    PortalPricingTreatment.UNSUPPORTED: ComponentPricingTreatment.UNSUPPORTED,
+}
+
+
+def _component_meaning(
+    semantic: PortalComponentSemantic | None,
+) -> ComponentMeaning | None:
+    return None if semantic is None else _COMPONENT_MEANING_MAP[semantic]
+
+
+def _component_loss_inclusion(treatment: PortalLossTreatment) -> bool | None:
+    if treatment == PortalLossTreatment.INCLUDED:
+        return True
+    if treatment == PortalLossTreatment.EXCLUDED:
+        return False
+    return None
 
 
 def _add_months_clamped(value: date, months: int) -> date:
@@ -103,12 +148,20 @@ def _exclude(
     record: PortalOfferRecord,
     code: PortalOfferExclusionCode,
     detail: str,
+    *,
+    locator: ProvenanceLocator | None = None,
 ) -> PortalOfferExclusion:
     return PortalOfferExclusion(
         offer_id=_source_offer_id(record),
         code=code,
         detail=detail,
-        locator=record.source_provenance[0].locator if record.source_provenance else None,
+        locator=(
+            locator
+            if locator is not None
+            else record.source_provenance[0].locator
+            if record.source_provenance
+            else None
+        ),
     )
 
 
@@ -118,8 +171,85 @@ def _map_band(raw: str | None, *, only_band: str | None = None) -> str:
     return _BANDS.get(raw or "", "ALL")
 
 
-def _unit(value: str) -> RateUnit | None:
-    return _UNIT_MAP.get(value)
+def _unit(value: str | None) -> RateUnit | None:
+    return _UNIT_MAP.get(value) if value is not None else None
+
+
+def _commercial_component_exclusion(
+    record: PortalOfferRecord,
+) -> PortalOfferExclusion | None:
+    unsupported = next(
+        (
+            component
+            for component in record.components
+            if component.pricing_treatment == PortalPricingTreatment.UNSUPPORTED
+        ),
+        None,
+    )
+    if unsupported is not None:
+        code = unsupported.source_code or "missing"
+        return _exclude(
+            record,
+            PortalOfferExclusionCode.UNSUPPORTED_COMMERCIAL_COMPONENT,
+            f"unsupported TIPO_DISPACCIAMENTO={code}; source fields are retained for audit",
+            locator=unsupported.locator,
+        )
+
+    aggregates = tuple(
+        component
+        for component in record.components
+        if component.semantic == PortalComponentSemantic.DISPATCHING_CAPACITY_AGGREGATE
+    )
+    for aggregate in aggregates:
+        overlap = next(
+            (
+                component
+                for component in record.components
+                if component is not aggregate and component.semantic in aggregate.included_semantics
+            ),
+            None,
+        )
+        if overlap is not None:
+            return _exclude(
+                record,
+                PortalOfferExclusionCode.AMBIGUOUS_COMPONENT_COMPOSITION,
+                "aggregated CdispD overlaps a separate dispatching or capacity-market component; "
+                "refusing possible double count",
+                locator=aggregate.locator,
+            )
+    if len(aggregates) > 1:
+        return _exclude(
+            record,
+            PortalOfferExclusionCode.AMBIGUOUS_COMPONENT_COMPOSITION,
+            "multiple aggregated CdispD components are present; refusing possible double count",
+            locator=aggregates[0].locator,
+        )
+
+    missing = next(
+        (
+            component
+            for component in record.components
+            if component.source_code is not None
+            and (
+                component.pricing_treatment == PortalPricingTreatment.REGULATORY_REFERENCE
+                or (
+                    component.pricing_treatment == PortalPricingTreatment.TARIFF_ADDITION
+                    and (component.amount is None or component.unit is None)
+                )
+            )
+        ),
+        None,
+    )
+    if missing is not None:
+        code = missing.source_code or "unknown"
+        return _exclude(
+            record,
+            PortalOfferExclusionCode.MISSING_COMMERCIAL_COMPONENT,
+            f"TIPO_DISPACCIAMENTO={code} is a regulatory reference without a directly "
+            "priced source value; no zero or split was inferred",
+            locator=missing.locator,
+        )
+    return None
 
 
 def _charge_rules(
@@ -129,12 +259,16 @@ def _charge_rules(
     additional: list[ChargeRule] = []
     discounts: list[ChargeRule] = []
     for component in record.components:
+        if component.source_code is not None and (
+            component.pricing_treatment != PortalPricingTreatment.TARIFF_ADDITION
+        ):
+            continue
         if record.catalog == PortalCatalog.PLACET and (
             component.code.startswith("p_vol_") or component.code == "alpha"
         ):
             continue
         unit = _unit(component.unit)
-        if unit is None:
+        if unit is None or component.amount is None:
             continue
         if unit == RateUnit.EUR_PER_KWH and component.macroarea in {"04", "06"}:
             continue
@@ -155,7 +289,15 @@ def _charge_rules(
                     value=UnitRate(amount=-abs(component.amount), unit=unit),
                     band=_map_band(component.band) if basis == ChargeBasis.PER_KWH else None,
                     discount=True,
-                    provenance=record.source_provenance,
+                    meaning=_component_meaning(component.semantic),
+                    pricing_treatment=_COMPONENT_PRICING_TREATMENT_MAP[component.pricing_treatment],
+                    losses_included=_component_loss_inclusion(component.loss_treatment),
+                    included_semantics=tuple(
+                        _COMPONENT_MEANING_MAP[semantic]
+                        for semantic in component.included_semantics
+                    ),
+                    validity=component.period,
+                    provenance=component.source_provenance or record.source_provenance,
                 )
             )
         else:
@@ -169,7 +311,15 @@ def _charge_rules(
                     basis=basis,
                     value=value,
                     band=_map_band(component.band) if basis == ChargeBasis.PER_KWH else None,
-                    provenance=record.source_provenance,
+                    meaning=_component_meaning(component.semantic),
+                    pricing_treatment=_COMPONENT_PRICING_TREATMENT_MAP[component.pricing_treatment],
+                    losses_included=_component_loss_inclusion(component.loss_treatment),
+                    included_semantics=tuple(
+                        _COMPONENT_MEANING_MAP[semantic]
+                        for semantic in component.included_semantics
+                    ),
+                    validity=component.period,
+                    provenance=component.source_provenance or record.source_provenance,
                 )
             )
     return tuple(fixed), tuple(additional), tuple(discounts)
@@ -178,8 +328,10 @@ def _charge_rules(
 def _fixed_tariff(record: PortalOfferRecord) -> FixedTariff:
     prices: list[BandPrice] = []
     for component in record.components:
+        if component.source_code is not None:
+            continue
         unit = _unit(component.unit)
-        if unit != RateUnit.EUR_PER_KWH:
+        if unit != RateUnit.EUR_PER_KWH or component.amount is None:
             continue
         if component.macroarea not in {None, "04", "06"}:
             continue
@@ -220,7 +372,11 @@ def _indexed_tariff(record: PortalOfferRecord) -> IndexedTariff:
     granularity = Granularity.MONTH
     structured_terms: list[PriceExpression] = []
     for component in record.components:
-        if component.index_code is None or _unit(component.unit) != RateUnit.EUR_PER_KWH:
+        if (
+            component.source_code is not None
+            or component.index_code is None
+            or _unit(component.unit) != RateUnit.EUR_PER_KWH
+        ):
             continue
         mapped = _INDEX_CODES.get(component.index_code.upper())
         if mapped is None:
@@ -244,8 +400,10 @@ def _indexed_tariff(record: PortalOfferRecord) -> IndexedTariff:
     for term in terms[1:]:
         expression = AddPrice(left=expression, right=term)
     for component in record.components:
+        if component.source_code is not None:
+            continue
         unit = _unit(component.unit)
-        if unit != RateUnit.EUR_PER_KWH or component.discount:
+        if unit != RateUnit.EUR_PER_KWH or component.discount or component.amount is None:
             continue
         if record.catalog == PortalCatalog.PLACET and component.code.startswith("p_vol_"):
             continue
@@ -399,6 +557,10 @@ def normalize_offers(
         applicability = _record_applicability(record, eligibility, period_start, period_end)
         if applicability is not None:
             exclusions.append(applicability)
+            continue
+        commercial_component_issue = _commercial_component_exclusion(record)
+        if commercial_component_issue is not None:
+            exclusions.append(commercial_component_issue)
             continue
         try:
             tariff = (

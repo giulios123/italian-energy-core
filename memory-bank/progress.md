@@ -1,5 +1,30 @@
 # Progress
 
+## Portale Offerte — Dispacciamento e mercato capacità, 2026-10-17
+
+- **Scritto:** Spec 008 addendum v0.8.1 definisce il mapping versionato
+  `portale-dispacciamento-v1`, periodi, provenance, inclusioni/perdite,
+  riferimenti 01–14, importo diretto 99, ambiguità aggregate e codici ignoti.
+- **Implementato:** il parser `008-portal-offers-v3` conserva ogni blocco
+  `Dispacciamento` con codice/campi raw, semantica, trattamento pricing,
+  importo nullable, unità, periodo offerta e provenance puntuale. Code 14 resta
+  CdispD aggregato; code 99 usa solo `VALORE_DISP`. Il normalizzatore esclude
+  riferimenti senza prezzo verificato, codici sconosciuti e composizioni che
+  rischiano un doppio conteggio; nessun valore mancante diventa zero.
+- **Verificato:** tutti i 33 test di `tests/unit/test_portal_offers.py`, Ruff
+  sui file del slice, mypy sui moduli e test mirati, `git diff --check` e
+  compilazione del nuovo modulo passano. Non è stata eseguita la suite Core
+  completa né un collaudo HTTP live.
+- **Limite aperto:** i codici 01–14 identificano regole/parametri ma non
+  contengono un prezzo diretto nel nodo XML; il parametro CSV `cdispd` trovato
+  nel dataset di prova non espone una validità sufficiente per coprire il
+  periodo simulato. Pertanto quelle offerte restano escluse dal confronto
+  completo finché Core non collega importi con validità verificata. Codici
+  futuri non presenti nella whitelist sono conservati e bloccati.
+- Nessun rilascio, pubblicazione o deployment; la Platform deve adottare il
+  nuovo contratto e mantenere le etichette/valori enum della Spec 008.
+
+
 ## Portale Offerte — esclusione temporanea tipo `04` — 2026-10-16
 
 - Decisione esplicita dell'utente registrata in Spec 008, ADR 0012 e
@@ -828,3 +853,40 @@
   suite automatizzata eseguita in questa correzione.
 - Questa modifica sorgente non è una release e non aggiorna i worker Platform;
   serve una successiva pubblicazione e adozione del Core aggiornato.
+
+
+## Componenti attuali e motivazione accise — 2026-10-17
+
+- **Scritto:** Spec 013 documenta la continuità della quota fissa annuale e le
+  finestre `applied_periods`; la nuova Spec 015 definisce la dichiarazione
+  `current_component_coverage`, i codici fail-closed, la semantica pubblica e la
+  motivazione verificata per accise zero.
+- **Implementato:** Core estende soltanto le quote annuali ordinarie marcate
+  `follow_tariff`; mantiene autonome scadenze di promo; aggiunge componenti
+  correnti separate per perdite e dispacciamento/capacità solo con tariffa
+  esplicita; conserva periodo effettivo, significato e trattamento in
+  `CostComponent`. L'output proiettato congela `current_component_coverage`.
+  `monthly_resident_exemption` è emesso soltanto da regola residente verificata,
+  aliquota e consumo imponibili nulli ma consumo mensile positivo.
+- **Verificato:** 55 test mirati in `test_projected_service.py`,
+  `test_projected_contract.py` e `test_billing_artifacts.py`; Ruff e mypy
+  mirati passano. Nessuna suite completa, API HTTP Platform o artefatto Core
+  aggiornato verificati.
+- **Limite aperto al momento della verifica:** il passaggio dei metadati dei
+  componenti Portal importati a `Bill.components` è un slice distinto assegnato
+  a `core_offer_charges`; CdispD senza tariffa verificata non è un importo e
+  non deve essere proiettato.
+- Nessun commit, release o deployment.
+
+
+### Chiusura integrazione Portal → Bill — 2026-10-17
+
+- Il slice importer completato propaga i metadati supportati (`meaning`,
+  `pricing_treatment`, `losses_included`, `included_semantics`, `validity` e
+  provenance) da `PortalEconomicComponent` attraverso `ChargeRule` fino a
+  `Bill.components`. Il test mirato conferma code 99 → bolletta, 31,68 EUR su
+  3.600 kWh con metadati. Verificati 34/34 test mirati del slice.
+- CdispD, codice 14, resta un riferimento aggregato senza importo diretto nel
+  dataset e blocca la completezza del confronto; nessuna ripartizione o tariffa
+  è stata inventata.
+- Nessun rilascio Core.

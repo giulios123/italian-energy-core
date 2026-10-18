@@ -40,6 +40,9 @@ from .manifest import (
 )
 from .models import HistoricalPortalComparisonRequest, HistoricalRecommendationRequest
 from .projected import (
+    ComponentCoverageDeclaration,
+    ComponentCoverageTreatment,
+    CurrentComponentCoverage,
     GmeDefinitionCheck,
     ProjectedComparisonAssumptions,
     ProjectedDomesticComparisonRequest,
@@ -84,6 +87,8 @@ __all__ = [
     "CORE_SCHEMA_IDS",
     "DEFAULT_PERCENTAGE_ROUNDING_POLICY",
     "DEFAULT_ROUNDING_POLICY",
+    "ComponentCoverageDeclaration",
+    "ComponentCoverageTreatment",
     "ConsumptionProfile",
     "Contract",
     "CoreCapability",
@@ -93,6 +98,7 @@ __all__ = [
     "CoreManifest",
     "CoreSchemaId",
     "CurrentCatalogSnapshot",
+    "CurrentComponentCoverage",
     "CurrentDomesticEnergyService",
     "CurrentPortalComparisonRequest",
     "CurrentPortalComparisonResult",

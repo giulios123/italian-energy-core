@@ -576,3 +576,97 @@ allowlistati, controlla unità e periodo e registra byte acquisiti, digest e
 provenance. Non usa OCR, scraping HTML generico o endpoint privati. La serie
 commerciale Portale resta distinta finché le specifiche e i documenti
 ufficiali non provano il relativo mapping.
+
+## Addendum v0.8.1 — componenti XML di dispacciamento e capacità
+
+**Stato:** implementato in Core `v0.13.3` il 2026-10-18; adozione Platform
+separata.
+
+Questo addendum è normativo per `008-portal-offers-v3` e integra il mapping
+commerciale delle offerte Mercato Libero senza modificare i bytes sorgente.
+
+Ogni elemento XML `Dispacciamento` diventa un `PortalEconomicComponent` con
+`source_code`, `semantic`, `pricing_treatment`, `amount`, `unit`, `period`,
+`loss_treatment`, `included_semantics`, `mapping_version`, `source_provenance`
+e `source_fields`. `period` e `source_provenance.effective_period` coincidono
+con la validità dichiarata dell'offerta; il locator identifica l'elemento
+`Dispacciamento` nell'XML. La versione del mapping è
+`portale-dispacciamento-v1`.
+
+Il mapping supportato è esplicito e non si deduce dal solo testo libero:
+
+| `TIPO_DISPACCIAMENTO` | Semantica Core | Trattamento | Unità attesa | Regola |
+| --- | --- | --- | --- | --- |
+| `01` | `dispatching` | `regulatory_reference` | EUR/kWh | Corrispettivo di dispacciamento TIDE |
+| `02` | `dispatching` | `regulatory_reference` | EUR/kWh | Dispacciamento PD |
+| `03`–`08` | `dispatching` | `regulatory_reference` | EUR/kWh | Componenti regolate MSD, modulazione eolica, unità essenziali, Terna, capacità produttiva e interrompibilità |
+| `09` | `capacity_market` | `regulatory_reference` | EUR/kWh | Corrispettivo capacità STG |
+| `10` | `capacity_market` | `regulatory_reference` | EUR/kWh | Corrispettivo capacità MT |
+| `11` | `safeguard_reintegration` | `regulatory_reference` | EUR/kWh | Reintegrazione salvaguardia |
+| `12` | `gradual_protection_reintegration` | `regulatory_reference` | EUR/kWh | Reintegrazione oneri tutele graduali |
+| `13` | `regulated_fixed_dispatching` | `regulatory_reference` | EUR/year | DispBT fisso |
+| `14` | `dispatching_capacity_aggregate` | `regulatory_reference` | EUR/kWh | CdispD aggregato di dispacciamento e capacità |
+| `99` | `capacity_market` o `seller_defined_dispatching` | `tariff_addition` | EUR/kWh | Importo `VALORE_DISP` esplicito inserito dal venditore |
+
+Per `99`, la semantica `capacity_market` si applica solo alle denominazioni
+ufficiali riconosciute; le altre restano `seller_defined_dispatching` e il
+nome originale è conservato. `VALORE_DISP` è l'unico importo direttamente
+utilizzabile come tariffa per `99`. I codici `01`–`14` sono riferimenti a
+regole o parametri, non prezzi autonomi contenuti nel nodo XML; il normalizzatore
+non li applica senza un parametro Core verificato e valido sul periodo richiesto.
+Una reference priva di tale parametro, oppure una riga `tariff_addition` priva
+di importo o unità, esclude l'offerta con `missing_commercial_component`.
+Nessun valore mancante viene sostituito con zero e non si ricostruiscono
+componenti da un aggregato.
+
+Il codice `14` rappresenta un solo CdispD aggregato: non si ripartisce tra
+capacità e dispacciamento. Se lo stesso record contiene CdispD e una seconda
+voce che si sovrappone alle semantiche incluse, il normalizzatore esclude il
+record con `ambiguous_component_composition` per evitare doppi conteggi. I
+codici non supportati restano nell'audit con campi sorgente e provenance e
+causano `unsupported_commercial_component`; non interrompono l'importazione
+delle altre offerte.
+
+Il trattamento delle perdite è esplicito. I corrispettivi di dispacciamento
+forniti dal Portale, incluso il valore venditore `99`, sono trattati come già
+comprensivi delle perdite secondo le [Regole per il calcolo degli indicatori
+sintetici di prezzo v1.03](https://www.ilportaleofferte.it/portaleOfferte/resources/cms/documents/f3f76d37a368150e98669fd4cadd98b4.pdf).
+`DispBT` fisso usa `not_applicable`. Nessuna maggiorazione per perdite viene
+applicata a una voce con trattamento `included`.
+
+Gli elementi `Dispacciamento` sono termini commerciali distinti dalle
+componenti `ComponenteImpresa` e non possono diventare prezzi energia per
+semplice somiglianza dell'unità. Il parser conserva la validità e la
+provenance a livello di voce; il risultato normalizzato mantiene il record
+sorgente congelato. La correzione incrementa la versione parser, così gli
+snapshot e i confronti precedenti non vengono reinterpretati.
+
+### Proiezione economica delle componenti riconosciute
+
+Quando una componente XML `Dispacciamento` ha un importo diretto supportato,
+unità riconosciuta e periodo verificato, la normalizzazione la trasferisce in
+una `ChargeRule` e conserva `meaning`, `pricing_treatment`, inclusioni,
+trattamento delle perdite, validità e provenance fino a `Bill.components[]`.
+Il mapping converte esplicitamente i tipi Portal nei corrispondenti enum Core;
+`losses_included` vale `true` solo per `included`, `false` solo per `excluded`,
+e resta `null` negli altri casi. Il periodo effettivamente applicato rimane
+consultabile in `applied_periods` della riga aggregata.
+
+Il codice `99` con `VALORE_DISP`, unità e validità verificati è una tariffa
+aggiuntiva separata. Non entra mai nella formula del prezzo energia: il parser
+contrassegna le righe `Dispacciamento` con `source_code` e il normalizzatore le
+proietta soltanto tra gli addebiti commerciali. Il significato `capacity_market`
+è mantenuto per le denominazioni mappate; altrimenti si conserva
+`seller_defined_dispatching`. La provenance del blocco XML accompagna l'addebito.
+
+I codici `01`–`14`, compreso CdispD aggregato, restano riferimenti regolatori
+finché Core non dispone di importo, unità e periodo economicamente supportati.
+La validità dell'offerta da sola non sostituisce il prezzo: con importo assente
+l'offerta è esclusa con `missing_commercial_component`. CdispD non viene
+suddiviso e non si aggiunge a un prezzo che già lo dichiara incluso. Un codice
+non riconosciuto resta nell'audit e blocca la completezza.
+
+La regressione `test_imported_capacity_market_addition_reaches_annual_bill_once`
+verifica il percorso XML importato → tariffa normalizzata → confronto annuale →
+`Bill.components[]`, inclusi importo atteso, unità, semantica, trattamento,
+perdite, periodo applicato e provenance, oltre all'assenza di doppio conteggio.

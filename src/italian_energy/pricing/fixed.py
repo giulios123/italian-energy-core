@@ -10,7 +10,12 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from italian_energy.domain.consumption import ConsumptionBucket
-from italian_energy.domain.costs import CostBreakdown, CostComponent, PricingResult
+from italian_energy.domain.costs import (
+    ComponentMeaning,
+    CostBreakdown,
+    CostComponent,
+    PricingResult,
+)
 from italian_energy.domain.money import Money, RateUnit, RoundingPolicy, UnitRate
 from italian_energy.domain.offer import Contract
 from italian_energy.domain.provenance import Provenance
@@ -229,6 +234,7 @@ class FixedPricingEngine:
                     quantity=quantity,
                     unit_rate=price.rate,
                     period=period,
+                    meaning=ComponentMeaning.ENERGY_PRICE,
                     formula="quantity_kwh * rate_eur_per_kwh",
                     provenance=tariff.provenance,
                 )
@@ -310,6 +316,10 @@ class FixedPricingEngine:
             quantity=quantity,
             unit_rate=unit_rate,
             period=window,
+            meaning=rule.meaning,
+            pricing_treatment=rule.pricing_treatment,
+            losses_included=rule.losses_included,
+            included_semantics=rule.included_semantics,
             formula=formula,
             provenance=provenance,
         )

@@ -15,7 +15,7 @@ from italian_energy.billing import (
 from italian_energy.billing.engine import BillingRequest
 from italian_energy.billing.regulatory import RegulatoryBillingEngine
 from italian_energy.domain.consumption import ConsumptionBucket, ConsumptionProfile
-from italian_energy.domain.costs import CostBreakdown, CostComponent, PricingResult
+from italian_energy.domain.costs import CostBreakdown, CostComponent, CostZeroReason, PricingResult
 from italian_energy.domain.money import (
     EnergyQuantity,
     Money,
@@ -179,19 +179,37 @@ def test_packaged_rulesets_bill_both_domestic_profiles() -> None:
 def test_resident_excise_boundaries_are_monthly_and_profile_specific() -> None:
     engine = RegulatoryBillingEngine()
     expected = {
-        "1.5": (Decimal("0"), Decimal("140"), Decimal("300"), Decimal("370")),
-        "3": (Decimal("0"), Decimal("70"), Decimal("230"), Decimal("370")),
-        "3.1": (Decimal("150"), Decimal("220"), Decimal("300"), Decimal("370")),
+        "1.5": (
+            Decimal("0"),
+            Decimal("0"),
+            Decimal("2"),
+            Decimal("138"),
+            Decimal("140"),
+            Decimal("142"),
+        ),
+        "3": (
+            Decimal("0"),
+            Decimal("0"),
+            Decimal("1"),
+            Decimal("69"),
+            Decimal("70"),
+            Decimal("72"),
+        ),
+        "3.1": (
+            Decimal("149"),
+            Decimal("150"),
+            Decimal("151"),
+            Decimal("219"),
+            Decimal("220"),
+            Decimal("221"),
+        ),
     }
+    consumptions = (149, 150, 151, 219, 220, 221)
     for power, quantities in expected.items():
-        for consumption, expected_quantity in zip(
-            (Decimal("150"), Decimal("220"), Decimal("300"), Decimal("370")),
-            quantities,
-            strict=True,
-        ):
+        for consumption, expected_quantity in zip(consumptions, quantities, strict=True):
             base = request(resident=True)
             bucket = base.consumption.buckets[0].model_copy(
-                update={"energy": EnergyQuantity(kwh=consumption)}
+                update={"energy": EnergyQuantity(kwh=Decimal(consumption))}
             )
             contract = base.contract.model_copy(
                 update={
@@ -212,6 +230,45 @@ def test_resident_excise_boundaries_are_monthly_and_profile_specific() -> None:
             excise = next(rule for rule in profile.rules if rule.code == "excise:2026-01")
             assert isinstance(excise, ThresholdRegulatoryRule)
             assert engine._evaluate_quantity(scenario, excise.quantity, PERIOD) == expected_quantity
+
+
+def test_zero_excise_reason_requires_positive_consumption_and_verified_rule() -> None:
+    engine = RegulatoryBillingEngine()
+    base = request(resident=True)
+    assert base.rule_set is not None
+    assert base.classification is not None
+    profile = engine._select_profile(base.rule_set, base.classification, base)
+    source_rule = next(rule for rule in profile.rules if rule.code == "excise:2026-01")
+    assert isinstance(source_rule, ThresholdRegulatoryRule)
+    excise = source_rule.model_copy(update={"zero_reason_when_zero": "monthly_resident_exemption"})
+
+    def evaluate(
+        kwh: Decimal, *, status: VerificationStatus = VerificationStatus.VERIFIED
+    ) -> CostComponent:
+        bucket = base.consumption.buckets[0].model_copy(update={"energy": EnergyQuantity(kwh=kwh)})
+        scenario = base.model_copy(
+            update={
+                "consumption": base.consumption.model_copy(update={"buckets": (bucket,)}),
+            }
+        )
+        assert scenario.rounding_policy is not None
+        return engine._threshold_component(
+            scenario,
+            excise.model_copy(update={"status": status}),
+            PERIOD,
+            scenario.rounding_policy,
+            scenario.rule_set.parameters if scenario.rule_set is not None else (),
+        )
+
+    no_consumption = evaluate(Decimal("0"))
+    exempt_consumption = evaluate(Decimal("100"))
+    unverified_rule = evaluate(Decimal("100"), status=VerificationStatus.UNVERIFIED)
+    assert no_consumption.amount.amount == 0
+    assert no_consumption.zero_reason is None
+    assert exempt_consumption.amount.amount == 0
+    assert exempt_consumption.zero_reason == CostZeroReason.MONTHLY_RESIDENT_EXEMPTION
+    assert unverified_rule.amount.amount == 0
+    assert unverified_rule.zero_reason is None
 
 
 def test_artifact_loader_rejects_ambiguous_or_invalid_inputs(tmp_path: Path) -> None:

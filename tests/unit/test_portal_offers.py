@@ -51,6 +51,7 @@ from italian_energy.portal_offers import (
 from italian_energy.portal_offers import importer as portal_importer
 from italian_energy.portal_offers import models as portal_models
 from italian_energy.portal_offers import normalizer as portal_normalizer
+from italian_energy.portal_offers.dispatching_mapping import make_dispatching_component
 from italian_energy.portal_offers.normalizer import normalize_offers
 
 DATE = date(2026, 1, 1)
@@ -251,6 +252,287 @@ def test_type_04_still_requires_source_identity() -> None:
     snapshot = importer.fetch(DATE, include_indexes=False)
     with pytest.raises(PortalImportError, match="malformed Mercato Libero offer at row 1"):
         importer.parse_offers(snapshot.offers)
+
+
+def test_dispatching_code_14_is_preserved_as_one_unpriced_cdispd_aggregate() -> None:
+    dispatch = b"""
+    <Dispacciamento>
+      <TIPO_DISPACCIAMENTO>14</TIPO_DISPACCIAMENTO>
+      <NOME>CdispD</NOME>
+      <DESCRIZIONE>Corrispettivo dispacciamento Tutele Graduali domestici</DESCRIZIONE>
+    </Dispacciamento>
+    """
+    transport = _transport()
+    transport.contents = {
+        **transport.contents,
+        "offerteML": (
+            XML.replace(b"    <ComponenteImpresa>", dispatch + b"    <ComponenteImpresa>", 1),
+            "application/xml",
+        ),
+    }
+    importer = PortalOffersImporter(transport=transport)
+    snapshot = importer.fetch(DATE, include_indexes=False)
+    record = next(
+        item for item in importer.parse_offers(snapshot.offers) if item.source_offer_id == "XML1"
+    )
+    component = next(item for item in record.components if item.source_code == "14")
+
+    assert (
+        component.semantic == portal_models.PortalComponentSemantic.DISPATCHING_CAPACITY_AGGREGATE
+    )
+    assert component.included_semantics == (
+        portal_models.PortalComponentSemantic.DISPATCHING,
+        portal_models.PortalComponentSemantic.CAPACITY_MARKET,
+    )
+    assert component.amount is None
+    assert component.unit == "EUR/kWh"
+    assert component.pricing_treatment == portal_models.PortalPricingTreatment.REGULATORY_REFERENCE
+    assert component.loss_treatment == portal_models.PortalLossTreatment.INCLUDED
+    assert component.period == record.tariff_validity
+    assert component.mapping_version == portal_models.PORTAL_DISPATCHING_MAPPING_VERSION
+    assert component.source_provenance[0].locator is not None
+    assert component.source_provenance[0].locator.section == "offer:XML1/Dispacciamento:1"
+    assert component.source_provenance[0].effective_period == record.tariff_validity
+    assert dict(component.source_fields)["TIPO_DISPACCIAMENTO"] == "14"
+
+    result = normalize_offers(
+        snapshot.offers,
+        (record.model_copy(update={"conditions": ()}),),
+        _eligibility(),
+        DATE,
+        date(2026, 2, 1),
+    )
+    assert result.eligible_count == 0
+    assert (
+        result.exclusions[0].code
+        == portal_models.PortalOfferExclusionCode.MISSING_COMMERCIAL_COMPONENT
+    )
+    assert result.exclusions[0].locator == component.locator
+    assert "no zero or split was inferred" in result.exclusions[0].detail
+
+
+def test_dispatching_malformed_amount_is_kept_as_raw_audit_data() -> None:
+    dispatch = b"""
+    <Dispacciamento>
+      <TIPO_DISPACCIAMENTO>99</TIPO_DISPACCIAMENTO>
+      <VALORE_DISP>not-a-rate</VALORE_DISP>
+      <NOME>Seller-defined dispatching</NOME>
+    </Dispacciamento>
+    """
+    transport = _transport()
+    transport.contents = {
+        **transport.contents,
+        "offerteML": (
+            XML.replace(b"    <ComponenteImpresa>", dispatch + b"    <ComponenteImpresa>", 1),
+            "application/xml",
+        ),
+    }
+    importer = PortalOffersImporter(transport=transport)
+    snapshot = importer.fetch(DATE, include_indexes=False)
+    record = next(
+        item for item in importer.parse_offers(snapshot.offers) if item.source_offer_id == "XML1"
+    )
+    component = next(item for item in record.components if item.source_code == "99")
+
+    assert component.amount is None
+    assert dict(component.source_fields)["VALORE_DISP"] == "not-a-rate"
+    assert component.source_provenance[0].locator == component.locator
+    result = normalize_offers(snapshot.offers, (record,), _eligibility(), DATE, date(2026, 2, 1))
+    exclusion = next(item for item in result.exclusions if item.offer_id.endswith(":XML1"))
+    assert exclusion.code == PortalOfferExclusionCode.MISSING_COMMERCIAL_COMPONENT
+
+
+def test_multiple_cdispd_aggregates_are_excluded() -> None:
+    dispatch = b"""
+    <Dispacciamento><TIPO_DISPACCIAMENTO>14</TIPO_DISPACCIAMENTO><NOME>CdispD</NOME></Dispacciamento>
+    <Dispacciamento><TIPO_DISPACCIAMENTO>14</TIPO_DISPACCIAMENTO><NOME>CdispD</NOME></Dispacciamento>
+    """
+    transport = _transport()
+    transport.contents = {
+        **transport.contents,
+        "offerteML": (
+            XML.replace(b"    <ComponenteImpresa>", dispatch + b"    <ComponenteImpresa>", 1),
+            "application/xml",
+        ),
+    }
+    importer = PortalOffersImporter(transport=transport)
+    snapshot = importer.fetch(DATE, include_indexes=False)
+    records = importer.parse_offers(snapshot.offers)
+
+    result = normalize_offers(snapshot.offers, records, _eligibility(), DATE, date(2026, 2, 1))
+
+    exclusion = next(item for item in result.exclusions if item.offer_id.endswith(":XML1"))
+    assert exclusion.code == PortalOfferExclusionCode.AMBIGUOUS_COMPONENT_COMPOSITION
+    assert "multiple aggregated CdispD" in exclusion.detail
+
+
+def test_dispatching_sources_are_charge_additions_not_indexed_energy() -> None:
+    record = PortalOffersImporter.parse_offers(
+        PortalOffersImporter(transport=_transport()).fetch(DATE, include_indexes=False).offers
+    )[0]
+    energy = portal_models.PortalEconomicComponent(
+        code="energy-index",
+        description="indexed energy",
+        amount=None,
+        unit="EUR/kWh",
+        index_code="PUN",
+        macroarea="04",
+    )
+    dispatch = portal_models.PortalEconomicComponent(
+        code="dispatching:99",
+        description="Seller capacity charge",
+        amount=Decimal("0.0088"),
+        unit="EUR/kWh",
+        source_code="99",
+        semantic=portal_models.PortalComponentSemantic.CAPACITY_MARKET,
+        pricing_treatment=portal_models.PortalPricingTreatment.TARIFF_ADDITION,
+    )
+    indexed = record.model_copy(
+        update={
+            "offer_type": portal_models.PortalOfferType.INDEXED,
+            "index_code": "PUN",
+            "index_codes": ("PUN",),
+            "components": (energy, dispatch),
+        }
+    )
+
+    tariff = portal_normalizer._indexed_tariff(indexed)
+
+    assert tariff.formulas[0].expression.model_dump(mode="json")["index_code"] == "PUN"
+    assert len(tariff.additional_charges) == 1
+    assert tariff.additional_charges[0].code == "dispatching:99"
+
+
+def test_dispatching_component_without_provenance_has_no_locator() -> None:
+    component = make_dispatching_component(
+        source_code="14",
+        name="CdispD",
+        description="Aggregated dispatching and capacity charge",
+        amount=None,
+        period=DatePeriod(start=DATE, end=date(2027, 1, 1)),
+        source_fields=(("TIPO_DISPACCIAMENTO", "14"),),
+        source_provenance=(),
+    )
+
+    assert component.locator is None
+    assert component.source_provenance == ()
+
+
+def test_dispatching_code_09_and_seller_capacity_charge_keep_distinct_meanings() -> None:
+    dispatch = b"""
+    <Dispacciamento>
+      <TIPO_DISPACCIAMENTO>09</TIPO_DISPACCIAMENTO>
+      <NOME>Capacity Market</NOME>
+    </Dispacciamento>
+    <Dispacciamento>
+      <TIPO_DISPACCIAMENTO>99</TIPO_DISPACCIAMENTO>
+      <VALORE_DISP>0.0088</VALORE_DISP>
+      <NOME>Capacity Market</NOME>
+    </Dispacciamento>
+    """
+    transport = _transport()
+    transport.contents = {
+        **transport.contents,
+        "offerteML": (
+            XML.replace(b"    <ComponenteImpresa>", dispatch + b"    <ComponenteImpresa>", 1),
+            "application/xml",
+        ),
+    }
+    importer = PortalOffersImporter(transport=transport)
+    snapshot = importer.fetch(DATE, include_indexes=False)
+    record = next(
+        item for item in importer.parse_offers(snapshot.offers) if item.source_offer_id == "XML1"
+    )
+    capacity_reference, seller_capacity = (
+        next(item for item in record.components if item.source_code == code)
+        for code in ("09", "99")
+    )
+
+    assert capacity_reference.semantic == portal_models.PortalComponentSemantic.CAPACITY_MARKET
+    assert (
+        capacity_reference.pricing_treatment
+        == portal_models.PortalPricingTreatment.REGULATORY_REFERENCE
+    )
+    assert capacity_reference.amount is None
+    assert seller_capacity.semantic == portal_models.PortalComponentSemantic.CAPACITY_MARKET
+    assert seller_capacity.pricing_treatment == portal_models.PortalPricingTreatment.TARIFF_ADDITION
+    assert seller_capacity.amount == Decimal("0.0088")
+    assert seller_capacity.unit == "EUR/kWh"
+    assert seller_capacity.loss_treatment == portal_models.PortalLossTreatment.INCLUDED
+    assert seller_capacity.period == record.tariff_validity
+    assert seller_capacity.source_provenance[0].sha256 == snapshot.offers.files[0].sha256
+
+    priced_record = record.model_copy(
+        update={"components": tuple(item for item in record.components if item.source_code != "09")}
+    )
+    result = normalize_offers(
+        snapshot.offers, (priced_record,), _eligibility(), DATE, date(2026, 2, 1)
+    )
+    assert result.eligible_count == 1
+    tariff = result.normalized[0].offer.tariff
+    assert len(tariff.additional_charges) == 1
+    assert tariff.additional_charges[0].code == "dispatching:99"
+    assert tariff.additional_charges[0].value.amount == Decimal("0.0088")
+
+
+def test_unknown_dispatching_code_is_audited_and_excluded_from_normalization() -> None:
+    dispatch = b"""
+    <Dispacciamento>
+      <TIPO_DISPACCIAMENTO>98</TIPO_DISPACCIAMENTO>
+      <NOME>Unknown component</NOME>
+      <VALORE_DISP>0.1</VALORE_DISP>
+    </Dispacciamento>
+    """
+    transport = _transport()
+    transport.contents = {
+        **transport.contents,
+        "offerteML": (
+            XML.replace(b"    <ComponenteImpresa>", dispatch + b"    <ComponenteImpresa>", 1),
+            "application/xml",
+        ),
+    }
+    importer = PortalOffersImporter(transport=transport)
+    snapshot = importer.fetch(DATE, include_indexes=False)
+    records = importer.parse_offers(snapshot.offers)
+    unknown = next(item for item in records if item.source_offer_id == "XML1")
+    result = normalize_offers(snapshot.offers, records, _eligibility(), DATE, date(2026, 2, 1))
+
+    assert any(item.source_code == "98" for item in unknown.components)
+    assert result.eligible_count == 1
+    exclusion = next(item for item in result.exclusions if item.offer_id.endswith(":XML1"))
+    assert exclusion.code == portal_models.PortalOfferExclusionCode.UNSUPPORTED_COMMERCIAL_COMPONENT
+    assert "TIPO_DISPACCIAMENTO=98" in exclusion.detail
+    assert exclusion.locator is not None
+    assert exclusion.locator.section == "offer:XML1/Dispacciamento:1"
+
+
+def test_cdispd_aggregate_and_separate_capacity_are_excluded_to_prevent_double_count() -> None:
+    dispatch = b"""
+    <Dispacciamento>
+      <TIPO_DISPACCIAMENTO>14</TIPO_DISPACCIAMENTO>
+      <NOME>CdispD</NOME>
+    </Dispacciamento>
+    <Dispacciamento>
+      <TIPO_DISPACCIAMENTO>09</TIPO_DISPACCIAMENTO>
+      <NOME>Capacity Market</NOME>
+    </Dispacciamento>
+    """
+    transport = _transport()
+    transport.contents = {
+        **transport.contents,
+        "offerteML": (
+            XML.replace(b"    <ComponenteImpresa>", dispatch + b"    <ComponenteImpresa>", 1),
+            "application/xml",
+        ),
+    }
+    importer = PortalOffersImporter(transport=transport)
+    snapshot = importer.fetch(DATE, include_indexes=False)
+    records = importer.parse_offers(snapshot.offers)
+    result = normalize_offers(snapshot.offers, records, _eligibility(), DATE, date(2026, 2, 1))
+
+    exclusion = next(item for item in result.exclusions if item.offer_id.endswith(":XML1"))
+    assert exclusion.code == portal_models.PortalOfferExclusionCode.AMBIGUOUS_COMPONENT_COMPOSITION
+    assert "aggregated CdispD" in exclusion.detail
 
 
 def test_normalizer_keeps_fixed_offer_and_excludes_non_domestic() -> None:

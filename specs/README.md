@@ -15,13 +15,14 @@ Le specifiche sono il contratto normativo del progetto. Una funzionalità rileva
 | 005 | ARERA Importer | Implementata localmente in `v0.5.0` (non pubblicata) |
 | 006 | Billing Coverage Expansion | Implementata localmente in `v0.6.0`; artefatti ARERA 2026 congelati, golden residente e non residente verificati |
 | 007 | Comparison Engine | Implementata localmente in `v0.7.0`; confronto all-in di offerte normalizzate, senza importer Portale Offerte |
-| 008 | Portale Offerte Importer e integrazione frontend | Implementata in `v0.8.0`; policy temporanea per `TIPO_OFFERTA=04` rilasciata in Core `v0.13.2` |
+| 008 | Portale Offerte Importer e integrazione frontend | Implementata in `v0.8.0`; policy `TIPO_OFFERTA=04` in `v0.13.2`, mapping componenti `Dispacciamento` in `v0.13.3` |
 | 009 | Recommendation Engine | Implementata localmente in `v0.9.0`; preferenze strutturate, shortlist deterministica e adapter dal Portale Offerte |
 | 010 | Contratto d'integrazione Core–Platform | Implementata localmente in `v0.10.0`; manifest, façade storica, envelope JSON e errori stabili |
 | 011 | Current Domestic Advisor | Rilasciata in `v0.11.1`; scenari deterministici, snapshot verificati, preflight tipizzato ed envelope correnti |
 | 012 | Confronto prospettico con forward e recommendation robusta | Differita; solo documentale, non implementata |
-| 013 | Confronto beta con scenari storici | Base rilasciata in `v0.12.0`; fallback GME rilasciato in `v0.13.1` |
+| 013 | Confronto beta con scenari storici | Base in `v0.12.0`, fallback GME in `v0.13.1`, quote fisse continuate e finestre applicate in `v0.13.3` |
 | 014 | Regulatory Anchor Rollover | Core M1–M23 implementate e Q4 incluso con evidence al 2026-10-08; 689 test, 95,05% branch coverage; Core 0.13.0 pubblicata su PyPI/GitHub; accettazione Platform PostgreSQL differita |
+| 015 | Copertura delle componenti attuali e motivazioni fiscali | Implementata in Core `v0.13.3`; adozione del contratto Platform separata |
 
 Le spec pianificate non autorizzano ancora codice produttivo. I dettagli diventano vincolanti soltanto quando la spec viene scritta e accettata.
 

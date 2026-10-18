@@ -215,6 +215,7 @@ class RegulatoryRuleBase(DomainModel):
     parameter_codes: tuple[str, ...] = ()
     status: VerificationStatus = VerificationStatus.UNVERIFIED
     conditions: tuple[str, ...] = ()
+    zero_reason_when_zero: Literal["monthly_resident_exemption"] | None = None
     provenance: tuple[Provenance, ...] = ()
 
 

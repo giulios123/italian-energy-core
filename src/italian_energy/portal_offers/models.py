@@ -42,6 +42,35 @@ class PortalOfferType(StrEnum):
     UNSUPPORTED = "unsupported"
 
 
+class PortalComponentSemantic(StrEnum):
+    ENERGY_PRICE = "energy_price"
+    COMMERCIAL_CHARGE = "commercial_charge"
+    DISPATCHING = "dispatching"
+    CAPACITY_MARKET = "capacity_market"
+    DISPATCHING_CAPACITY_AGGREGATE = "dispatching_capacity_aggregate"
+    SELLER_DEFINED_DISPATCHING = "seller_defined_dispatching"
+    REGULATED_FIXED_DISPATCHING = "regulated_fixed_dispatching"
+    SAFEGUARD_REINTEGRATION = "safeguard_reintegration"
+    GRADUAL_PROTECTION_REINTEGRATION = "gradual_protection_reintegration"
+    UNSUPPORTED = "unsupported"
+
+
+class PortalPricingTreatment(StrEnum):
+    TARIFF_ADDITION = "tariff_addition"
+    REGULATORY_REFERENCE = "regulatory_reference"
+    UNSUPPORTED = "unsupported"
+
+
+class PortalLossTreatment(StrEnum):
+    INCLUDED = "included"
+    EXCLUDED = "excluded"
+    UNKNOWN = "unknown"
+    NOT_APPLICABLE = "not_applicable"
+
+
+PORTAL_DISPATCHING_MAPPING_VERSION = "portale-dispacciamento-v1"
+
+
 class PortalOfferExclusionCode(StrEnum):
     UNSUPPORTED_COMMODITY = "unsupported_commodity"
     UNSUPPORTED_OFFER_TYPE = "unsupported_offer_type"
@@ -59,6 +88,9 @@ class PortalOfferExclusionCode(StrEnum):
     NOT_VERIFIED = "not_verified"
     DUAL_FUEL_REQUIRED = "dual_fuel_required"
     MANDATORY_SERVICE_REQUIRED = "mandatory_service_required"
+    UNSUPPORTED_COMMERCIAL_COMPONENT = "unsupported_commercial_component"
+    MISSING_COMMERCIAL_COMPONENT = "missing_commercial_component"
+    AMBIGUOUS_COMPONENT_COMPOSITION = "ambiguous_component_composition"
 
 
 class PortalFileSnapshot(DomainModel):
@@ -201,14 +233,23 @@ class VerifiedMarketData(DomainModel):
 class PortalEconomicComponent(DomainModel):
     code: str = Field(min_length=1)
     description: str = Field(min_length=1)
-    amount: Decimal
-    unit: str = Field(min_length=1)
+    amount: Decimal | None = None
+    unit: str | None = Field(default=None, min_length=1)
     band: str | None = None
     macroarea: str | None = None
     index_code: str | None = None
     coefficient: Decimal | None = None
     discount: bool = False
     locator: ProvenanceLocator | None = None
+    source_code: str | None = Field(default=None, min_length=1)
+    semantic: PortalComponentSemantic | None = None
+    pricing_treatment: PortalPricingTreatment = PortalPricingTreatment.TARIFF_ADDITION
+    loss_treatment: PortalLossTreatment = PortalLossTreatment.NOT_APPLICABLE
+    included_semantics: tuple[PortalComponentSemantic, ...] = ()
+    period: DatePeriod | None = None
+    mapping_version: str | None = None
+    source_provenance: tuple[Provenance, ...] = ()
+    source_fields: tuple[tuple[str, str], ...] = ()
 
     @field_validator("amount", "coefficient", mode="before")
     @classmethod

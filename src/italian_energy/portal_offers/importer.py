@@ -21,8 +21,10 @@ from italian_energy.domain.money import RateUnit
 from italian_energy.domain.provenance import Provenance, ProvenanceLocator
 from italian_energy.domain.regulatory import VerificationStatus
 from italian_energy.domain.time import DatePeriod
+from italian_energy.portal_offers.dispatching_mapping import make_dispatching_component
 from italian_energy.portal_offers.models import (
     PortalCatalog,
+    PortalComponentSemantic,
     PortalEconomicComponent,
     PortalEligibilityProfile,
     PortalFileSnapshot,
@@ -39,7 +41,7 @@ PORTAL_HOST = "www.ilportaleofferte.it"
 PORTAL_BASE = "https://www.ilportaleofferte.it"
 PORTAL_SCHEMA_VERSION = "OffertaRetail/01"
 PORTAL_XML_NAMESPACE = "http://www.acquirenteunico.it/schemas/SII_AU/OffertaRetail/01"
-PORTAL_PARSER_VERSION = "008-portal-offers-v2"
+PORTAL_PARSER_VERSION = "008-portal-offers-v3"
 PORTAL_INDEX_URL = (
     f"{PORTAL_BASE}/portaleOfferte/resources/cms/documents/5d6f1085b4d5f20821af55764e647671.csv"
 )
@@ -644,8 +646,64 @@ def _parse_market_free_xml(file: PortalFileSnapshot) -> tuple[PortalOfferRecord,
                         locator=ProvenanceLocator(
                             document=file.role.value, section=f"offer:{offer_id}"
                         ),
+                        semantic=(
+                            PortalComponentSemantic.ENERGY_PRICE
+                            if macroarea in {"04", "06"}
+                            else PortalComponentSemantic.COMMERCIAL_CHARGE
+                        ),
+                        period=period,
                     )
                 )
+        dispatch_position = 0
+        for dispatch in component_elements:
+            if _local_name(dispatch.tag) != "Dispacciamento":
+                continue
+            dispatch_position += 1
+            source_code = _text(dispatch, "TIPO_DISPACCIAMENTO")
+            name = _text(dispatch, "NOME") or ""
+            description = _text(dispatch, "DESCRIZIONE") or name
+            raw_amount = _text(dispatch, "VALORE_DISP")
+            try:
+                amount = (
+                    _parse_decimal(raw_amount, field="VALORE_DISP")
+                    if raw_amount is not None
+                    else None
+                )
+            except PortalImportError:
+                # Keep the original field for audit, but never turn a malformed
+                # economic value into a usable or zero-valued charge.
+                amount = None
+            locator = ProvenanceLocator(
+                document=file.role.value,
+                section=f"offer:{offer_id}/Dispacciamento:{dispatch_position}",
+            )
+            component_provenance = Provenance(
+                source="portale_offerte",
+                source_identifier=offer_id,
+                retrieved_at=file.retrieved_at,
+                effective_period=period,
+                dataset_version=PORTAL_SCHEMA_VERSION,
+                sha256=file.sha256,
+                url=file.final_url,
+                locator=locator,
+            )
+            source_fields = tuple(
+                (field_name, child_text)
+                for child in dispatch
+                if (child_text := str(child.text or "").strip())
+                for field_name in (_local_name(child.tag),)
+            )
+            components.append(
+                make_dispatching_component(
+                    source_code=source_code,
+                    name=name,
+                    description=description,
+                    amount=amount,
+                    period=period,
+                    source_fields=source_fields,
+                    source_provenance=(component_provenance,),
+                )
+            )
         records.append(
             PortalOfferRecord(
                 catalog=PortalCatalog.MARKET_FREE,

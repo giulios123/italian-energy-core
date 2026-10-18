@@ -16,6 +16,9 @@ from italian_energy.domain.supply import SupplyPoint
 from italian_energy.domain.tariff import BandPrice, FixedTariff
 from italian_energy.domain.time import DatePeriod, Granularity, TimeInterval
 from italian_energy.integration import (
+    ComponentCoverageDeclaration,
+    ComponentCoverageTreatment,
+    CurrentComponentCoverage,
     ProjectedComparisonAssumptions,
     ProjectedDomesticComparisonRequest,
     ProjectedDomesticComparisonResult,
@@ -115,6 +118,14 @@ def _request(profile: ConsumptionProfile | None = None) -> ProjectedDomesticComp
             activation_method="02",
             payment_method="01",
         ),
+        current_component_coverage=CurrentComponentCoverage(
+            network_losses=ComponentCoverageDeclaration(
+                treatment=ComponentCoverageTreatment.INCLUDED
+            ),
+            dispatching_capacity=ComponentCoverageDeclaration(
+                treatment=ComponentCoverageTreatment.INCLUDED
+            ),
+        ),
     )
 
 
@@ -145,6 +156,13 @@ def test_projected_request_and_canonical_envelope_round_trip() -> None:
     assert isinstance(restored, ProjectedDomesticComparisonRequest)
     assert restored.as_of == AS_OF
     assert restored.consumption.total_energy().kwh == Decimal("1200")
+    assert restored.current_component_coverage is not None
+    network_losses = restored.current_component_coverage.network_losses
+    dispatching_capacity = restored.current_component_coverage.dispatching_capacity
+    assert network_losses is not None
+    assert dispatching_capacity is not None
+    assert network_losses.treatment == ComponentCoverageTreatment.INCLUDED
+    assert dispatching_capacity.treatment == ComponentCoverageTreatment.INCLUDED
 
 
 def test_archive_backed_gme_history_round_trips_without_contract_changes() -> None:

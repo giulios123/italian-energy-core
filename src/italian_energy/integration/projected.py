@@ -6,6 +6,7 @@ import hashlib
 import json
 from datetime import date, datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
@@ -15,6 +16,7 @@ from italian_energy.arera.projection import DomesticProjectionAnchor
 from italian_energy.domain.base import DomainModel
 from italian_energy.domain.common import strict_decimal
 from italian_energy.domain.consumption import ConsumptionProfile
+from italian_energy.domain.money import RateUnit, UnitRate
 from italian_energy.domain.offer import Contract
 from italian_energy.domain.provenance import Provenance
 from italian_energy.domain.regulatory import (
@@ -233,6 +235,37 @@ class ProjectedSourcePreflightResult(DomainModel):
         return self
 
 
+class ComponentCoverageTreatment(StrEnum):
+    """How a current-contract component is represented in its quoted price."""
+
+    INCLUDED = "included"
+    SEPARATE = "separate"
+    UNKNOWN = "unknown"
+
+
+class ComponentCoverageDeclaration(DomainModel):
+    """Platform declaration for one current-contract cost component."""
+
+    treatment: ComponentCoverageTreatment
+    unit_rate: UnitRate | None = None
+
+    @model_validator(mode="after")
+    def validate_unit_rate(self) -> Self:
+        if self.unit_rate is not None:
+            if self.treatment != ComponentCoverageTreatment.SEPARATE:
+                raise ValueError("unit_rate is allowed only when treatment is separate")
+            if self.unit_rate.unit != RateUnit.EUR_PER_KWH:
+                raise ValueError("current component unit_rate must use EUR/kWh")
+        return self
+
+
+class CurrentComponentCoverage(DomainModel):
+    """Explicit input completeness for network losses and dispatching/capacity."""
+
+    network_losses: ComponentCoverageDeclaration | None = None
+    dispatching_capacity: ComponentCoverageDeclaration | None = None
+
+
 class ProjectedDomesticComparisonRequest(DomainModel):
     """Domestic BT input for a twelve-month estimate based on historical months."""
 
@@ -241,6 +274,7 @@ class ProjectedDomesticComparisonRequest(DomainModel):
     as_of: date
     classification: SupplyClassification
     eligibility: PortalEligibilityProfile
+    current_component_coverage: CurrentComponentCoverage | None = None
     continuation_assumption: bool = False
 
     @model_validator(mode="after")
@@ -387,6 +421,7 @@ class ProjectedDomesticComparisonResult(DomainModel):
     assumptions: ProjectedComparisonAssumptions
     verified_inputs: ProjectedVerifiedInputs
     scenarios: tuple[ProjectedScenarioComparison, ...]
+    current_component_coverage: CurrentComponentCoverage | None = None
     status: Literal["estimated"] = "estimated"
 
     @model_validator(mode="after")
@@ -548,6 +583,9 @@ def _recent_months(as_of: date) -> tuple[date, ...]:
 
 
 __all__ = [
+    "ComponentCoverageDeclaration",
+    "ComponentCoverageTreatment",
+    "CurrentComponentCoverage",
     "GmeDefinitionCheck",
     "ProjectedComparisonAssumptions",
     "ProjectedDomesticComparisonRequest",

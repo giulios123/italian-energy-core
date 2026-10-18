@@ -339,3 +339,45 @@ def test_scope_preserves_preclassified_findings() -> None:
     preserved = _finding(scoped, RegulatoryRegistryChannel.ARERA_ACTS, "343/2026/R/com")
     assert preserved.disposition == DiscoveryActDisposition.SUPPORTED
     assert preserved.rule_id == "fixture-supported-source"
+
+
+def test_scope_retains_previous_supported_tariff_links_on_incremental_empty_index() -> None:
+    report = _report()
+    tariff_snapshot = next(
+        item for item in report.snapshots if item.channel == RegulatoryRegistryChannel.ARERA_TARIFFS
+    )
+    record = tariff_snapshot.records[0]
+    supported = DiscoveryActFinding(
+        channel=RegulatoryRegistryChannel.ARERA_TARIFFS,
+        act_id=record.act_id,
+        disposition=DiscoveryActDisposition.SUPPORTED,
+        rationale="fixture tariff act was supported in the previous complete snapshot",
+        rule_id="fixture-supported-tariff",
+        rule_version="1.0.0",
+        source_record=record,
+    )
+    supported_without_record = DiscoveryActFinding(
+        channel=RegulatoryRegistryChannel.ARERA_TARIFFS,
+        act_id="supported-without-record",
+        disposition=DiscoveryActDisposition.SUPPORTED,
+        rationale="fixture preserves a supported finding without a current record",
+        rule_id="fixture-supported-no-record",
+        rule_version="1.0.0",
+    )
+    previous = tariff_snapshot.model_copy(
+        update={"findings": (supported, supported_without_record)}
+    )
+    empty_current = tariff_snapshot.model_copy(update={"records": (), "findings": ()})
+    discovery = report.model_copy(
+        update={
+            "snapshots": tuple(
+                empty_current if item.channel == RegulatoryRegistryChannel.ARERA_TARIFFS else item
+                for item in report.snapshots
+            )
+        }
+    )
+
+    scoped = scope_domestic_projection_discovery(discovery, previous_snapshots=(previous,))
+
+    related_act = _finding(scoped, RegulatoryRegistryChannel.ARERA_ACTS, record.act_id)
+    assert related_act.disposition == DiscoveryActDisposition.REVIEW_REQUIRED

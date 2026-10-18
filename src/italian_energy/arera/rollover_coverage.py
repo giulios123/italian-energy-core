@@ -477,8 +477,7 @@ def _anchor_already_covers_assertion(
     ):
         return False
     return any(
-        reference.source_id == assertion.source_id
-        and assertion.locator in reference.section
+        reference.source_id == assertion.source_id and assertion.locator in reference.section
         for charge in anchor.charges
         for reference in charge.references
     )

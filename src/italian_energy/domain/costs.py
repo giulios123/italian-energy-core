@@ -16,6 +16,46 @@ from italian_energy.domain.regulatory import BillingCategory, BillingQuota, Veri
 from italian_energy.domain.time import DatePeriod
 
 
+class ComponentMeaning(StrEnum):
+    """Customer-readable semantic identity of a priced component."""
+
+    ENERGY_PRICE = "energy_price"
+    COMMERCIAL_CHARGE = "commercial_charge"
+    NETWORK_LOSSES = "network_losses"
+    DISPATCHING = "dispatching"
+    CAPACITY_MARKET = "capacity_market"
+    DISPATCHING_CAPACITY = "dispatching_capacity"
+    DISPATCHING_CAPACITY_AGGREGATE = "dispatching_capacity_aggregate"
+    SELLER_DEFINED_DISPATCHING = "seller_defined_dispatching"
+    REGULATED_FIXED_DISPATCHING = "regulated_fixed_dispatching"
+    SAFEGUARD_REINTEGRATION = "safeguard_reintegration"
+    GRADUAL_PROTECTION_REINTEGRATION = "gradual_protection_reintegration"
+    NETWORK_CHARGES = "network_charges"
+    SYSTEM_CHARGES = "system_charges"
+    EXCISE = "excise"
+    VAT = "vat"
+    OTHER = "other"
+    UNSUPPORTED = "unsupported"
+
+
+class ComponentPricingTreatment(StrEnum):
+    """Whether the component is part of a price or a separately applied amount."""
+
+    INCLUDED = "included"
+    SEPARATE = "separate"
+    UNKNOWN = "unknown"
+    NOT_APPLICABLE = "not_applicable"
+    TARIFF_ADDITION = "tariff_addition"
+    REGULATORY_REFERENCE = "regulatory_reference"
+    UNSUPPORTED = "unsupported"
+
+
+class CostZeroReason(StrEnum):
+    """Verified explanation for a calculated zero-valued cost row."""
+
+    MONTHLY_RESIDENT_EXEMPTION = "monthly_resident_exemption"
+
+
 class CostComponent(DomainModel):
     code: str = Field(min_length=1)
     description: str = Field(min_length=1)
@@ -23,11 +63,33 @@ class CostComponent(DomainModel):
     quantity: Decimal | None = None
     unit_rate: UnitRate | None = None
     period: DatePeriod
+    applied_periods: tuple[DatePeriod, ...] = Field(default_factory=tuple)
+    meaning: ComponentMeaning | None = None
+    pricing_treatment: ComponentPricingTreatment | None = None
+    losses_included: bool | None = None
+    included_semantics: tuple[ComponentMeaning, ...] = ()
+    zero_reason: CostZeroReason | None = None
     formula: str = Field(min_length=1)
     provenance: tuple[Provenance, ...] = ()
     category: BillingCategory | None = None
     quota: BillingQuota | None = None
     reconciliation_key: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def default_applied_periods_to_component_period(cls, value: object) -> object:
+        """Keep older payloads compatible while exposing the effective window explicitly."""
+        if not isinstance(value, dict):
+            return value
+        if value.get("applied_periods") or value.get("period") is None:
+            return value
+        return {**value, "applied_periods": (value["period"],)}
+
+    @model_validator(mode="after")
+    def validate_zero_reason(self) -> CostComponent:
+        if self.zero_reason is not None and self.amount.amount != 0:
+            raise ValueError("zero_reason is valid only for a zero-valued component")
+        return self
 
     @field_validator("quantity", mode="before")
     @classmethod
