@@ -9,6 +9,7 @@ from hashlib import sha256
 
 from pydantic import Field, field_validator, model_validator
 
+from italian_energy.arera.models import AreraCustomerSegment
 from italian_energy.comparison.engine import ComparisonContext, ComparisonResult
 from italian_energy.domain.base import DomainModel
 from italian_energy.domain.common import strict_decimal
@@ -203,6 +204,7 @@ class PortalEligibilityProfile(DomainModel):
     territory: PortalTerritory
     voltage_level: VoltageLevel = VoltageLevel.BT
     domestic: bool = True
+    residential: bool | None = None
     activation_method: str | None = Field(default=None, min_length=1)
     payment_method: str | None = Field(default=None, min_length=1)
 
@@ -312,6 +314,10 @@ class PortalOffersImportResult(DomainModel):
     exclusions: tuple[PortalOfferExclusion, ...] = ()
     diagnostics: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    cdispd_reference_snapshot_id: str | None = None
+    cdispd_reference_snapshot_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    cdispd_reference_period: DatePeriod | None = None
+    cdispd_customer_segment: AreraCustomerSegment | None = None
     received_count: int = Field(ge=0)
     eligible_count: int = Field(ge=0)
     excluded_count: int = Field(ge=0)
@@ -324,6 +330,12 @@ class PortalOffersImportResult(DomainModel):
             raise ValueError("eligible count does not match eligible offers")
         if self.excluded_count != len(self.exclusions):
             raise ValueError("excluded count does not match exclusions")
+        if (self.cdispd_reference_snapshot_id is None) != (
+            self.cdispd_reference_snapshot_digest is None
+        ):
+            raise ValueError("CdispD source snapshot id and digest must be supplied together")
+        if self.cdispd_customer_segment is not None and self.cdispd_reference_period is None:
+            raise ValueError("CdispD customer segment requires a reference applicability period")
         return self
 
 

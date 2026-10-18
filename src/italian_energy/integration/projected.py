@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator, model_validator
 
+from italian_energy.arera.models import AreraCustomerSegment
 from italian_energy.arera.projection import DomesticProjectionAnchor
 from italian_energy.domain.base import DomainModel
 from italian_energy.domain.common import strict_decimal
@@ -289,8 +290,14 @@ class ProjectedDomesticComparisonRequest(DomainModel):
             or supply.commodity.value != "electricity"
             or self.eligibility.voltage_level != VoltageLevel.BT
             or not self.eligibility.domestic
+            or (
+                self.eligibility.residential is not None
+                and self.eligibility.residential != classification.residential
+            )
         ):
-            raise ValueError("projected comparison requires domestic electricity BT")
+            raise ValueError(
+                "projected comparison requires matching domestic electricity BT profiles"
+            )
         validate_consumption_periods(self.consumption, self.as_of)
         return self
 
@@ -348,6 +355,10 @@ class ProjectedVerifiedInputs(DomainModel):
     regulatory_anchor_validity: DatePeriod | None = None
     regulatory_coverage_as_of: date | None = None
     regulatory_coverage_id: str | None = None
+    cdispd_reference_snapshot_id: str | None = None
+    cdispd_reference_snapshot_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    cdispd_reference_period: DatePeriod | None = None
+    cdispd_customer_segment: AreraCustomerSegment | None = None
 
     @model_validator(mode="after")
     def validate_verified_sources(self) -> Self:
@@ -387,6 +398,12 @@ class ProjectedVerifiedInputs(DomainModel):
             raise ValueError("regulatory provenance is required")
         if (self.regulatory_coverage_as_of is None) != (self.regulatory_coverage_id is None):
             raise ValueError("regulatory coverage date and evidence id must be supplied together")
+        if (self.cdispd_reference_snapshot_id is None) != (
+            self.cdispd_reference_snapshot_digest is None
+        ):
+            raise ValueError("CdispD reference snapshot id and digest must be supplied together")
+        if self.cdispd_customer_segment is not None and self.cdispd_reference_period is None:
+            raise ValueError("CdispD customer segment requires an applicability period")
         if self.regulatory_coverage_as_of is not None:
             if self.regulatory_anchor_date > comparison_as_of:
                 raise ValueError("regulatory anchor snapshot cannot postdate the comparison")

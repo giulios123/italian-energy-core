@@ -8,6 +8,7 @@ from typing import Never, cast
 
 from pydantic import ValidationError
 
+from italian_energy.arera.cdispd_reference import CdispDReferenceSnapshot
 from italian_energy.arera.discovery import (
     DiscoverySnapshot,
     RegistryCursor,
@@ -67,6 +68,7 @@ type IntegrationPayload = (
     | Contract
     | ConsumptionProfile
     | VerifiedMarketData
+    | CdispDReferenceSnapshot
     | HistoricalPortalComparisonRequest
     | PortalComparisonResult
     | RecommendationPreferences
@@ -109,6 +111,7 @@ _SCHEMA_TO_MODEL: dict[CoreSchemaId, type[DomainModel]] = {
     CoreSchemaId.CONTRACT: Contract,
     CoreSchemaId.CONSUMPTION_PROFILE: ConsumptionProfile,
     CoreSchemaId.VERIFIED_MARKET_DATA: VerifiedMarketData,
+    CoreSchemaId.CDISPD_REFERENCE_SNAPSHOT: CdispDReferenceSnapshot,
     CoreSchemaId.HISTORICAL_PORTAL_COMPARISON_REQUEST: HistoricalPortalComparisonRequest,
     CoreSchemaId.PORTAL_COMPARISON_RESULT: PortalComparisonResult,
     CoreSchemaId.RECOMMENDATION_PREFERENCES: RecommendationPreferences,

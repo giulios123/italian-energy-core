@@ -266,6 +266,7 @@ def test_manifest_exposes_only_integration_schema_ids() -> None:
         CoreSchemaId.CONTRACT,
         CoreSchemaId.CONSUMPTION_PROFILE,
         CoreSchemaId.VERIFIED_MARKET_DATA,
+        CoreSchemaId.CDISPD_REFERENCE_SNAPSHOT,
         CoreSchemaId.HISTORICAL_PORTAL_COMPARISON_REQUEST,
         CoreSchemaId.PORTAL_COMPARISON_RESULT,
         CoreSchemaId.RECOMMENDATION_PREFERENCES,

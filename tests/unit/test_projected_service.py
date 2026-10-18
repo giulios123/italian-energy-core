@@ -1739,3 +1739,161 @@ def test_current_component_coverage_rejects_non_eur_per_kwh_rate() -> None:
                 "dispatching_capacity": {"treatment": "included"},
             },
         )
+
+
+def test_projected_cdispd_does_not_carry_august_rate_into_annual_horizon() -> None:
+    from test_cdispd_reference import _verified_import
+
+    from italian_energy.arera.cdispd_reference import cdispd_reference_snapshot_from_import
+    from italian_energy.portal_offers.models import (
+        PORTAL_DISPATCHING_MAPPING_VERSION,
+        PortalComponentSemantic,
+        PortalLossTreatment,
+        PortalPricingTreatment,
+    )
+
+    as_of = date(2026, 10, 18)
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 10, 18, 12, tzinfo=UTC))
+    base_request = _indexed_request()
+    history_months = (
+        *(date(2025, month, 1) for month in range(10, 13)),
+        *(date(2026, month, 1) for month in range(1, 10)),
+    )
+    shifted_profile = base_request.consumption.model_copy(
+        update={
+            "buckets": tuple(
+                bucket.model_copy(
+                    update={
+                        "interval": bucket.interval.model_copy(
+                            update={
+                                "start": datetime(month.year, month.month, 1, tzinfo=UTC),
+                                "end": datetime(
+                                    month.year + (month.month == 12),
+                                    month.month % 12 + 1,
+                                    1,
+                                    tzinfo=UTC,
+                                ),
+                            }
+                        )
+                    }
+                )
+                for bucket, month in zip(
+                    base_request.consumption.buckets, history_months, strict=True
+                )
+            )
+        }
+    )
+    request = base_request.model_copy(
+        update={
+            "as_of": as_of,
+            "consumption": shifted_profile,
+            "continuation_assumption": True,
+        }
+    )
+    catalog_source = _catalog(AS_OF)
+    offer_period = DatePeriod(start=date(2026, 10, 1), end=date(2027, 11, 1))
+    source_record = catalog_source.records[0]
+    portal_provenance = tuple(
+        item.model_copy(update={"effective_period": offer_period})
+        for item in source_record.source_provenance
+    )
+    cdispd = PortalEconomicComponent(
+        code="dispatching:14",
+        description="Aggregated dispatching and capacity charge",
+        amount=None,
+        unit="EUR/kWh",
+        source_code="14",
+        semantic=PortalComponentSemantic.DISPATCHING_CAPACITY_AGGREGATE,
+        pricing_treatment=PortalPricingTreatment.REGULATORY_REFERENCE,
+        loss_treatment=PortalLossTreatment.INCLUDED,
+        included_semantics=(
+            PortalComponentSemantic.DISPATCHING,
+            PortalComponentSemantic.CAPACITY_MARKET,
+        ),
+        period=offer_period,
+        mapping_version=PORTAL_DISPATCHING_MAPPING_VERSION,
+        source_provenance=portal_provenance,
+        source_fields=(("TIPO_DISPACCIAMENTO", "14"),),
+    )
+    annual_record = source_record.model_copy(
+        update={
+            "subscription_period": offer_period,
+            "tariff_validity": offer_period,
+            "duration_months": 14,
+            "components": (*source_record.components, cdispd),
+            "source_provenance": tuple(
+                item.model_copy(update={"effective_period": offer_period})
+                for item in source_record.source_provenance
+            ),
+        }
+    )
+    catalog = catalog_source.model_copy(update={"records": (annual_record,)})
+    anchor = load_domestic_projection_anchor(as_of)
+    coverage = _coverage(anchor, as_of)
+    reference = cdispd_reference_snapshot_from_import(_verified_import(month_count=8))
+
+    horizon = future_period(as_of)
+    readiness = service.preflight(
+        request,
+        catalog,
+        _history(as_of),
+        anchor,
+        coverage,
+        cdispd_reference=reference,
+    )
+
+    assert horizon == DatePeriod(start=date(2026, 11, 1), end=date(2027, 11, 1))
+    assert reference.validity == DatePeriod(start=date(2026, 1, 1), end=date(2026, 9, 1))
+    assert readiness.official_data_ready is True
+    assert readiness.checks["cdispd_reference_period_covered"] is False
+    assert readiness.horizon_eligible_offer_count == 0
+    assert readiness.ready is False
+    assert "cdispd_reference_unavailable" in readiness.reason_codes
+
+    with pytest.raises(CoreContractError, match="no complete candidate"):
+        service.compare(
+            request,
+            catalog,
+            _history(as_of),
+            anchor,
+            coverage,
+            cdispd_reference=reference,
+        )
+
+    complete_record = catalog_source.records[1].model_copy(
+        update={
+            "subscription_period": offer_period,
+            "tariff_validity": offer_period,
+            "duration_months": 14,
+            "source_provenance": tuple(
+                item.model_copy(update={"effective_period": offer_period})
+                for item in catalog_source.records[1].source_provenance
+            ),
+        }
+    )
+    catalog_with_fallback = catalog.model_copy(update={"records": (annual_record, complete_record)})
+    fallback_preflight = service.preflight(
+        request,
+        catalog_with_fallback,
+        _history(as_of),
+        anchor,
+        coverage,
+        cdispd_reference=reference,
+    )
+    assert fallback_preflight.official_data_ready is True
+    assert fallback_preflight.checks["cdispd_reference_period_covered"] is False
+    assert fallback_preflight.horizon_eligible_offer_count == 1
+    assert fallback_preflight.ready is True
+
+    fallback_comparison = service.compare(
+        request,
+        catalog_with_fallback,
+        _history(as_of),
+        anchor,
+        coverage,
+        cdispd_reference=reference,
+    )
+    assert len(fallback_comparison.base.comparison_result.alternatives) == 1
+    assert fallback_comparison.verified_inputs.cdispd_reference_snapshot_id == reference.snapshot_id
+    assert fallback_comparison.verified_inputs.cdispd_reference_snapshot_digest == reference.digest
+    assert fallback_comparison.verified_inputs.cdispd_reference_period == horizon

@@ -9,7 +9,9 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, localcontext
 
+from italian_energy.arera.cdispd_reference import CdispDReferenceSnapshot
 from italian_energy.arera.composer import AreraDomesticRuleSetComposer
+from italian_energy.arera.models import AreraCustomerSegment
 from italian_energy.arera.projection import (
     DomesticProjectionAnchor,
     load_domestic_projection_anchor,
@@ -269,6 +271,8 @@ class ProjectedDomesticEnergyService:
         coverage_evidence: RegulatoryCoverageEvidence
         | RegulatoryAnchorCoverageEvidence
         | None = None,
+        *,
+        cdispd_reference: CdispDReferenceSnapshot | None = None,
     ) -> ProjectedDomesticPreflightResult:
         """Report official-data availability separately from projection readiness."""
         horizon = future_period(request.as_of)
@@ -283,6 +287,7 @@ class ProjectedDomesticEnergyService:
             "baseline_contract_covers_horizon": False,
             "baseline_calculable": False,
             "supported_candidate_available": False,
+            "cdispd_reference_period_covered": True,
         }
         reasons: list[str] = list(source_gate.reason_codes)
         reasons.extend(code.value for code in component_coverage_reasons)
@@ -346,7 +351,34 @@ class ProjectedDomesticEnergyService:
         if checks["catalog_verified"] and checks["market_window_verified"]:
             assert catalog is not None
             assert market_history is not None
-            import_result = self._normalize(request, catalog, market_history)
+            has_cdispd_candidate = any(
+                component.source_code == "14"
+                for record in catalog.records
+                for component in record.components
+            )
+            if has_cdispd_candidate:
+                segment = (
+                    None
+                    if request.eligibility.residential is None
+                    else AreraCustomerSegment.RESIDENT
+                    if request.eligibility.residential
+                    else AreraCustomerSegment.NON_RESIDENT
+                )
+                cdispd_covered = (
+                    cdispd_reference is not None
+                    and segment is not None
+                    and cdispd_reference.covers(segment, horizon)
+                )
+                checks["cdispd_reference_period_covered"] = cdispd_covered
+                if not cdispd_covered:
+                    reasons.append("cdispd_reference_unavailable")
+            import_result = self._normalize(
+                request,
+                catalog,
+                market_history,
+                cdispd_reference=cdispd_reference,
+                cdispd_reference_period=horizon,
+            )
             normalized_count = len(import_result.normalized)
             excluded_count = len(import_result.exclusions)
             eligible_count = sum(
@@ -611,6 +643,8 @@ class ProjectedDomesticEnergyService:
         coverage_evidence: RegulatoryCoverageEvidence
         | RegulatoryAnchorCoverageEvidence
         | None = None,
+        *,
+        cdispd_reference: CdispDReferenceSnapshot | None = None,
     ) -> ProjectedDomesticComparisonResult:
         """Return low/base/high monthly-billed future estimates from explicit snapshots."""
         self._validate_as_of(request.as_of)
@@ -653,7 +687,26 @@ class ProjectedDomesticEnergyService:
         )
         ruleset = self._ruleset(anchor, request.classification.residential)
         projected_consumption = project_consumption(request.consumption, request.as_of)
-        import_result = self._normalize(request, catalog, market_history)
+        import_result = self._normalize(
+            request,
+            catalog,
+            market_history,
+            cdispd_reference=cdispd_reference,
+            cdispd_reference_period=horizon,
+        )
+        has_cdispd_candidate = any(
+            component.source_code == "14"
+            for record in catalog.records
+            for component in record.components
+        )
+        if has_cdispd_candidate and not any(
+            self._offer_covers_horizon(item, horizon) for item in import_result.normalized
+        ):
+            raise CoreContractError(
+                CoreErrorCode.SOURCE_VALIDATION_FAILED,
+                "no complete candidate covers the projected horizon with the required "
+                "CdispD reference",
+            )
         multipliers = (Decimal("0.80"), Decimal("1.00"), Decimal("1.20"))
         scenario_pairs = (
             (CurrentScenario.LOW_INDEX, multipliers[0]),
@@ -706,6 +759,20 @@ class ProjectedDomesticEnergyService:
             regulatory_anchor_validity=anchor.validity,
             regulatory_coverage_as_of=coverage_evidence.comparison_as_of,
             regulatory_coverage_id=coverage_evidence.evidence_id,
+            cdispd_reference_snapshot_id=(
+                cdispd_reference.snapshot_id if cdispd_reference is not None else None
+            ),
+            cdispd_reference_snapshot_digest=(
+                cdispd_reference.digest if cdispd_reference is not None else None
+            ),
+            cdispd_reference_period=horizon,
+            cdispd_customer_segment=(
+                AreraCustomerSegment.RESIDENT
+                if request.eligibility.residential is True
+                else AreraCustomerSegment.NON_RESIDENT
+                if request.eligibility.residential is False
+                else None
+            ),
         )
         assumptions = ProjectedComparisonAssumptions(
             historical_consumption_period=history_period,
@@ -722,6 +789,12 @@ class ProjectedDomesticEnergyService:
                 "market_digests": [item.sha256 for item in evidence.market_report_provenance],
                 "anchor": anchor.anchor_id,
                 "regulatory_coverage": coverage_evidence.evidence_id,
+                "cdispd_reference_snapshot_id": (
+                    cdispd_reference.snapshot_id if cdispd_reference is not None else None
+                ),
+                "cdispd_reference_snapshot_digest": (
+                    cdispd_reference.digest if cdispd_reference is not None else None
+                ),
                 "current_component_coverage": request.current_component_coverage.model_dump(
                     mode="json"
                 )
@@ -965,6 +1038,9 @@ class ProjectedDomesticEnergyService:
         request: ProjectedDomesticComparisonRequest,
         catalog: CurrentCatalogSnapshot,
         market_history: GmeMarketHistory,
+        *,
+        cdispd_reference: CdispDReferenceSnapshot | None = None,
+        cdispd_reference_period: DatePeriod | None = None,
     ) -> PortalOffersImportResult:
         import_result = normalize_offers(
             catalog.snapshot.offers,
@@ -973,6 +1049,8 @@ class ProjectedDomesticEnergyService:
             request.as_of,
             request.as_of + timedelta(days=1),
             market_data=market_history.market_data,
+            cdispd_reference=cdispd_reference,
+            cdispd_reference_period=cdispd_reference_period,
         )
         return import_result.model_copy(update={"index_snapshot": catalog.snapshot.indexes})
 

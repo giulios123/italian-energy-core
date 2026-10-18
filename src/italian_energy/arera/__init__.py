@@ -7,6 +7,11 @@ rulesets and source models remain available without the XLSX extra.
 
 from typing import TYPE_CHECKING, Any
 
+from italian_energy.arera.cdispd_reference import (
+    CdispDReferenceSnapshot,
+    acquire_cdispd_reference_snapshot,
+    cdispd_reference_snapshot_from_import,
+)
 from italian_energy.arera.composer import (
     AreraCompositionError,
     AreraDomesticRuleSetComposer,
@@ -78,9 +83,12 @@ __all__ = [
     "AreraRegulatoryBundle",
     "AreraSourceLocator",
     "AreraTransport",
+    "CdispDReferenceSnapshot",
     "DomesticCompositionPolicy",
     "DomesticFiscalPolicy",
     "DomesticProfileKind",
     "RawAreraSnapshot",
     "UnsupportedAreraDatasetError",
+    "acquire_cdispd_reference_snapshot",
+    "cdispd_reference_snapshot_from_import",
 ]

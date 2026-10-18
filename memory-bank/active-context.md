@@ -6,29 +6,30 @@ La release GitHub [v0.13.3](https://github.com/giulios123/italian-energy-core/re
 
 I digest PyPI coincidono con gli asset della GitHub Release: wheel `3df0bee7a3519dc739591e78bf10b6590db055c078f079c17b1198cd7863cd5c`, sdist `0eb59d4d86d7c4f89ed2f62d0f4a9730e978d160789274cd027544078b82bc7c`. Suite locale: 801 test, 95,21% branch coverage; Ruff, format, mypy, pre-commit, lock check, golden privato, build wheel/sdist e smoke isolato passano. L'adozione Platform resta una milestone separata.
 
-## Portale Offerte — Dispacciamento e mercato capacità, 2026-10-17
+## Portale Offerte — riferimento CdispD aggregato, 2026-10-18
 
-- **Scritto:** Spec 008 addendum v0.8.1 definisce il mapping versionato
-  `portale-dispacciamento-v1`, periodi, provenance, inclusioni/perdite,
-  riferimenti 01–14, importo diretto 99, ambiguità aggregate e codici ignoti.
-- **Implementato:** il parser `008-portal-offers-v3` conserva ogni blocco
-  `Dispacciamento` con codice/campi raw, semantica, trattamento pricing,
-  importo nullable, unità, periodo offerta e provenance puntuale. Code 14 resta
-  CdispD aggregato; code 99 usa solo `VALORE_DISP`. Il normalizzatore esclude
-  riferimenti senza prezzo verificato, codici sconosciuti e composizioni che
-  rischiano un doppio conteggio; nessun valore mancante diventa zero.
-- **Verificato:** tutti i 33 test di `tests/unit/test_portal_offers.py`, Ruff
-  sui file del slice, mypy sui moduli e test mirati, `git diff --check` e
-  compilazione del nuovo modulo passano. Non è stata eseguita la suite Core
-  completa né un collaudo HTTP live.
-- **Limite aperto:** i codici 01–14 identificano regole/parametri ma non
-  contengono un prezzo diretto nel nodo XML; il parametro CSV `cdispd` trovato
-  nel dataset di prova non espone una validità sufficiente per coprire il
-  periodo simulato. Pertanto quelle offerte restano escluse dal confronto
-  completo finché Core non collega importi con validità verificata. Codici
-  futuri non presenti nella whitelist sono conservati e bloccati.
-- Nessun rilascio, pubblicazione o deployment; la Platform deve adottare il
-  nuovo contratto e mantenere le etichette/valori enum della Spec 008.
+- **Scritto:** Spec 008 addendum v0.8.2 introduce il contratto
+  `italian-energy/cdispd-reference-snapshot/v1` e la capability
+  `portal_cdispd_reference_pricing`, preservando il mapping v0.8.1.
+- **Implementato:** Core può costruire e serializzare uno snapshot immutabile
+  solo da bundle ARERA verificato. Per `TIPO_DISPACCIAMENTO=14` applica un
+  unico addebito aggregato CdispD, con tariffa mensile e profilo residente o
+  non residente; conserva validità, locator e provenance. Righe CDISPD
+  inattese, doppioni o dati incompleti invalidano l'artefatto. Non fa split,
+  carry-forward, stima a zero o maggiorazione perdite. Il codice 99 resta
+  invariato. Preflight e confronto escludono la singola offerta non coperta,
+  senza rendere globalmente non valido il catalogo se restano alternative
+  complete; ID e digest dello snapshot entrano negli input e nel digest del
+  risultato.
+- **Verificato:** suite completa 814 test, branch coverage 95,06%, Ruff check e
+  format, mypy `src tests` e `git diff --check` passano. I test includono
+  importi indipendenti, entrambi i profili, intervalli mensili half-open,
+  righe CDISPD non supportate, copertura incompleta e compatibilità codice 99.
+- **Limite aperto:** il bundle disponibile copre solo i mesi pubblicati nel
+  2026, non novembre 2026–ottobre 2027. Le offerte con codice 14 restano quindi
+  escluse dalla proiezione annuale finché non esiste uno snapshot verificato
+  che copra ogni mese. Nessuna acquisizione HTTP live, release Core o adozione
+  Platform è stata eseguita in questa tranche.
 
 
 ## Refresh Core 2026-10-17 — correzione coverage rollover

@@ -670,3 +670,31 @@ La regressione `test_imported_capacity_market_addition_reaches_annual_bill_once`
 verifica il percorso XML importato → tariffa normalizzata → confronto annuale →
 `Bill.components[]`, inclusi importo atteso, unità, semantica, trattamento,
 perdite, periodo applicato e provenance, oltre all'assenza di doppio conteggio.
+
+## Addendum v0.8.2 — riferimento ARERA verificato per CdispD aggregato
+
+**Stato:** specifica normativa per la capability Core `portal_cdispd_reference_pricing`; la fonte disponibile copre soltanto i mesi dichiarati nel bundle. Un periodo richiesto non coperto resta escluso.
+
+Questo addendum aggiorna le regole precedenti solo per `TIPO_DISPACCIAMENTO=14`
+quando esiste uno snapshot CdispD verificato che copre il periodo e il profilo
+richiesti. Gli altri codici regolatori mantengono il comportamento già specificato.
+
+Il Core può risolvere il solo riferimento Portal `TIPO_DISPACCIAMENTO=14` con un artefatto distinto e immutabile, schema `italian-energy/cdispd-reference-snapshot/v1`, esposto nell'envelope `cdispd_reference_snapshot_envelope` e persistito dalla Platform con chiave `cdispd_reference_snapshot`. L'artefatto non è un anchor eseguibile né un billing ruleset. Si costruisce esclusivamente da `AreraImportResult` con snapshot raw e `AreraRegulatoryBundle` entrambi verificati; l'identificatore/digest del bundle deve corrispondere al digest dei bytes ARERA. Il suo envelope usa il serializer d'integrazione canonico (`contract_version`, `schema_id`, `payload`) con schema `italian-energy/cdispd-reference-snapshot/v1`; `portal_cdispd_reference_pricing` è registrata nel manifest Core. La serializzazione conserva ID e digest dello snapshot raw, ID/schema/dataset/validità/stato del bundle e le righe selezionate con segmento, unità, periodo mensile half-open, cella sorgente e provenance. Digest e ID dell'artefatto sono canonici e derivati dal payload.
+
+Sono selezionabili soltanto righe `CDISPD` con categoria `sales`, quota `consumption`, ruolo `atomic`, stato `verified`, segmento esattamente `residenza_anagrafica` o `diversa_da_residenza_anagrafica`, tariffa `EUR/kWh`, periodo di un singolo mese di calendario e provenance con digest, fonte ARERA, locator e `effective_period` uguali alla validità della riga. Ogni segmento/mese può avere una sola riga. Duplicati, mesi mancanti o sovrapposti, unità/categoria/quota/ruolo non attesi, digest discordanti, righe non verificate o provenienza incompleta invalidano l'artefatto: non si scartano silenziosamente righe e non si usa uno zero.
+
+`preflight`, `compare` e `normalize_offers` accettano un parametro keyword-only opzionale `cdispd_reference`. In assenza dell'artefatto o per un riferimento Portal non risolto, l'offerta con codice 14 è esclusa con `missing_commercial_component`; per il periodo richiesto si richiede una riga verificata applicabile a ogni mese e al profilo residente/non residente congelato nel confronto. Una tariffa mensile è applicabile soltanto all'intersezione esatta del suo mese con il periodo di costo. Non è consentito carry-forward, interpolazione, extrapolazione, ripartizione tra dispacciamento/capacità, duplicazione o maggiorazione perdite. Il codice 14 resta un singolo corrispettivo aggregato `DISPATCHING_CAPACITY_AGGREGATE`, `REGULATORY_REFERENCE`, unità `EUR/kWh`, perdite incluse, semantiche incluse `DISPATCHING` e `CAPACITY_MARKET`; non entra nel prezzo energia. Codice 99 e mapping Portal esistenti restano invariati.
+
+La disponibilità è specifica per offerta: un codice 14 non coperto non rende
+globalmente non verificati catalogo, anchor o altri snapshot ufficiali. Il
+preflight lo esclude dal conteggio delle candidate complete e può restare
+pronto se rimane almeno un'altra offerta che copre tutto l'orizzonte. Se nessuna
+candidata completa rimane, il confronto proiettato annuale fallisce. Il controllo
+dell'orizzonte annuale richiede i dodici mesi futuri senza estendere l'ultimo
+valore disponibile.
+
+Il servizio di proiezione verifica l'intera validità dei dodici mesi futuri per ogni tariffa con codice 14. Se il bundle disponibile non copre l'intero intervallo, l'offerta resta esclusa e il preflight non la conta tra le candidate complete. La verifica di periodi storici o più brevi può riuscire solo quando tutti i mesi richiesti sono presenti, ma non autorizza l'estensione alla proiezione annuale. Il periodo economico effettivo, il profilo selezionato e la provenance delle righe applicate sono conservati nel risultato; `ProjectedVerifiedInputs` espone ID e digest dello snapshot CdispD e il digest del risultato lo include. I risultati persistiti non vengono ricalcolati quando si aggiorna lo snapshot.
+
+### Regressioni indipendenti richieste
+
+I test devono verificare importi attesi da fixture e calcoli manuali indipendenti, entrambi i segmenti, mesi coperti/non coperti, validità mensile half-open, provenienza e digest congelati, un solo addebito aggregato con perdite incluse, e rifiuto di doppio conteggio. Devono inoltre dimostrare il fail-closed dell'orizzonte novembre 2026–ottobre 2027 usando la copertura ARERA gennaio–agosto/settembre 2026, e la compatibilità invariata del codice 99. L'uguaglianza tra somma delle righe e totale non sostituisce il controllo dell'importo atteso.

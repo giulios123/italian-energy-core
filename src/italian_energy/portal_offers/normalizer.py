@@ -8,6 +8,8 @@ import json
 from collections import Counter
 from datetime import date
 
+from italian_energy.arera.cdispd_reference import CdispDReferenceSnapshot
+from italian_energy.arera.models import AreraCustomerSegment
 from italian_energy.domain.costs import ComponentMeaning, ComponentPricingTreatment
 from italian_energy.domain.formula import (
     AddPrice,
@@ -177,6 +179,9 @@ def _unit(value: str | None) -> RateUnit | None:
 
 def _commercial_component_exclusion(
     record: PortalOfferRecord,
+    eligibility: PortalEligibilityProfile,
+    cdispd_reference: CdispDReferenceSnapshot | None,
+    cdispd_period: DatePeriod,
 ) -> PortalOfferExclusion | None:
     unsupported = next(
         (
@@ -225,23 +230,45 @@ def _commercial_component_exclusion(
             locator=aggregates[0].locator,
         )
 
-    missing = next(
-        (
-            component
-            for component in record.components
-            if component.source_code is not None
-            and (
-                component.pricing_treatment == PortalPricingTreatment.REGULATORY_REFERENCE
-                or (
-                    component.pricing_treatment == PortalPricingTreatment.TARIFF_ADDITION
-                    and (component.amount is None or component.unit is None)
-                )
+    for missing in record.components:
+        if missing.source_code is None or not (
+            missing.pricing_treatment == PortalPricingTreatment.REGULATORY_REFERENCE
+            or (
+                missing.pricing_treatment == PortalPricingTreatment.TARIFF_ADDITION
+                and (missing.amount is None or missing.unit is None)
             )
-        ),
-        None,
-    )
-    if missing is not None:
+        ):
+            continue
         code = missing.source_code or "unknown"
+        if (
+            code == "14"
+            and missing.semantic == PortalComponentSemantic.DISPATCHING_CAPACITY_AGGREGATE
+        ):
+            if eligibility.residential is None:
+                detail = "TIPO_DISPACCIAMENTO=14 requires an explicit resident/non-resident profile"
+            elif cdispd_reference is None:
+                detail = (
+                    "TIPO_DISPACCIAMENTO=14 requires a verified ARERA CdispD reference snapshot"
+                )
+            else:
+                segment = (
+                    AreraCustomerSegment.RESIDENT
+                    if eligibility.residential
+                    else AreraCustomerSegment.NON_RESIDENT
+                )
+                if not cdispd_reference.covers(segment, cdispd_period):
+                    detail = (
+                        "verified ARERA CdispD reference does not cover every requested month; "
+                        "monthly values are never carried forward"
+                    )
+                else:
+                    continue
+            return _exclude(
+                record,
+                PortalOfferExclusionCode.MISSING_COMMERCIAL_COMPONENT,
+                f"{detail}; no zero or split was inferred",
+                locator=missing.locator,
+            )
         return _exclude(
             record,
             PortalOfferExclusionCode.MISSING_COMMERCIAL_COMPONENT,
@@ -254,6 +281,9 @@ def _commercial_component_exclusion(
 
 def _charge_rules(
     record: PortalOfferRecord,
+    eligibility: PortalEligibilityProfile | None = None,
+    cdispd_reference: CdispDReferenceSnapshot | None = None,
+    cdispd_period: DatePeriod | None = None,
 ) -> tuple[tuple[ChargeRule, ...], tuple[ChargeRule, ...], tuple[ChargeRule, ...]]:
     fixed: list[ChargeRule] = []
     additional: list[ChargeRule] = []
@@ -322,10 +352,58 @@ def _charge_rules(
                     provenance=component.source_provenance or record.source_provenance,
                 )
             )
+    cdispd_component = next(
+        (
+            component
+            for component in record.components
+            if component.source_code == "14"
+            and component.semantic == PortalComponentSemantic.DISPATCHING_CAPACITY_AGGREGATE
+        ),
+        None,
+    )
+    if cdispd_component is not None:
+        if (
+            cdispd_reference is None
+            or eligibility is None
+            or eligibility.residential is None
+            or cdispd_period is None
+        ):
+            raise ValueError("verified CdispD reference and resident profile were not resolved")
+        segment = (
+            AreraCustomerSegment.RESIDENT
+            if eligibility.residential
+            else AreraCustomerSegment.NON_RESIDENT
+        )
+        for charge in cdispd_reference.charges_for_period(segment, cdispd_period):
+            additional.append(
+                ChargeRule(
+                    code=cdispd_component.code,
+                    description="Dispacciamento e mercato capacità (CdispD)",
+                    basis=ChargeBasis.PER_KWH,
+                    value=charge.rate,
+                    meaning=ComponentMeaning.DISPATCHING_CAPACITY_AGGREGATE,
+                    pricing_treatment=ComponentPricingTreatment.REGULATORY_REFERENCE,
+                    losses_included=True,
+                    included_semantics=(
+                        ComponentMeaning.DISPATCHING,
+                        ComponentMeaning.CAPACITY_MARKET,
+                    ),
+                    validity=charge.validity,
+                    provenance=(
+                        *cdispd_component.source_provenance,
+                        *charge.provenance,
+                    ),
+                )
+            )
     return tuple(fixed), tuple(additional), tuple(discounts)
 
 
-def _fixed_tariff(record: PortalOfferRecord) -> FixedTariff:
+def _fixed_tariff(
+    record: PortalOfferRecord,
+    eligibility: PortalEligibilityProfile | None = None,
+    cdispd_reference: CdispDReferenceSnapshot | None = None,
+    cdispd_period: DatePeriod | None = None,
+) -> FixedTariff:
     prices: list[BandPrice] = []
     for component in record.components:
         if component.source_code is not None:
@@ -352,7 +430,9 @@ def _fixed_tariff(record: PortalOfferRecord) -> FixedTariff:
     # The XML repeats the same value for all three bands for a monoraria offer.
     if len(grouped) > 1 and len({rate.amount for rate in grouped.values()}) == 1:
         grouped = {"ALL": next(iter(grouped.values()))}
-    fixed, additional, discounts = _charge_rules(record)
+    fixed, additional, discounts = _charge_rules(
+        record, eligibility, cdispd_reference, cdispd_period
+    )
     return FixedTariff(
         tariff_id=f"{_source_offer_id(record)}:tariff",
         validity=record.tariff_validity,
@@ -365,7 +445,12 @@ def _fixed_tariff(record: PortalOfferRecord) -> FixedTariff:
     )
 
 
-def _indexed_tariff(record: PortalOfferRecord) -> IndexedTariff:
+def _indexed_tariff(
+    record: PortalOfferRecord,
+    eligibility: PortalEligibilityProfile | None = None,
+    cdispd_reference: CdispDReferenceSnapshot | None = None,
+    cdispd_period: DatePeriod | None = None,
+) -> IndexedTariff:
     index_codes = _record_index_codes(record)
     if not index_codes:
         raise LookupError("indexed offer references no public index")
@@ -418,7 +503,9 @@ def _indexed_tariff(record: PortalOfferRecord) -> IndexedTariff:
                     rate=UnitRate(amount=component.amount, unit=RateUnit.EUR_PER_KWH)
                 ),
             )
-    fixed, additional, discounts = _charge_rules(record)
+    fixed, additional, discounts = _charge_rules(
+        record, eligibility, cdispd_reference, cdispd_period
+    )
     return IndexedTariff(
         tariff_id=f"{_source_offer_id(record)}:tariff",
         validity=record.tariff_validity,
@@ -507,6 +594,8 @@ def normalize_offers(
     period_end: date,
     *,
     market_data: MarketData | None = None,
+    cdispd_reference: CdispDReferenceSnapshot | None = None,
+    cdispd_reference_period: DatePeriod | None = None,
 ) -> PortalOffersImportResult:
     """Normalize and filter every parsed source record exactly once."""
     ordered_records = tuple(
@@ -522,6 +611,7 @@ def normalize_offers(
     exclusions: list[PortalOfferExclusion] = []
     normalized: list[NormalizedPortalOffer] = []
     occurrence_count = Counter(_source_offer_id(record) for record in records)
+    reference_period = cdispd_reference_period or DatePeriod(start=period_start, end=period_end)
     for record in ordered_records:
         offer_id = _source_offer_id(record)
         if occurrence_count[offer_id] > 1:
@@ -558,15 +648,17 @@ def normalize_offers(
         if applicability is not None:
             exclusions.append(applicability)
             continue
-        commercial_component_issue = _commercial_component_exclusion(record)
+        commercial_component_issue = _commercial_component_exclusion(
+            record, eligibility, cdispd_reference, reference_period
+        )
         if commercial_component_issue is not None:
             exclusions.append(commercial_component_issue)
             continue
         try:
             tariff = (
-                _fixed_tariff(record)
+                _fixed_tariff(record, eligibility, cdispd_reference, reference_period)
                 if record.offer_type == PortalOfferType.FIXED
-                else _indexed_tariff(record)
+                else _indexed_tariff(record, eligibility, cdispd_reference, reference_period)
             )
             tariff = tariff.model_copy(
                 update={"validity": _effective_validity(record, period_start)}
@@ -628,6 +720,20 @@ def normalize_offers(
         "eligibility": eligibility.model_dump(mode="json"),
         "period_start": str(period_start),
         "period_end": str(period_end),
+        "cdispd_reference_snapshot_id": (
+            cdispd_reference.snapshot_id if cdispd_reference is not None else None
+        ),
+        "cdispd_reference_snapshot_digest": (
+            cdispd_reference.digest if cdispd_reference is not None else None
+        ),
+        "cdispd_reference_period": reference_period.model_dump(mode="json"),
+        "cdispd_customer_segment": (
+            AreraCustomerSegment.RESIDENT.value
+            if eligibility.residential is True
+            else AreraCustomerSegment.NON_RESIDENT.value
+            if eligibility.residential is False
+            else None
+        ),
     }
     digest = hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
@@ -644,4 +750,18 @@ def normalize_offers(
         received_count=len(records),
         eligible_count=len(eligible),
         excluded_count=len(exclusions),
+        cdispd_reference_snapshot_id=(
+            cdispd_reference.snapshot_id if cdispd_reference is not None else None
+        ),
+        cdispd_reference_snapshot_digest=(
+            cdispd_reference.digest if cdispd_reference is not None else None
+        ),
+        cdispd_reference_period=reference_period,
+        cdispd_customer_segment=(
+            AreraCustomerSegment.RESIDENT
+            if eligibility.residential is True
+            else AreraCustomerSegment.NON_RESIDENT
+            if eligibility.residential is False
+            else None
+        ),
     )
