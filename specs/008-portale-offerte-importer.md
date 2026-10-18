@@ -698,3 +698,82 @@ Il servizio di proiezione verifica l'intera validità dei dodici mesi futuri per
 ### Regressioni indipendenti richieste
 
 I test devono verificare importi attesi da fixture e calcoli manuali indipendenti, entrambi i segmenti, mesi coperti/non coperti, validità mensile half-open, provenienza e digest congelati, un solo addebito aggregato con perdite incluse, e rifiuto di doppio conteggio. Devono inoltre dimostrare il fail-closed dell'orizzonte novembre 2026–ottobre 2027 usando la copertura ARERA gennaio–agosto/settembre 2026, e la compatibilità invariata del codice 99. L'uguaglianza tra somma delle righe e totale non sostituisce il controllo dell'importo atteso.
+
+## Addendum v0.8.3 — parametro CdispD corrente per la stima prospettica
+
+**Stato:** specifica normativa accettata per il completamento richiesto il
+2026-10-18. Si aggiunge la capability `portal_cdispd_parameter_projection`.
+
+Fonte del mapping: [Regole per il calcolo della spesa annua stimata, v4.2 del
+5 ottobre 2026](https://www.ilportaleofferte.it/portaleOfferte/resources/cms/documents/6bc502553cb0ea45958840b2de20078d.pdf),
+§3.3 (CdispD del trimestre in corso), §3.4.3.1 (clienti domestici, codice 14,
+dal 1° aprile 2026) e appendice (EUR/kWh). La formula ufficiale applica
+`CdispD × consumo annuo totale`, senza moltiplicatore per le perdite. Non
+distingue residenza anagrafica per questo corrispettivo domestico.
+
+Il file giornaliero ufficiale `PO_Parametri_Mercato_Libero_E_YYYYMMDD.csv`,
+ruolo `market_free_parameters`, pubblica il parametro `cdispd`: la descrizione
+ufficiale lo identifica come somma del corrispettivo di capacità e dei
+corrispettivi Terna per il dispacciamento. Il parametro è distinto dalle righe
+mensili consuntive del workbook ARERA. L'acquisizione del catalogo già scarica
+e congela questo file; il confronto non deve effettuare richieste di rete.
+
+Il percorso prospettico Spec 013 può risolvere il solo codice Portal `14`
+utilizzando il parametro ufficiale del medesimo giorno di `as_of`, come
+**assunzione esplicita di valore costante per la stima futura**. Non si richiede
+che ARERA abbia già pubblicato i consuntivi dei dodici mesi futuri. Questa
+regola implementa il criterio ufficiale annuale e non modifica né prolunga la
+validità delle osservazioni mensili ARERA,
+non cambia il replay storico e non rappresenta una previsione del CdispD
+futuro. L'uso del parametro corrente è distinto dalla metodologia degli indici
+energetici della beta: i moltiplicatori 0,80/1,00/1,20 non lo modificano.
+
+Il resolver richiede uno snapshot catalogo e un file parametro `verified`,
+la data esatta del confronto, URL HTTPS ufficiale esatto per ruolo e data,
+bytes disponibili con dimensione e SHA-256 corrispondenti, schema CSV con
+`nome_parametro,valore,descrizione` e una sola riga `cdispd` con descrizione
+non vuota e importo `Decimal` finito non negativo. Zero è ammesso solo se
+esplicitamente pubblicato nella riga; una riga assente, duplicata, non numerica
+o ambigua non diventa zero. Si conserva il valore in EUR/kWh e non si
+aggiungono altre perdite o componenti di capacità all'aggregato esistente.
+
+Il modello `PortalCdispDProjection` conserva policy
+`portal_current_parameter_constant`, data del dataset, periodo futuro,
+`UnitRate`, ID dello snapshot catalogo, provenance del CSV (URL, digest,
+retrieval time, ruolo e numero riga), `future_values_verified=false` e
+`costs_are_estimates=true`. Periodo, fonte e data non sono intercambiabili:
+la provenance certifica il parametro osservato, la validità della `ChargeRule`
+indica soltanto dove lo si applica nella stima.
+
+Il dato osservato è conservato separatamente in
+`PortalCdispDParameterSnapshot`, nel campo opzionale
+`PortalOffersSnapshot.cdispd_parameter`, durante l'acquisizione. Il modello
+lega tariffa, data e provenance ai metadati del file verificato. L'envelope
+del catalogo conserva il dato tipizzato anche quando non contiene i bytes
+grezzi; l'hydration non richiede rete o reinterpretazione del CSV. Gli envelope
+precedenti privi del campo restano leggibili e richiedono un nuovo refresh per
+prezzare il codice 14 mediante questo percorso.
+
+Solo il servizio prospettico costruisce questa assunzione e la passa
+esplicitamente a `normalize_offers` con keyword `cdispd_projection`; il
+normalizzatore storico mantiene il default `None` e i controlli v0.8.2.
+L'assenza o invalidità del parametro esclude le offerte con codice 14; altre
+offerte complete possono restare confrontabili. L'assenza della residenza
+confermata, componenti aggregate duplicate o componenti sovrapposte restano
+bloccanti. Un riferimento mensile esatto resta utilizzabile senza proiezione.
+
+La stima restituisce un unico costo “Dispacciamento e mercato capacità”,
+con quantità, prezzo unitario, periodo applicato, inclusioni e provenance.
+`ProjectedComparisonAssumptions` espone l'intero modello utilizzato; il digest
+della normalizzazione e del confronto lo include. Cambiare il parametro
+produce un nuovo risultato, senza ricalcolare quelli persistiti. Un errore
+locale di parsing non autorizza fallback a un valore precedente, a un altro
+dataset o a uno zero implicito. Platform continua a congelare dati e assunzioni
+Core senza duplicare il calcolo economico.
+
+Regressioni obbligatorie: valore ufficiale sintetico noto con costo/IVA
+calcolati indipendentemente, entrambi i profili, parametro assente/duplicato/
+malformato, origine o data errata, bytes manomessi, nessun doppio conteggio,
+nessuna maggiorazione perdite, nessuna variazione con gli scenari PUN,
+provenance e assunzione in envelope/digest, nessun utilizzo implicito nel replay
+storico, e catalogo misto con altre offerte complete.

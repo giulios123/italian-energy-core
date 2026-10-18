@@ -896,3 +896,47 @@
   dataset e blocca la completezza del confronto; nessuna ripartizione o tariffa
   è stata inventata.
 - Nessun rilascio Core.
+
+## CdispD corrente per la stima annuale — 2026-10-18
+
+- **Scritto:** Spec 008 addendum v0.8.3, Spec 013 e ADR 0012/0016 adottano il
+  criterio ufficiale Portale v4.2: CdispD del trimestre corrente × consumo
+  annuo. È corretta la precedente pretesa di avere i consuntivi di tutti i
+  mesi futuri per poter stimare l'anno.
+- **Implementato:** parametro `cdispd` estratto dal CSV giornaliero già
+  acquisito; snapshot tipizzato con provenance/digest persistibile; parser v4;
+  assunzione prospettica `portal_current_parameter_constant`, conservata nel
+  risultato e nel digest con `future_values_verified=false`. Nessuna nuova
+  acquisizione in preflight/compare, nessuna estensione dei dati storici,
+  nessun doppio conteggio o secondo fattore perdite. Dato mancante/errato
+  esclude le sole offerte dipendenti; altre offerte complete restano valide.
+- **Verificato:** test economici scritti ed eseguiti in errore prima della
+  correzione. Suite finale **842 passed**, branch coverage **95,05%** (gate
+  95% passato); Ruff check e format, mypy `src tests` passano. Regressioni per
+  entrambi i profili, 12 mesi, IVA indipendente (EUR 72 + EUR 7,20), scenari,
+  hydration senza bytes raw, fonte/data/digest/unità e input non validi.
+- **Fonte live:** 4.550 offerte ufficiali del 18 ottobre; parametro riga 52
+  EUR 0,016776/kWh, digest
+  `801bb798d551656be3e7e9db45431d81fc0bb5df147dfb4f94b722e577e639d0`.
+  Stesso profilo Roma non residente e modalità 01/01: da 0 a 369 offerte
+  normalizzate, 8 con copertura annuale novembre 2026–ottobre 2027. Verifica
+  Core HTTP acquisizione → envelope/hydration → normalizzazione offline.
+- **Limiti:** non è un nuovo wheel né un collaudo economico HTTP della
+  Platform. Nessun commit/push, release, installazione runtime o deployment.
+  Platform resta in sospeso; l'adozione richiede artefatto nuovo e refresh del
+  catalogo, senza mutazioni in lettura dei vecchi snapshot.
+
+
+### Rettifica conteggio annuale — 2026-10-18
+
+Il numero 8 del collaudo CdispD era il solo esito del filtro temporale Core,
+non la prova di otto sole offerte annuali reali. L'audit sullo stesso snapshot
+ha trovato 289 offerte limitate dalla fine sottoscrizione nonostante durata
+letta >=12 mesi, 24 con durata 12 mesi calcolata da `as_of` invece che dal
+1° novembre, 47 senza durata utilizzabile nel campo letto, una con durata di
+un mese e otto che passano. Importer e normalizer confondono validità di
+sottoscrizione e validità tariffa; la durata generale del contratto va inoltre
+verificata separatamente dalle durate delle componenti economiche. Nessun
+nuovo numero di offerte realmente confrontabili è ancora verificato. La
+correzione CdispD resta verificata, ma questo ulteriore bug temporale è aperto.
+Solo documentazione aggiornata; nessuna modifica del calcolo in questo audit.

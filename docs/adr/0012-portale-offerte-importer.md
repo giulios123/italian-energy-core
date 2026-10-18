@@ -50,6 +50,23 @@ il prezzo energia. I dettagli normativi del mapping `portale-dispacciamento-v1`
 e la proiezione fino a `Bill.components[]` sono definiti nell'addendum v0.8.1
 della Spec 008.
 
+### Decisione v0.8.3 — parametro CdispD per la stima annuale
+
+Le [Regole Portale v4.2 del 5 ottobre 2026](https://www.ilportaleofferte.it/portaleOfferte/resources/cms/documents/6bc502553cb0ea45958840b2de20078d.pdf),
+§3.3, §3.4.3.1 e appendice, definiscono per il codice 14 domestico il CdispD
+del trimestre corrente moltiplicato per il consumo annuo totale, senza altra
+maggiorazione perdite. Il CSV giornaliero dei parametri Mercato Libero, già
+acquisito, ne pubblica il valore. Richiedere osservazioni mensili verificate
+di tutti i dodici mesi futuri impedirebbe questa stima ufficiale.
+
+Durante l'acquisizione si conserva il parametro tipizzato nello snapshot
+catalogo. Il solo percorso prospettico lo applica mediante un'assunzione
+esplicita a valore costante, separata dai dati storici e non classificata come
+tariffa futura verificata. Il replay storico conserva il requisito di
+copertura mensile esatta. Parametro assente o non valido esclude le sole
+offerte dipendenti; fonte/data/digest, aggregato unico e assenza di doppi
+conteggi restano vincolanti. Dettagli in Spec 008 addendum v0.8.3.
+
 ## Conseguenze
 
 - Il dominio rimane indipendente da web framework, browser, database, cloud e

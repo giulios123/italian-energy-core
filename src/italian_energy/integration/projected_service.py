@@ -60,10 +60,12 @@ from italian_energy.market.gme import (
 from italian_energy.portal_offers.importer import PortalOffersImporter
 from italian_energy.portal_offers.models import (
     NormalizedPortalOffer,
+    PortalCdispDProjection,
     PortalComparisonResult,
     PortalOffersImportResult,
 )
 from italian_energy.portal_offers.normalizer import normalize_offers
+from italian_energy.portal_offers.parameters import projection_matches_snapshot
 from italian_energy.portal_offers.recommendation import PortalRecommendationAdapter
 from italian_energy.pricing.engine import PricingRequest
 from italian_energy.pricing.fixed import FixedPricingEngine, FixedPricingError
@@ -288,6 +290,7 @@ class ProjectedDomesticEnergyService:
             "baseline_calculable": False,
             "supported_candidate_available": False,
             "cdispd_reference_period_covered": True,
+            "cdispd_parameter_projection_available": False,
         }
         reasons: list[str] = list(source_gate.reason_codes)
         reasons.extend(code.value for code in component_coverage_reasons)
@@ -351,6 +354,8 @@ class ProjectedDomesticEnergyService:
         if checks["catalog_verified"] and checks["market_window_verified"]:
             assert catalog is not None
             assert market_history is not None
+            cdispd_projection = self._cdispd_projection(request, catalog, horizon)
+            checks["cdispd_parameter_projection_available"] = cdispd_projection is not None
             has_cdispd_candidate = any(
                 component.source_code == "14"
                 for record in catalog.records
@@ -370,7 +375,7 @@ class ProjectedDomesticEnergyService:
                     and cdispd_reference.covers(segment, horizon)
                 )
                 checks["cdispd_reference_period_covered"] = cdispd_covered
-                if not cdispd_covered:
+                if not cdispd_covered and cdispd_projection is None:
                     reasons.append("cdispd_reference_unavailable")
             import_result = self._normalize(
                 request,
@@ -378,6 +383,7 @@ class ProjectedDomesticEnergyService:
                 market_history,
                 cdispd_reference=cdispd_reference,
                 cdispd_reference_period=horizon,
+                cdispd_projection=cdispd_projection,
             )
             normalized_count = len(import_result.normalized)
             excluded_count = len(import_result.exclusions)
@@ -687,12 +693,14 @@ class ProjectedDomesticEnergyService:
         )
         ruleset = self._ruleset(anchor, request.classification.residential)
         projected_consumption = project_consumption(request.consumption, request.as_of)
+        cdispd_projection = self._cdispd_projection(request, catalog, horizon)
         import_result = self._normalize(
             request,
             catalog,
             market_history,
             cdispd_reference=cdispd_reference,
             cdispd_reference_period=horizon,
+            cdispd_projection=cdispd_projection,
         )
         has_cdispd_candidate = any(
             component.source_code == "14"
@@ -707,6 +715,11 @@ class ProjectedDomesticEnergyService:
                 "no complete candidate covers the projected horizon with the required "
                 "CdispD reference",
             )
+        if not any(
+            any(charge.code == "dispatching:14" for charge in item.offer.tariff.additional_charges)
+            for item in import_result.normalized
+        ):
+            cdispd_projection = None
         multipliers = (Decimal("0.80"), Decimal("1.00"), Decimal("1.20"))
         scenario_pairs = (
             (CurrentScenario.LOW_INDEX, multipliers[0]),
@@ -780,6 +793,7 @@ class ProjectedDomesticEnergyService:
             future_period=horizon,
             regulatory_anchor_date=anchor.as_of,
             current_contract_continued=request.continuation_assumption,
+            cdispd_projection=cdispd_projection,
         )
         digest = _digest(
             {
@@ -1041,6 +1055,7 @@ class ProjectedDomesticEnergyService:
         *,
         cdispd_reference: CdispDReferenceSnapshot | None = None,
         cdispd_reference_period: DatePeriod | None = None,
+        cdispd_projection: PortalCdispDProjection | None = None,
     ) -> PortalOffersImportResult:
         import_result = normalize_offers(
             catalog.snapshot.offers,
@@ -1051,8 +1066,36 @@ class ProjectedDomesticEnergyService:
             market_data=market_history.market_data,
             cdispd_reference=cdispd_reference,
             cdispd_reference_period=cdispd_reference_period,
+            cdispd_projection=cdispd_projection,
         )
         return import_result.model_copy(update={"index_snapshot": catalog.snapshot.indexes})
+
+    @staticmethod
+    def _cdispd_projection(
+        request: ProjectedDomesticComparisonRequest,
+        catalog: CurrentCatalogSnapshot,
+        horizon: DatePeriod,
+    ) -> PortalCdispDProjection | None:
+        """Apply the official current-quarter parameter only as a future estimate."""
+        snapshot = catalog.snapshot.offers
+        parameter = snapshot.cdispd_parameter
+        if (
+            parameter is None
+            or parameter.dataset_date != request.as_of
+            or request.eligibility.residential is None
+        ):
+            return None
+        try:
+            projection = PortalCdispDProjection(
+                parameter=parameter,
+                catalog_snapshot_id=snapshot.snapshot_id,
+                period=horizon,
+            )
+            if projection_matches_snapshot(projection, snapshot, horizon):
+                return projection
+            return None
+        except ValueError:
+            return None
 
     @staticmethod
     def _offer_covers_horizon(item: NormalizedPortalOffer, horizon: DatePeriod) -> bool:

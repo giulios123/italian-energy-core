@@ -6,31 +6,36 @@ La release GitHub [v0.13.3](https://github.com/giulios123/italian-energy-core/re
 
 I digest PyPI coincidono con gli asset della GitHub Release: wheel `3df0bee7a3519dc739591e78bf10b6590db055c078f079c17b1198cd7863cd5c`, sdist `0eb59d4d86d7c4f89ed2f62d0f4a9730e978d160789274cd027544078b82bc7c`. Suite locale: 801 test, 95,21% branch coverage; Ruff, format, mypy, pre-commit, lock check, golden privato, build wheel/sdist e smoke isolato passano. L'adozione Platform resta una milestone separata.
 
-## Portale Offerte — riferimento CdispD aggregato, 2026-10-18
+## Portale Offerte — CdispD corrente per la stima annuale, 2026-10-18
 
-- **Scritto:** Spec 008 addendum v0.8.2 introduce il contratto
-  `italian-energy/cdispd-reference-snapshot/v1` e la capability
-  `portal_cdispd_reference_pricing`, preservando il mapping v0.8.1.
-- **Implementato:** Core può costruire e serializzare uno snapshot immutabile
-  solo da bundle ARERA verificato. Per `TIPO_DISPACCIAMENTO=14` applica un
-  unico addebito aggregato CdispD, con tariffa mensile e profilo residente o
-  non residente; conserva validità, locator e provenance. Righe CDISPD
-  inattese, doppioni o dati incompleti invalidano l'artefatto. Non fa split,
-  carry-forward, stima a zero o maggiorazione perdite. Il codice 99 resta
-  invariato. Preflight e confronto escludono la singola offerta non coperta,
-  senza rendere globalmente non valido il catalogo se restano alternative
-  complete; ID e digest dello snapshot entrano negli input e nel digest del
-  risultato.
-- **Verificato:** suite completa 814 test, branch coverage 95,06%, Ruff check e
-  format, mypy `src tests` e `git diff --check` passano. I test includono
-  importi indipendenti, entrambi i profili, intervalli mensili half-open,
-  righe CDISPD non supportate, copertura incompleta e compatibilità codice 99.
-- **Limite aperto:** il bundle disponibile copre solo i mesi pubblicati nel
-  2026, non novembre 2026–ottobre 2027. Le offerte con codice 14 restano quindi
-  escluse dalla proiezione annuale finché non esiste uno snapshot verificato
-  che copra ogni mese. Nessuna acquisizione HTTP live, release Core o adozione
-  Platform è stata eseguita in questa tranche.
-
+- **Scritto:** Spec 008 addendum v0.8.3, Spec 013 e ADR 0012/0016 applicano
+  la regola ufficiale Portale v4.2: per codice 14 domestico, CdispD del trimestre
+  corrente moltiplicato per il consumo annuo. Non occorrono dodici osservazioni
+  mensili future; il precedente limite v0.8.2 vale per il replay mensile esatto.
+- **Implementato:** il parser v4 conserva il parametro ufficiale giornaliero
+  nello snapshot con data, tariffa EUR/kWh, digest e locator. Il dato tipizzato
+  sopravvive all'hydration senza raw bytes. Il percorso prospettico espone
+  `PortalCdispDProjection` tra le assunzioni, con policy a valore costante e
+  `future_values_verified=false`. Aggregato unico, nessun secondo fattore per
+  le perdite e nessuna variazione tra gli scenari PUN. La nuova capability è
+  `portal_cdispd_parameter_projection`; il riferimento mensile ARERA resta
+  rigoroso e il codice 99 rimane invariato.
+- **Fonte live verificata:** CSV del 2026-10-18, riga 52, CdispD EUR 0,016776/kWh,
+  SHA-256 `801bb798d551656be3e7e9db45431d81fc0bb5df147dfb4f94b722e577e639d0`.
+  Su 4.550 record ufficiali, a parità di profilo non residente Roma e modalità
+  01/01, la normalizzazione passa da 0 a 369 offerte. Otto superano il filtro
+  annuale attuale, ma l'audit successivo ha trovato un errore: la finestra di
+  sottoscrizione viene usata come fine tariffa e la durata parte da `as_of`
+  invece che dall'attivazione simulata. Il numero 8 non attesta la reale
+  copertura economica. Verifica effettuata dopo envelope/hydration.
+- **Verifiche automatiche:** 842 test, branch coverage 95,05%, Ruff check e
+  format, mypy `src tests` passano. Le regressioni economiche indipendenti controllano anche IVA, entrambi i
+  profili, dati mancanti/errati, periodi, digest e invarianti di provenienza.
+- **Adozione aperta:** sorgente locale; nessun commit, push, release o runtime
+  Platform aggiornato. Servono un nuovo artefatto e un refresh catalogo per
+  adottare il nuovo campo. Platform rimane in sospeso su richiesta dell'utente.
+  Il vecchio wheel 0.13.3 non include questa correzione. Dettagli e fonti in
+  `docs/cdispd-current-parameter-2026-10-18.md`.
 
 ## Refresh Core 2026-10-17 — correzione coverage rollover
 

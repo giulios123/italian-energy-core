@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.13.4] - 2026-10-18
+
+### Added
+
+- Pricing del codice Portal domestico `TIPO_DISPACCIAMENTO=14` da CdispD
+  verificato, mantenuto come componente aggregata unica con provenance.
+- Acquisizione tipizzata del parametro `cdispd` dal CSV ufficiale giornaliero
+  e sua proiezione esplicita a valore corrente nella stima annuale prospettica.
+
+### Changed
+
+- La proiezione CdispD conserva data, tariffa, digest, locator e snapshot dopo
+  serializzazione; il valore resta identico nei tre scenari PUN e non riceve
+  una seconda maggiorazione per le perdite.
+- Parametro mancante, duplicato o non valido esclude le offerte dipendenti
+  senza bloccare le altre. Il replay storico mantiene la copertura mensile
+  esatta e non eredita il valore corrente.
+
+### Verification
+
+- 842 test passano con 95,05% di branch coverage; Ruff check/format, mypy,
+  pre-commit, `uv lock --check` e `git diff --check` passano.
+- Wheel e sdist 0.13.4 sono stati costruiti; lo smoke isolato del wheel
+  conferma l'import e la versione `0.13.4`.
+
 ## [0.13.3] - 2026-10-18
 
 ### Added

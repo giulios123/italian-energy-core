@@ -36,12 +36,13 @@ from italian_energy.portal_offers.models import (
     PortalSnapshot,
     PortalSourceRole,
 )
+from italian_energy.portal_offers.parameters import parse_market_free_cdispd_parameter
 
 PORTAL_HOST = "www.ilportaleofferte.it"
 PORTAL_BASE = "https://www.ilportaleofferte.it"
 PORTAL_SCHEMA_VERSION = "OffertaRetail/01"
 PORTAL_XML_NAMESPACE = "http://www.acquirenteunico.it/schemas/SII_AU/OffertaRetail/01"
-PORTAL_PARSER_VERSION = "008-portal-offers-v3"
+PORTAL_PARSER_VERSION = "008-portal-offers-v4"
 PORTAL_INDEX_URL = (
     f"{PORTAL_BASE}/portaleOfferte/resources/cms/documents/5d6f1085b4d5f20821af55764e647671.csv"
 )
@@ -306,6 +307,9 @@ class PortalOffersImporter:
             snapshot_id=self._snapshot_id(dataset_date, tuple(files)),
             status=VerificationStatus.VERIFIED,
             parser_version=PORTAL_PARSER_VERSION,
+            cdispd_parameter=parse_market_free_cdispd_parameter(
+                next(item for item in files if item.role == PortalSourceRole.MARKET_FREE_PARAMETERS)
+            ),
         )
         index_snapshot = None
         if include_indexes:
@@ -400,11 +404,11 @@ class PortalOffersImporter:
                 records.extend(_parse_market_free_xml(file))
             elif file.role == PortalSourceRole.PLACET_OFFERS:
                 records.extend(_parse_placet_csv(file))
-            elif file.role in (
-                PortalSourceRole.MARKET_FREE_PARAMETERS,
-                PortalSourceRole.PLACET_PARAMETERS,
-            ):
+            elif file.role == PortalSourceRole.PLACET_PARAMETERS:
                 _validate_parameter_csv(file)
+            # MARKET_FREE_PARAMETERS is parsed independently into the optional,
+            # typed CdispD snapshot. A malformed or missing parameter excludes
+            # code 14, but must not interrupt otherwise complete offer records.
         if not records:
             raise PortalImportError("Portale Offerte catalogues contain no records")
         return tuple(

@@ -72,6 +72,14 @@ correnti restano compatibili. La recommendation riusa policy e soglie esistenti
 sullo scenario base senza rivalutare i costi. Il percorso forward della
 proposta Spec 012 rimane differito.
 
+Per il CdispD delle offerte domestiche con codice Portal 14, la stima usa il
+parametro ufficiale del trimestre corrente secondo Regole Portale v4.2
+§3.4.3.1 e Spec 008 addendum v0.8.3. Lo snapshot giornaliero conserva il dato
+tipizzato e la provenienza anche dopo serializzazione. L'applicazione sui
+dodici mesi futuri è un'assunzione tracciata, uniforme nei tre scenari; non
+richiede che siano già pubblicati i consuntivi futuri, non estende le righe
+storiche e non aggiunge nuovamente perdite o mercato capacità.
+
 ## Conseguenze
 
 - L’output è una stima condizionata alle assunzioni esposte.

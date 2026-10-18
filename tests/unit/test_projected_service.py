@@ -1897,3 +1897,198 @@ def test_projected_cdispd_does_not_carry_august_rate_into_annual_horizon() -> No
     assert fallback_comparison.verified_inputs.cdispd_reference_snapshot_id == reference.snapshot_id
     assert fallback_comparison.verified_inputs.cdispd_reference_snapshot_digest == reference.digest
     assert fallback_comparison.verified_inputs.cdispd_reference_period == horizon
+
+
+def _current_parameter_case(
+    as_of: date, *, residential: bool = True, rate: str = "0.020000"
+) -> tuple[ProjectedDomesticComparisonRequest, CurrentCatalogSnapshot]:
+    from italian_energy.portal_offers.dispatching_mapping import make_dispatching_component
+
+    request = _indexed_request(residential=residential)
+    months = recent_months(as_of)
+    request = request.model_copy(
+        update={
+            "as_of": as_of,
+            "continuation_assumption": True,
+            "eligibility": request.eligibility.model_copy(update={"residential": residential}),
+            "consumption": request.consumption.model_copy(
+                update={
+                    "buckets": tuple(
+                        bucket.model_copy(
+                            update={
+                                "interval": bucket.interval.model_copy(
+                                    update={
+                                        "start": datetime(month.year, month.month, 1, tzinfo=UTC),
+                                        "end": datetime(
+                                            month.year + (month.month == 12),
+                                            month.month % 12 + 1,
+                                            1,
+                                            tzinfo=UTC,
+                                        ),
+                                    }
+                                )
+                            }
+                        )
+                        for bucket, month in zip(request.consumption.buckets, months, strict=True)
+                    )
+                }
+            ),
+        }
+    )
+    transport = _transport()
+    transport.contents = {
+        **transport.contents,
+        "parametriML": (
+            (
+                "nome_parametro,valore,descrizione\n"
+                f"cdispd,{rate},Corrispettivo capacita e dispacciamento\n"
+            ).encode(),
+            "text/csv",
+        ),
+    }
+    catalog = CurrentDomesticEnergyService(
+        importer=PortalOffersImporter(transport=transport)
+    ).acquire_catalog(as_of)
+    template = _catalog(AS_OF).records[0]
+    offer_period = DatePeriod(start=as_of.replace(day=1), end=future_period(as_of).end)
+    cdispd = make_dispatching_component(
+        source_code="14",
+        name="CdispD",
+        description="Dispacciamento e mercato capacita",
+        amount=None,
+        period=offer_period,
+        source_fields=(("TIPO_DISPACCIAMENTO", "14"),),
+        source_provenance=template.source_provenance,
+    )
+    record = template.model_copy(
+        update={
+            "subscription_period": offer_period,
+            "tariff_validity": offer_period,
+            "duration_months": 13,
+            "components": (*template.components, cdispd),
+        }
+    )
+    return request, catalog.model_copy(update={"records": (record,)})
+
+
+@pytest.mark.parametrize("as_of", [AS_OF, date(2026, 10, 18)])
+@pytest.mark.parametrize("residential", [True, False])
+def test_projected_current_cdispd_parameter_prices_the_year_after_envelope_hydration(
+    as_of: date, residential: bool
+) -> None:
+    from italian_energy.integration.serialization import dump_envelope, load_envelope
+
+    request, catalog = _current_parameter_case(as_of, residential=residential)
+    hydrated = load_envelope(dump_envelope(catalog))
+    assert isinstance(hydrated, CurrentCatalogSnapshot)
+    assert all(file.content is None for file in hydrated.snapshot.offers.files)
+    service = ProjectedDomesticEnergyService(
+        clock=lambda: datetime(as_of.year, as_of.month, as_of.day, 12, tzinfo=UTC)
+    )
+    anchor = load_domestic_projection_anchor(as_of)
+    coverage = _coverage(anchor, as_of)
+    history = _history(as_of)
+    readiness = service.preflight(request, hydrated, history, anchor, coverage)
+    assert readiness.ready is True
+    assert readiness.horizon_eligible_offer_count == 1
+    assert readiness.checks["cdispd_parameter_projection_available"] is True
+    assert "cdispd_reference_unavailable" not in readiness.reason_codes
+
+    result = service.compare(request, hydrated, history, anchor, coverage)
+    projection = result.assumptions.cdispd_projection
+    assert projection is not None
+    assert projection.parameter.dataset_date == as_of
+    assert projection.parameter.rate.amount == Decimal("0.020000")
+    assert projection.period == future_period(as_of)
+    assert projection.future_values_verified is False
+    assert projection.costs_are_estimates is True
+    assert projection.policy == "portal_current_parameter_constant"
+    assert projection.catalog_snapshot_id == hydrated.snapshot.offers.snapshot_id
+    assert projection.parameter.provenance[0].effective_period != result.period
+
+    without_charge = hydrated.model_copy(
+        update={
+            "records": (
+                hydrated.records[0].model_copy(
+                    update={"components": hydrated.records[0].components[:-1]}
+                ),
+            )
+        }
+    )
+    control = service.compare(request, without_charge, history, anchor, coverage)
+    for scenario, control_scenario in zip(result.scenarios, control.scenarios, strict=True):
+        alternative = scenario.comparison.comparison_result.alternatives[0]
+        control_alternative = control_scenario.comparison.comparison_result.alternatives[0]
+        charges = tuple(
+            component
+            for component in alternative.pricing.breakdown.components
+            if component.meaning == ComponentMeaning.DISPATCHING_CAPACITY_AGGREGATE
+        )
+        assert len(charges) == 1
+        charge = charges[0]
+        # Independent arithmetic: twelve months * 300 kWh * EUR 0.02 = EUR 72.
+        # VAT at 10% adds EUR 7.20; no extra 10% network-loss uplift is allowed.
+        assert charge.quantity == Decimal("3600")
+        assert charge.amount.amount == Decimal("72.00")
+        assert charge.unit_rate == UnitRate(amount=Decimal("0.02"), unit=RateUnit.EUR_PER_KWH)
+        assert charge.losses_included is True
+        assert charge.applied_periods == (future_period(as_of),)
+        assert alternative.comparable_total is not None
+        assert control_alternative.comparable_total is not None
+        assert (
+            alternative.comparable_total.amount - control_alternative.comparable_total.amount
+            == Decimal("79.20")
+        )
+    assert result.result_id != control.result_id
+    restored = load_envelope(dump_envelope(result))
+    assert restored == result
+
+
+def test_projected_cdispd_parameter_changes_result_digest_and_rejects_stale_parameter() -> None:
+    from italian_energy.portal_offers.models import PortalSourceRole
+
+    as_of = date(2026, 10, 18)
+    request, catalog = _current_parameter_case(as_of)
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 10, 18, 12, tzinfo=UTC))
+    anchor = load_domestic_projection_anchor(as_of)
+    history = _history(as_of)
+    coverage = _coverage(anchor, as_of)
+    first = service.compare(request, catalog, history, anchor, coverage)
+    _, changed = _current_parameter_case(as_of, rate="0.030000")
+    second = service.compare(request, changed, history, anchor, coverage)
+    assert first.result_id != second.result_id
+    assert first.assumptions.cdispd_projection != second.assumptions.cdispd_projection
+    assert first.base.comparison_result.ranking == second.base.comparison_result.ranking
+
+    _, stale = _current_parameter_case(as_of - timedelta(days=1))
+    invalid_offers = catalog.snapshot.offers.model_copy(
+        update={"cdispd_parameter": stale.snapshot.offers.cdispd_parameter}
+    )
+    stale_catalog = catalog.model_copy(
+        update={"snapshot": catalog.snapshot.model_copy(update={"offers": invalid_offers})}
+    )
+    with pytest.raises(ValueError, match="must match the verified daily catalog source"):
+        CurrentCatalogSnapshot.model_validate_json(stale_catalog.model_dump_json())
+    readiness = service.preflight(request, stale, history, anchor, coverage)
+    assert readiness.ready is False
+    assert readiness.checks["cdispd_parameter_projection_available"] is False
+
+    parameter_file = next(
+        file
+        for file in catalog.snapshot.offers.files
+        if file.role == PortalSourceRole.MARKET_FREE_PARAMETERS
+    )
+    assert first.assumptions.cdispd_projection is not None
+    assert (
+        first.assumptions.cdispd_projection.parameter.provenance[0].sha256 == parameter_file.sha256
+    )
+    assert stale.snapshot.offers.cdispd_parameter is not None
+    for attribute, bad_value in (
+        ("catalog_snapshot_id", "portal-snapshot:" + "0" * 64),
+        ("period", {"start": "2026-11-01", "end": "2027-12-01"}),
+        ("parameter", stale.snapshot.offers.cdispd_parameter.model_dump(mode="json")),
+    ):
+        tampered = first.model_dump(mode="json")
+        tampered["assumptions"]["cdispd_projection"][attribute] = bad_value
+        with pytest.raises(ValueError, match="current catalog and future horizon"):
+            type(first).model_validate(tampered)

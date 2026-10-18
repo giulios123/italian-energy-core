@@ -36,6 +36,7 @@ from italian_energy.market.gme import (
     is_official_gme_monthly_provenance,
 )
 from italian_energy.portal_offers.models import (
+    PortalCdispDProjection,
     PortalComparisonResult,
     PortalEligibilityProfile,
 )
@@ -324,6 +325,7 @@ class ProjectedComparisonAssumptions(DomainModel):
     future_external_items_repeated: Literal[False] = False
     future_values_verified: Literal[False] = False
     costs_are_estimates: Literal[True] = True
+    cdispd_projection: PortalCdispDProjection | None = None
 
     @field_validator("index_multipliers", mode="before")
     @classmethod
@@ -447,6 +449,15 @@ class ProjectedDomesticComparisonResult(DomainModel):
             raise ValueError("projected result must cover the next twelve complete months")
         if self.assumptions.future_period != self.period:
             raise ValueError("projection assumptions must name the result horizon")
+        cdispd_projection = self.assumptions.cdispd_projection
+        if cdispd_projection is not None and (
+            cdispd_projection.period != self.period
+            or cdispd_projection.parameter.dataset_date != self.as_of
+            or cdispd_projection.catalog_snapshot_id != self.verified_inputs.catalog_snapshot_id
+        ):
+            raise ValueError(
+                "CdispD projection must preserve its current catalog and future horizon"
+            )
         if self.verified_inputs.regulatory_coverage_as_of is None:
             # V1 results used one date for the anchor and comparison. Keep them readable.
             if (

@@ -6,6 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from hashlib import sha256
+from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -14,6 +15,7 @@ from italian_energy.comparison.engine import ComparisonContext, ComparisonResult
 from italian_energy.domain.base import DomainModel
 from italian_energy.domain.common import strict_decimal
 from italian_energy.domain.market import MarketData
+from italian_energy.domain.money import RateUnit, UnitRate
 from italian_energy.domain.offer import Offer
 from italian_energy.domain.provenance import Provenance, ProvenanceLocator
 from italian_energy.domain.regulatory import VerificationStatus, VoltageLevel
@@ -35,6 +37,21 @@ class PortalSourceRole(StrEnum):
 
 class PortalAcquisitionPolicy(StrEnum):
     ON_DEMAND_EXACT = "on_demand_exact"
+
+
+PORTAL_CDISPD_PROJECTION_MAPPING_VERSION: Literal["portale-regole-4.2-cdispd-v1"] = (
+    "portale-regole-4.2-cdispd-v1"
+)
+_PORTAL_BASE_URL = "https://www.ilportaleofferte.it"
+
+
+def market_free_parameters_url(dataset_date: date) -> str:
+    stamp = dataset_date.strftime("%Y%m%d")
+    folder = f"{dataset_date.year}_{dataset_date.month}"
+    return (
+        f"{_PORTAL_BASE_URL}/portaleOfferte/resources/opendata/csv/parametriML/{folder}/"
+        f"PO_Parametri_Mercato_Libero_E_{stamp}.csv"
+    )
 
 
 class PortalOfferType(StrEnum):
@@ -124,12 +141,46 @@ class PortalFileSnapshot(DomainModel):
         return self
 
 
+class PortalCdispDParameterSnapshot(DomainModel):
+    """One official daily Portale Offerte CdispD parameter row."""
+
+    dataset_date: date
+    parameter_name: Literal["cdispd"] = "cdispd"
+    rate: UnitRate
+    description: str = Field(min_length=1)
+    status: Literal[VerificationStatus.VERIFIED] = VerificationStatus.VERIFIED
+    provenance: tuple[Provenance, ...]
+
+    @model_validator(mode="after")
+    def validate_parameter(self) -> PortalCdispDParameterSnapshot:
+        if self.rate.unit != RateUnit.EUR_PER_KWH or self.rate.amount < 0:
+            raise ValueError("official CdispD parameter must be a non-negative EUR/kWh rate")
+        if len(self.provenance) != 1:
+            raise ValueError("CdispD parameter requires exactly one source row")
+        source = self.provenance[0]
+        if (
+            source.source != "portale_offerte"
+            or source.source_identifier
+            != f"PO_Parametri_Mercato_Libero_E_{self.dataset_date:%Y%m%d}.csv"
+            or source.url != market_free_parameters_url(self.dataset_date)
+            or source.sha256 is None
+            or source.locator is None
+            or source.locator.document != PortalSourceRole.MARKET_FREE_PARAMETERS.value
+            or source.locator.section is None
+            or not source.locator.section.startswith("row:")
+            or source.effective_period is not None
+        ):
+            raise ValueError("CdispD provenance must identify the exact daily parameter row")
+        return self
+
+
 class PortalOffersSnapshot(DomainModel):
     dataset_date: date
     files: tuple[PortalFileSnapshot, ...]
     snapshot_id: str = Field(pattern=r"^portal-snapshot:[0-9a-f]{64}$")
     status: VerificationStatus
     parser_version: str = Field(min_length=1)
+    cdispd_parameter: PortalCdispDParameterSnapshot | None = None
 
     @model_validator(mode="after")
     def validate_catalog_files(self) -> PortalOffersSnapshot:
@@ -148,6 +199,46 @@ class PortalOffersSnapshot(DomainModel):
             item.status != VerificationStatus.VERIFIED for item in self.files
         ):
             raise ValueError("verified offers snapshot requires verified catalog files")
+        if self.cdispd_parameter is not None:
+            parameter_files = tuple(
+                item for item in self.files if item.role == PortalSourceRole.MARKET_FREE_PARAMETERS
+            )
+            if len(parameter_files) != 1:
+                raise ValueError("CdispD parameter requires one market-free parameter file")
+            file = parameter_files[0]
+            source = self.cdispd_parameter.provenance[0]
+            if (
+                self.status != VerificationStatus.VERIFIED
+                or self.cdispd_parameter.status != VerificationStatus.VERIFIED
+                or self.cdispd_parameter.dataset_date != self.dataset_date
+                or file.status != VerificationStatus.VERIFIED
+                or file.dataset_date != self.dataset_date
+                or file.final_url != market_free_parameters_url(self.dataset_date)
+                or file.sha256 != source.sha256
+                or file.final_url != source.url
+                or file.retrieved_at != source.retrieved_at
+            ):
+                raise ValueError("CdispD parameter must match the verified daily catalog source")
+        return self
+
+
+class PortalCdispDProjection(DomainModel):
+    """A verified current parameter applied as an explicit future estimate."""
+
+    parameter: PortalCdispDParameterSnapshot
+    catalog_snapshot_id: str = Field(pattern=r"^portal-snapshot:[0-9a-f]{64}$")
+    period: DatePeriod
+    policy: Literal["portal_current_parameter_constant"] = "portal_current_parameter_constant"
+    mapping_version: Literal["portale-regole-4.2-cdispd-v1"] = (
+        PORTAL_CDISPD_PROJECTION_MAPPING_VERSION
+    )
+    future_values_verified: Literal[False] = False
+    costs_are_estimates: Literal[True] = True
+
+    @model_validator(mode="after")
+    def validate_projection(self) -> PortalCdispDProjection:
+        if self.period.start <= self.parameter.dataset_date:
+            raise ValueError("CdispD projection period must follow the source observation date")
         return self
 
 

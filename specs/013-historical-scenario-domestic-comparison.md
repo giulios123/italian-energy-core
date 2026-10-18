@@ -38,6 +38,14 @@ il mese di `as_of`. Per `as_of = 2026-09-27`, il periodo è
   profilo residente/non residente, unità, periodi, digest e riferimenti di
   fonte. Applicarle uniformemente agli scenari come assunzione futura. La
   proiezione non è `VERIFIED` e non allunga la validità attestata delle fonti.
+- Per il codice Portal 14, applicare il parametro ufficiale `cdispd` del
+  catalogo del giorno al consumo annuo secondo Spec 008 addendum v0.8.3 e
+  Regole Portale v4.2 §3.4.3.1. Il valore è quello del trimestre corrente,
+  congelato nella stima, non una serie di tariffe future verificate. La
+  corrispondente assunzione tipizzata conserva tariffa, data, periodo
+  applicato, digest e provenienza del CSV; non riceve i moltiplicatori PUN né
+  una seconda maggiorazione per le perdite. Le righe storiche CDISPD del
+  workbook ARERA conservano la loro validità e non vengono estese.
 - Ricalcolare le imposte sulle basi imponibili di ciascuna stima con sole
   regole ufficiali verificate. Un valore o una regola necessaria mancanti
   rendono il confronto non pronto; non usare zero o valori inventati.
