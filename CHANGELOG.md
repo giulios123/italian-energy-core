@@ -32,6 +32,7 @@
   format, mypy, pre-commit, lock check e `git diff --check` passano.
 - Golden privato verificato; wheel e sdist costruiti e smoke isolato del wheel
   conferma l'import di `italian-energy==0.13.3`.
+- Release `v0.13.3` pubblicata su [GitHub](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.3) e [PyPI](https://pypi.org/project/italian-energy/0.13.3/). CI su `main` e sul tag passa per Python 3.12, 3.13 e 3.14 (run `39119112136` e `39119175159`); Trusted Publishing `39119298409` è riuscito. I digest PyPI corrispondono agli asset GitHub: wheel `3df0bee7a3519dc739591e78bf10b6590db055c078f079c17b1198cd7863cd5c`, sdist `0eb59d4d86d7c4f89ed2f62d0f4a9730e978d160789274cd027544078b82bc7c`.
 
 ## [0.13.2] - 2026-10-16
 

@@ -1,5 +1,11 @@
 # Active context
 
+## Release Core 0.13.3 — pubblicata 2026-10-18
+
+La release GitHub [v0.13.3](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.3) punta al commit `e2226e63c4ae3e7ab8431409c1fbba2c9e1cd05e`. CI su `main` (`39119112136`) e sul tag (`39119175159`) è verde per Python 3.12, 3.13 e 3.14. Trusted Publishing (`39119298409`) è riuscito e [PyPI](https://pypi.org/project/italian-energy/0.13.3/) espone la versione `0.13.3`.
+
+I digest PyPI coincidono con gli asset della GitHub Release: wheel `3df0bee7a3519dc739591e78bf10b6590db055c078f079c17b1198cd7863cd5c`, sdist `0eb59d4d86d7c4f89ed2f62d0f4a9730e978d160789274cd027544078b82bc7c`. Suite locale: 801 test, 95,21% branch coverage; Ruff, format, mypy, pre-commit, lock check, golden privato, build wheel/sdist e smoke isolato passano. L'adozione Platform resta una milestone separata.
+
 ## Portale Offerte — Dispacciamento e mercato capacità, 2026-10-17
 
 - **Scritto:** Spec 008 addendum v0.8.1 definisce il mapping versionato
