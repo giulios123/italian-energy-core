@@ -4,6 +4,9 @@
 addendum GME implementato in Core `v0.13.1` il 2026-10-14.
 **Addendum:** quota fissa corrente con policy `follow_tariff` e finestre
 applicate rilasciate in Core `v0.13.3` il 2026-10-18.
+**Addendum CdispD:** parametro corrente del Portal per la proiezione annuale
+implementato e rilasciato in Core `v0.13.4` il 2026-10-18. Il gate sulla
+copertura tariffaria effettiva dei dodici mesi resta aperto e distinto.
 
 ## Stato e scopo
 

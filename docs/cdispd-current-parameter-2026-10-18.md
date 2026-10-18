@@ -70,11 +70,21 @@ risultato sensibile al parametro. Suite finale: **842 test passati**, branch
 coverage **95,05%** con soglia 95% superata; Ruff check/format e mypy
 `src tests` passano. Il Memory Bank registra la milestone.
 
-Questa correzione è sorgente Core locale. Non sono state eseguite release,
-installazione di un nuovo artefatto, modifiche al runtime Platform o deployment.
-Platform e i suoi commit restano in sospeso come richiesto dall'utente. Per
-adottare la modifica servono un artefatto Core aggiornato e un nuovo refresh del
-catalogo: i vecchi snapshot privi del campo non vengono riscritti in lettura.
+La correzione è inclusa nella release Core
+[v0.13.4](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.4)
+e pubblicata su [PyPI](https://pypi.org/project/italian-energy/0.13.4/).
+Trusted Publishing (run `39145646425`) e CI su `main`/tag (`39145299869`,
+`39145469387`) sono riusciti; i digest SHA-256 PyPI coincidono con gli asset
+GitHub. Wheel: `b353a9510d1d216d27d36b1f23deb79028fcb1513fd5d59f9f26bd80b914deca`;
+sdist: `3f656573fff136f948c99eff46c5eaf2431885db3ab333edc02240a143f945b9`.
+
+La copertura tariffaria effettiva per tutti i dodici mesi resta un gate aperto:
+la finestra di sottoscrizione è riutilizzata come validità tariffaria e la
+durata è ancorata a `as_of`, non all'attivazione simulata. Le otto offerte che
+superano il filtro attuale non dimostrano copertura economica annuale. Questo
+audit non modifica il calcolo CdispD. La release Core non aggiorna da sola il
+runtime Platform: l'adozione e un nuovo refresh del catalogo restano separati.
+I vecchi snapshot privi del campo non vengono riscritti in lettura.
 
 
 ## Rettifica del filtro annuale — 18 ottobre 2026

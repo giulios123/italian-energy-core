@@ -701,8 +701,10 @@ I test devono verificare importi attesi da fixture e calcoli manuali indipendent
 
 ## Addendum v0.8.3 — parametro CdispD corrente per la stima prospettica
 
-**Stato:** specifica normativa accettata per il completamento richiesto il
-2026-10-18. Si aggiunge la capability `portal_cdispd_parameter_projection`.
+**Stato:** implementato e rilasciato in Core `v0.13.4` il 2026-10-18.
+Si aggiunge la capability `portal_cdispd_parameter_projection`. Il gate
+separato sulla validità annuale delle tariffe delle offerte resta aperto:
+il filtro corrente non attesta ancora la copertura economica dei dodici mesi.
 
 Fonte del mapping: [Regole per il calcolo della spesa annua stimata, v4.2 del
 5 ottobre 2026](https://www.ilportaleofferte.it/portaleOfferte/resources/cms/documents/6bc502553cb0ea45958840b2de20078d.pdf),

@@ -24,6 +24,21 @@
   pre-commit, `uv lock --check` e `git diff --check` passano.
 - Wheel e sdist 0.13.4 sono stati costruiti; lo smoke isolato del wheel
   conferma l'import e la versione `0.13.4`.
+- Release [GitHub v0.13.4](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.4)
+  e package [PyPI 0.13.4](https://pypi.org/project/italian-energy/0.13.4/)
+  pubblicati. CI `main`/tag (`39145299869`, `39145469387`) e Trusted
+  Publishing (`39145646425`) completati; SHA-256 PyPI e GitHub coincidono:
+  wheel `b353a9510d1d216d27d36b1f23deb79028fcb1513fd5d59f9f26bd80b914deca`,
+  sdist `3f656573fff136f948c99eff46c5eaf2431885db3ab333edc02240a143f945b9`.
+
+### Limite noto
+
+- La copertura economica annuale delle offerte non è ancora confermata:
+  l'audit ha rilevato che la normalizzazione riusa la finestra di sottoscrizione
+  come validità tariffaria e ancora la durata a `as_of` anziché all'attivazione
+  simulata. Le otto offerte che superano il filtro corrente non provano la
+  copertura dei dodici mesi. Il gate tariffario resta aperto, distinto dal
+  calcolo CdispD di questa release.
 
 ## [0.13.3] - 2026-10-18
 

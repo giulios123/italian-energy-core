@@ -1,5 +1,22 @@
 # Progress
 
+## Release Core 0.13.4 — pubblicata 2026-10-18
+
+- Commit `b4de15af1561eb3cef33910bca7e60bc4ead1bdb` e tag `v0.13.4` pubblicati
+  su GitHub. La [Release](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.4)
+  è verde su CI `main` e tag, Python 3.12–3.14 (run `39145299869` e
+  `39145469387`).
+- Trusted Publishing `39145646425` è riuscito; [PyPI](https://pypi.org/project/italian-energy/0.13.4/)
+  espone wheel e sdist `0.13.4`. Digest coincidenti con gli asset GitHub:
+  wheel `b353a9510d1d216d27d36b1f23deb79028fcb1513fd5d59f9f26bd80b914deca`,
+  sdist `3f656573fff136f948c99eff46c5eaf2431885db3ab333edc02240a143f945b9`.
+- Gate locale: 842 test, 95,05% branch coverage, Ruff check/format, mypy,
+  pre-commit, lock check, build wheel/sdist, smoke isolati e `git diff --check`
+  passano. Il runtime Platform non è stato aggiornato.
+- Limite aperto: l'audit del filtro temporale non conferma la validità
+  economica delle tariffe per l'intero anno. Le otto offerte che superano il
+  filtro non provano copertura dei dodici mesi.
+
 ## Release Core 0.13.3 — pubblicata 2026-10-18
 
 - Commit `e2226e63c4ae3e7ab8431409c1fbba2c9e1cd05e` e tag `v0.13.3` pubblicati su GitHub. La [Release](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.3) è stata pubblicata dopo CI verde su `main` e sul tag, Python 3.12–3.14 (run `39119112136` e `39119175159`).
@@ -919,12 +936,17 @@
   EUR 0,016776/kWh, digest
   `801bb798d551656be3e7e9db45431d81fc0bb5df147dfb4f94b722e577e639d0`.
   Stesso profilo Roma non residente e modalità 01/01: da 0 a 369 offerte
-  normalizzate, 8 con copertura annuale novembre 2026–ottobre 2027. Verifica
-  Core HTTP acquisizione → envelope/hydration → normalizzazione offline.
-- **Limiti:** non è un nuovo wheel né un collaudo economico HTTP della
-  Platform. Nessun commit/push, release, installazione runtime o deployment.
-  Platform resta in sospeso; l'adozione richiede artefatto nuovo e refresh del
-  catalogo, senza mutazioni in lettura dei vecchi snapshot.
+  normalizzate; otto superano il filtro annuale corrente, ma non sono verificate
+  come copertura economica novembre 2026–ottobre 2027. L'audit ha trovato che
+  il filtro riusa la fine della sottoscrizione come validità tariffaria e
+  ancora la durata a `as_of` anziché all'attivazione simulata. Verifica Core
+  HTTP acquisizione → envelope/hydration → normalizzazione offline.
+- **Release e limiti:** inclusa in Core `v0.13.4` pubblicata su GitHub/PyPI;
+  CI `main`/tag e Trusted Publishing passano. Non è un collaudo economico HTTP
+  della Platform: il runtime Platform non è stato aggiornato. L'adozione
+  richiede artefatto nuovo e refresh del catalogo, senza mutazioni in lettura
+  dei vecchi snapshot. Il gate di copertura annuale resta aperto e nessun
+  numero di offerte effettivamente confrontabili è verificato.
 
 
 ### Rettifica conteggio annuale — 2026-10-18

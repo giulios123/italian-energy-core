@@ -1,5 +1,21 @@
 # Active context
 
+## Release Core 0.13.4 — pubblicata 2026-10-18
+
+La release GitHub [v0.13.4](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.4)
+punta al commit `b4de15af1561eb3cef33910bca7e60bc4ead1bdb`; il tag `v0.13.4`
+è pubblicato e la CI su `main` (`39145299869`) e sul tag (`39145469387`) è
+verde per Python 3.12, 3.13 e 3.14. Trusted Publishing (`39145646425`) è
+riuscito e [PyPI](https://pypi.org/project/italian-energy/0.13.4/) espone
+`0.13.4`.
+
+I digest PyPI coincidono con gli asset GitHub: wheel
+`b353a9510d1d216d27d36b1f23deb79028fcb1513fd5d59f9f26bd80b914deca`, sdist
+`3f656573fff136f948c99eff46c5eaf2431885db3ab333edc02240a143f945b9`. Suite
+locale: 842 test, 95,05% branch coverage; Ruff, format, mypy, pre-commit,
+lock check, build wheel/sdist e smoke isolati passano. La copertura economica
+annuale delle offerte resta un gate aperto; l'adozione Platform è separata.
+
 ## Release Core 0.13.3 — pubblicata 2026-10-18
 
 La release GitHub [v0.13.3](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.3) punta al commit `e2226e63c4ae3e7ab8431409c1fbba2c9e1cd05e`. CI su `main` (`39119112136`) e sul tag (`39119175159`) è verde per Python 3.12, 3.13 e 3.14. Trusted Publishing (`39119298409`) è riuscito e [PyPI](https://pypi.org/project/italian-energy/0.13.3/) espone la versione `0.13.3`.
@@ -31,11 +47,13 @@ I digest PyPI coincidono con gli asset della GitHub Release: wheel `3df0bee7a351
 - **Verifiche automatiche:** 842 test, branch coverage 95,05%, Ruff check e
   format, mypy `src tests` passano. Le regressioni economiche indipendenti controllano anche IVA, entrambi i
   profili, dati mancanti/errati, periodi, digest e invarianti di provenienza.
-- **Adozione aperta:** sorgente locale; nessun commit, push, release o runtime
-  Platform aggiornato. Servono un nuovo artefatto e un refresh catalogo per
-  adottare il nuovo campo. Platform rimane in sospeso su richiesta dell'utente.
-  Il vecchio wheel 0.13.3 non include questa correzione. Dettagli e fonti in
-  `docs/cdispd-current-parameter-2026-10-18.md`.
+- **Adozione aperta:** la correzione è inclusa in Core `v0.13.4` e pubblicata
+  su PyPI; il runtime Platform non è stato aggiornato. Servono adozione del
+  nuovo artefatto e refresh catalogo; i vecchi snapshot privi del campo non
+  vengono riscritti in lettura. L'audit della validità tariffaria ha trovato
+  che il filtro annuale corrente non prova la copertura di dodici mesi: le
+  otto offerte candidate non sono confermate come economicamente annuali.
+  Dettagli e fonti in `docs/cdispd-current-parameter-2026-10-18.md`.
 
 ## Refresh Core 2026-10-17 — correzione coverage rollover
 
