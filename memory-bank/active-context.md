@@ -1,5 +1,30 @@
 # Active context
 
+## Core 0.13.5 — preparazione della durata economica, 2026-10-18
+
+- **Scritto:** Spec 008 v0.8.4, Spec 013 e ADR 0012/0016 separano adesione
+  inclusiva da decorrenza e durata economica. La beta attiva al primo giorno
+  del proprio orizzonte annuale. Il DURATA diretto di DettaglioOfferta è la
+  durata delle condizioni economiche; -1 significa indeterminata.
+- **Implementato:** parser v6, mapping economic-validity-v2, nuovo contesto
+  prospettico e metadati economic_terms. Prezzi predefiniti annualizzabili
+  non diventano promesse di durata; condizioni note insufficienti restano
+  escluse. Le finestre sconto contigue restano esatte; nodi Sconto non
+  modellati sono conservati ed esclusi. Snapshot precedenti restano leggibili
+  ma richiedono refresh per la nuova normalizzazione. Nessun ricalcolo storico.
+- **Verificato:** 895 test Core, branch coverage 95,00%, Ruff check/format,
+  mypy e lock check passano. Il replay ufficiale del 18 ottobre dopo hydration
+  legge 4.550 record e seleziona 257 candidate annuali per Roma/non residente
+  e modalità 01/01, anziché otto; 57 con durata oltre dodici mesi. Quote, IVA,
+  ranking e sconti sono controllati con importi attesi indipendenti.
+- **Platform:** piccolo delta source/DTO/UI per quattro metadati e badge,
+  270 test non integration / 90,68%, 26 test web/build e controlli mirati
+  passano. Il checkout ampio rimane sospeso/uncommitted; controlli statici
+  globali e adozione HTTP/runtime non sono certificati da questa milestone.
+- **Separato:** pubblicazione 0.13.5, pin/digest Platform, immagini, refresh
+  catalogo v6, worker/browser HTTP e deployment. Nessun commit, push o tag
+  è incluso. Evidenze: `docs/offer-economic-validity-0.13.5.md`.
+
 ## Release Core 0.13.4 — pubblicata 2026-10-18
 
 La release GitHub [v0.13.4](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.4)

@@ -33,6 +33,10 @@ from italian_energy.domain.tariff import (
     IndexedTariff,
 )
 from italian_energy.domain.time import DatePeriod, Granularity
+from italian_energy.portal_offers.economic_validity import (
+    EconomicValidityError,
+    project_economic_validity,
+)
 from italian_energy.portal_offers.models import (
     NormalizedPortalOffer,
     PortalCatalog,
@@ -578,6 +582,8 @@ def _record_applicability(
     eligibility: PortalEligibilityProfile,
     period_start: date,
     period_end: date,
+    *,
+    check_tariff_period: bool = True,
 ) -> PortalOfferExclusion | None:
     if record.customer_type not in {"01", "domestico", "DOMESTICO", "domestic"}:
         return _exclude(
@@ -589,13 +595,14 @@ def _record_applicability(
             PortalOfferExclusionCode.NOT_CURRENT,
             "subscription period does not contain as_of",
         )
-    validity = _effective_validity(record, period_start)
-    if period_start < validity.start or period_end > validity.end:
-        return _exclude(
-            record,
-            PortalOfferExclusionCode.PERIOD_NOT_COVERED,
-            "tariff validity does not cover the requested period",
-        )
+    if check_tariff_period:
+        validity = _effective_validity(record, period_start)
+        if period_start < validity.start or period_end > validity.end:
+            return _exclude(
+                record,
+                PortalOfferExclusionCode.PERIOD_NOT_COVERED,
+                "tariff validity does not cover the requested period",
+            )
     territory = eligibility.territory
     if record.region_codes and territory.region_code not in record.region_codes:
         return _exclude(
@@ -651,8 +658,14 @@ def normalize_offers(
     cdispd_reference: CdispDReferenceSnapshot | None = None,
     cdispd_reference_period: DatePeriod | None = None,
     cdispd_projection: PortalCdispDProjection | None = None,
+    activation_date: date | None = None,
+    economic_period: DatePeriod | None = None,
 ) -> PortalOffersImportResult:
     """Normalize and filter every parsed source record exactly once."""
+    if (activation_date is None) != (economic_period is None):
+        raise ValueError("activation_date and economic_period must be supplied together")
+    if economic_period is not None and activation_date != economic_period.start:
+        raise ValueError("activation_date must equal economic_period.start")
     ordered_records = tuple(
         sorted(
             records,
@@ -700,12 +713,28 @@ def normalize_offers(
                 )
             )
             continue
-        applicability = _record_applicability(record, eligibility, period_start, period_end)
+        projected_record = record
+        economic_terms = None
+        applicability = _record_applicability(
+            record,
+            eligibility,
+            period_start,
+            period_end,
+            check_tariff_period=economic_period is None,
+        )
         if applicability is not None:
             exclusions.append(applicability)
             continue
+        if economic_period is not None and activation_date is not None:
+            try:
+                projected_record, economic_terms = project_economic_validity(
+                    record, activation_date, economic_period
+                )
+            except EconomicValidityError as exc:
+                exclusions.append(_exclude(record, exc.code, str(exc), locator=exc.locator))
+                continue
         commercial_component_issue = _commercial_component_exclusion(
-            record,
+            projected_record,
             eligibility,
             cdispd_reference,
             reference_period,
@@ -718,7 +747,7 @@ def normalize_offers(
         try:
             tariff = (
                 _fixed_tariff(
-                    record,
+                    projected_record,
                     eligibility,
                     cdispd_reference,
                     reference_period,
@@ -727,7 +756,7 @@ def normalize_offers(
                 )
                 if record.offer_type == PortalOfferType.FIXED
                 else _indexed_tariff(
-                    record,
+                    projected_record,
                     eligibility,
                     cdispd_reference,
                     reference_period,
@@ -736,7 +765,11 @@ def normalize_offers(
                 )
             )
             tariff = tariff.model_copy(
-                update={"validity": _effective_validity(record, period_start)}
+                update={
+                    "validity": economic_period
+                    if economic_period is not None
+                    else _effective_validity(record, period_start)
+                }
             )
         except LookupError as exc:
             exclusions.append(
@@ -783,6 +816,7 @@ def normalize_offers(
                 offer=offer,
                 source_record=record,
                 assumptions=("portal annual estimate is evidence only",),
+                economic_terms=economic_terms,
             )
         )
     normalized.sort(key=lambda item: item.offer.offer_id)
@@ -795,6 +829,10 @@ def normalize_offers(
         "eligibility": eligibility.model_dump(mode="json"),
         "period_start": str(period_start),
         "period_end": str(period_end),
+        "activation_date": str(activation_date) if activation_date is not None else None,
+        "economic_period": (
+            economic_period.model_dump(mode="json") if economic_period is not None else None
+        ),
         "cdispd_reference_snapshot_id": (
             cdispd_reference.snapshot_id if cdispd_reference is not None else None
         ),

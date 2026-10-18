@@ -73,7 +73,11 @@ from italian_energy.market.gme import (
     report_url,
 )
 from italian_energy.portal_offers.importer import PortalOffersImporter
-from italian_energy.portal_offers.models import PortalEconomicComponent
+from italian_energy.portal_offers.models import (
+    PortalComponentPriceValidity,
+    PortalEconomicComponent,
+    PortalPriceValidityKind,
+)
 from italian_energy.recommendation import Recommendation, RecommendationRequest
 
 
@@ -120,6 +124,7 @@ def _catalog(as_of: date) -> CurrentCatalogSnapshot:
                 "subscription_period": DatePeriod(start=date(2026, 9, 1), end=date(2027, 10, 1)),
                 "tariff_validity": future,
                 "duration_months": 13,
+                "economic_conditions_duration_provenance": record.source_provenance,
                 "components": (
                     PortalEconomicComponent(
                         code="test_energy",
@@ -128,6 +133,9 @@ def _catalog(as_of: date) -> CurrentCatalogSnapshot:
                         unit="EUR/kWh",
                         band="ALL",
                         macroarea="04",
+                        price_validity=PortalComponentPriceValidity(
+                            kind=PortalPriceValidityKind.DEFAULT
+                        ),
                     ),
                 ),
             }
@@ -1030,14 +1038,15 @@ def test_projected_month_and_aggregation_helpers_reject_invalid_empty_inputs() -
         _alternative_sort_key(alternative.model_copy(update={"comparable_total": None}))
 
 
-def test_projected_offers_without_known_price_duration_are_excluded() -> None:
+def test_projected_legacy_economic_snapshots_require_a_catalog_refresh() -> None:
     service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
     request = _indexed_request()
     catalog = _catalog(AS_OF)
     catalog = catalog.model_copy(
         update={
             "records": tuple(
-                item.model_copy(update={"duration_months": None}) for item in catalog.records
+                item.model_copy(update={"economic_validity_version": None})
+                for item in catalog.records
             )
         }
     )
@@ -1047,9 +1056,10 @@ def test_projected_offers_without_known_price_duration_are_excluded() -> None:
     for scenario in result.scenarios:
         comparison = scenario.comparison.comparison_result
         assert comparison.alternatives == ()
-        assert len(comparison.excluded_offers) == 2
+        assert len(scenario.comparison.import_result.exclusions) == 2
         assert all(
-            "absent duration is not inferred" in item.detail for item in comparison.excluded_offers
+            item.code.value == "economic_terms_unverified"
+            for item in scenario.comparison.import_result.exclusions
         )
 
 
@@ -2092,3 +2102,205 @@ def test_projected_cdispd_parameter_changes_result_digest_and_rejects_stale_para
         tampered["assumptions"]["cdispd_projection"][attribute] = bad_value
         with pytest.raises(ValueError, match="current catalog and future horizon"):
             type(first).model_validate(tampered)
+
+
+def _catalog_expiring_before_activation(
+    as_of: date,
+    *,
+    expires_on: date = date(2026, 10, 31),
+    duration: int | None = 12,
+    annual_fee: str = "120",
+    component_duration: int | None = None,
+) -> CurrentCatalogSnapshot:
+    from test_portal_offers import XML
+
+    transport = _transport()
+    xml = XML.replace(
+        b"31/12/2026_23:59:59",
+        f"{expires_on:%d/%m/%Y}_23:59:59".encode(),
+    ).replace(
+        b"<FASCIA_COMPONENTE>01</FASCIA_COMPONENTE>", b"<FASCIA_COMPONENTE>91</FASCIA_COMPONENTE>"
+    )
+    if duration is not None:
+        xml = xml.replace(
+            b"</DettaglioOfferta>", f"<DURATA>{duration}</DURATA></DettaglioOfferta>".encode()
+        )
+    if component_duration is not None:
+        xml = xml.replace(
+            b"</IntervalloPrezzi>",
+            (
+                f"<PeriodoValidita><DURATA>{component_duration}</DURATA></PeriodoValidita>"
+                "</IntervalloPrezzi>"
+            ).encode(),
+        )
+    xml = xml.replace(b"<PREZZO>120</PREZZO>", f"<PREZZO>{annual_fee}</PREZZO>".encode())
+    transport.contents = {**transport.contents, "offerteML": (xml, "application/xml")}
+    catalog = CurrentDomesticEnergyService(
+        importer=PortalOffersImporter(transport=transport)
+    ).acquire_catalog(as_of)
+    return catalog.model_copy(
+        update={"records": tuple(r for r in catalog.records if r.catalog.value == "market_free")}
+    )
+
+
+@pytest.mark.parametrize("as_of", [date(2026, 10, 18), date(2026, 10, 31)])
+def test_projected_subscription_expiry_does_not_shorten_twelve_month_prices(as_of: date) -> None:
+    from italian_energy.integration.serialization import dump_envelope, load_envelope
+
+    service = ProjectedDomesticEnergyService(
+        clock=lambda: datetime(as_of.year, as_of.month, as_of.day, 12, tzinfo=UTC)
+    )
+    request, _ = _current_parameter_case(as_of)
+    catalog = _catalog_expiring_before_activation(as_of)
+    restored = load_envelope(dump_envelope(catalog))
+    assert isinstance(restored, CurrentCatalogSnapshot)
+    anchor = load_domestic_projection_anchor(as_of)
+    history = _history(as_of)
+    coverage = _coverage(anchor, as_of)
+
+    readiness = service.preflight(request, restored, history, anchor, coverage)
+    assert readiness.ready is True
+    assert readiness.horizon_eligible_offer_count == 1
+    assert readiness.period == DatePeriod(start=date(2026, 11, 1), end=date(2027, 11, 1))
+    result = service.compare(request, restored, history, anchor, coverage)
+    for scenario in result.scenarios:
+        imported = scenario.comparison.import_result
+        item = imported.normalized[0]
+        assert item.offer.subscription_period.end == date(2026, 11, 1)
+        assert item.offer.tariff.validity.start == date(2026, 11, 1)
+        assert item.offer.tariff.validity.end >= date(2027, 11, 1)
+        terms = item.economic_terms
+        assert terms is not None
+        assert terms.activation_date == date(2026, 11, 1)
+        assert terms.estimate_period == result.period
+        assert terms.known_duration_months == 12
+        assert terms.extends_beyond_12_months is False
+        assert terms.basis == "declared_economic_conditions"
+        alternative = scenario.comparison.comparison_result.alternatives[0]
+        # Independent amount: 3,600 kWh * EUR 0.20 + EUR 120 = EUR 840 sales.
+        assert alternative.pricing.breakdown.total.amount == Decimal("840.00")
+        energy = sum(
+            component.amount.amount
+            for component in alternative.pricing.breakdown.components
+            if component.meaning == ComponentMeaning.ENERGY_PRICE
+        )
+        assert energy == Decimal("720.00")
+        assert all(
+            component.applied_periods == (result.period,)
+            for component in alternative.pricing.breakdown.components
+        )
+
+    control_catalog = _catalog_expiring_before_activation(as_of, annual_fee="0")
+    control = service.compare(request, control_catalog, history, anchor, coverage)
+    charged = result.base.comparison_result.alternatives[0]
+    uncharged = control.base.comparison_result.alternatives[0]
+    assert charged.comparable_total is not None
+    assert uncharged.comparable_total is not None
+    # The annual fee adds EUR 120 + EUR 12 VAT, independently of excise/network costs.
+    assert charged.comparable_total.amount - uncharged.comparable_total.amount == Decimal("132.00")
+    assert load_envelope(dump_envelope(result)) == result
+
+
+def test_projected_offer_expired_yesterday_is_excluded() -> None:
+    as_of = date(2026, 11, 1)
+    request, _ = _current_parameter_case(as_of)
+    catalog = _catalog_expiring_before_activation(as_of)
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 11, 1, 12, tzinfo=UTC))
+    anchor = load_domestic_projection_anchor(as_of)
+    readiness = service.preflight(
+        request, catalog, _history(as_of), anchor, _coverage(anchor, as_of)
+    )
+    assert readiness.ready is False
+    assert readiness.horizon_eligible_offer_count == 0
+
+
+@pytest.mark.parametrize("duration", [24, 36, 60])
+def test_projected_economic_terms_beyond_one_year_are_frozen_as_offer_metadata(
+    duration: int,
+) -> None:
+    as_of = date(2026, 10, 18)
+    request, _ = _current_parameter_case(as_of)
+    catalog = _catalog_expiring_before_activation(as_of, duration=duration)
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 10, 18, 12, tzinfo=UTC))
+    anchor = load_domestic_projection_anchor(as_of)
+    result = service.compare(request, catalog, _history(as_of), anchor, _coverage(anchor, as_of))
+    item = result.base.import_result.normalized[0]
+    assert item.economic_terms is not None
+    assert item.economic_terms.known_duration_months == duration
+    assert item.economic_terms.duration_scope == "seller_conditions"
+    assert item.economic_terms.extends_beyond_12_months is True
+    assert item.economic_terms.basis == "declared_economic_conditions"
+    assert result.period == DatePeriod(start=date(2026, 11, 1), end=date(2027, 11, 1))
+    changed_catalog = _catalog_expiring_before_activation(as_of, duration=duration + 1)
+    changed = service.compare(
+        request, changed_catalog, _history(as_of), anchor, _coverage(anchor, as_of)
+    )
+    assert changed.result_id != result.result_id
+
+
+def test_projected_indeterminate_terms_are_annual_estimates_without_a_duration_promise() -> None:
+    as_of = date(2026, 10, 18)
+    request, _ = _current_parameter_case(as_of)
+    catalog = _catalog_expiring_before_activation(as_of, duration=-1)
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 10, 18, 12, tzinfo=UTC))
+    anchor = load_domestic_projection_anchor(as_of)
+    readiness = service.preflight(
+        request, catalog, _history(as_of), anchor, _coverage(anchor, as_of)
+    )
+    assert readiness.ready is True
+    result = service.compare(request, catalog, _history(as_of), anchor, _coverage(anchor, as_of))
+    terms = result.base.import_result.normalized[0].economic_terms
+    assert terms is not None
+    assert terms.known_duration_months is None
+    assert terms.extends_beyond_12_months is None
+    assert terms.basis == "published_default_prices"
+
+
+def test_projected_annual_fees_affect_vat_and_ranking_after_subscription_expiry() -> None:
+    as_of = date(2026, 10, 18)
+    request, _ = _current_parameter_case(as_of)
+    catalog = _catalog_expiring_before_activation(as_of, annual_fee="84")
+    dearer = _catalog_expiring_before_activation(as_of, annual_fee="120").records[0]
+    dearer = dearer.model_copy(update={"source_offer_id": "HIGHER_ANNUAL_FEE"})
+    catalog = catalog.model_copy(update={"records": (*catalog.records, dearer)})
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 10, 18, 12, tzinfo=UTC))
+    anchor = load_domestic_projection_anchor(as_of)
+    result = service.compare(request, catalog, _history(as_of), anchor, _coverage(anchor, as_of))
+    alternatives = result.base.comparison_result.alternatives
+    assert len(alternatives) == 2
+    cheaper, dearer_result = sorted(
+        alternatives, key=lambda item: item.pricing.breakdown.total.amount
+    )
+    assert cheaper.pricing.breakdown.total.amount == Decimal("804.00")
+    assert dearer_result.pricing.breakdown.total.amount == Decimal("840.00")
+    assert cheaper.comparable_total is not None
+    assert dearer_result.comparable_total is not None
+    assert dearer_result.comparable_total.amount - cheaper.comparable_total.amount == Decimal(
+        "39.60"
+    )
+    ranking = result.base.comparison_result.ranking
+    assert list(ranking) == [cheaper.offer_id, dearer_result.offer_id]
+
+
+def test_projected_horizon_gate_rejects_missing_or_different_economic_context() -> None:
+    as_of = date(2026, 10, 18)
+    request, _ = _current_parameter_case(as_of)
+    catalog = _catalog_expiring_before_activation(as_of)
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 10, 18, 12, tzinfo=UTC))
+    anchor = load_domestic_projection_anchor(as_of)
+    result = service.compare(request, catalog, _history(as_of), anchor, _coverage(anchor, as_of))
+    imported = result.base.import_result.normalized[0]
+    terms = imported.economic_terms
+    assert terms is not None
+    assert service._offer_covers_horizon(imported, result.period)
+    assert not service._offer_covers_horizon(
+        imported.model_copy(update={"economic_terms": None}), result.period
+    )
+    for changed in (
+        {"activation_date": as_of},
+        {"estimate_period": DatePeriod(start=date(2026, 11, 1), end=date(2027, 12, 1))},
+    ):
+        assert not service._offer_covers_horizon(
+            imported.model_copy(update={"economic_terms": terms.model_copy(update=changed)}),
+            result.period,
+        )

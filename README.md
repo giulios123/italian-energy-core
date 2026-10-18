@@ -39,6 +39,20 @@ acquisisce il CdispD ufficiale dal CSV giornaliero e lo applica alla stima
 annuale come assunzione esplicita, mantenendo digest e provenance senza
 alterare il replay storico o i tre scenari PUN.
 
+### In preparazione: 0.13.5
+
+La prossima versione separa la scadenza per aderire dalla durata economica:
+un'offerta rimane selezionabile fino al giorno di scadenza incluso, mentre i
+prezzi e le quote decorrono dall'attivazione simulata. Le condizioni dichiarate
+per dodici mesi coprono così l'intero anno, anche se l'adesione termina prima
+dell'attivazione. I metadati `economic_terms` riportano durata, ambito e fonte
+per evidenziare condizioni superiori a dodici mesi, senza attribuire un prezzo
+bloccato alle offerte indicizzate. Le condizioni indeterminate permettono una
+stima annua sui prezzi predefiniti pubblicati, senza una promessa di durata.
+Un nuovo refresh del catalogo è necessario per acquisire il parser v6;
+risultati e snapshot storici rimangono leggibili. La preparazione del sorgente
+e degli artefatti locali non costituisce pubblicazione o adozione Platform.
+
 ## Architettura
 
 - `domain/`: value object, entità, provenance e risultati immutabili;

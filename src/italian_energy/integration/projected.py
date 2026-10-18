@@ -326,6 +326,8 @@ class ProjectedComparisonAssumptions(DomainModel):
     future_values_verified: Literal[False] = False
     costs_are_estimates: Literal[True] = True
     cdispd_projection: PortalCdispDProjection | None = None
+    offer_activation_date: date | None = None
+    offer_validity_method: Literal["separate_subscription_and_economic_terms"] | None = None
 
     @field_validator("index_multipliers", mode="before")
     @classmethod
@@ -449,6 +451,14 @@ class ProjectedDomesticComparisonResult(DomainModel):
             raise ValueError("projected result must cover the next twelve complete months")
         if self.assumptions.future_period != self.period:
             raise ValueError("projection assumptions must name the result horizon")
+        if (self.assumptions.offer_activation_date is None) != (
+            self.assumptions.offer_validity_method is None
+        ):
+            raise ValueError("offer activation date and validity method must be supplied together")
+        if self.assumptions.offer_activation_date is not None and (
+            self.assumptions.offer_activation_date != self.period.start
+        ):
+            raise ValueError("offer activation must match the future estimate start")
         cdispd_projection = self.assumptions.cdispd_projection
         if cdispd_projection is not None and (
             cdispd_projection.period != self.period

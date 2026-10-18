@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.13.5] - Unreleased
+
+### Fixed
+
+- La data limite di adesione è inclusiva e non tronca prezzi o quote dopo
+  l'attivazione simulata, fissata all'inizio dell'orizzonte annuale.
+- Il parser legge `DettaglioOfferta/DURATA` dal percorso diretto e conserva
+  separatamente i periodi dei singoli prezzi, senza confondere durate annidate.
+- Durate economiche dichiarate insufficienti, strutture temporali ambigue e
+  condizioni commerciali non modellate restano escluse con fonte e motivo.
+
+### Added
+
+- Metadati tipizzati `economic_terms` con attivazione, periodo, durata nota,
+  ambito, base e provenance; capability `portal_offer_economic_validity`.
+- Il percorso prospettico usa prezzi predefiniti pubblicati anche con durata
+  indeterminata, dichiarando la base della stima senza inventare un vincolo
+  numerico. I vecchi snapshot richiedono refresh per la nuova normalizzazione;
+  lettura dei risultati persistiti e percorso storico rimangono compatibili.
+- Durata superiore a dodici mesi esponibile al consumatore, distinguendo
+  condizioni commerciali e solo prezzo/formula energia.
+
+### Verification
+
+- 895 test passati, copertura con branch 95,00%; Ruff check/format, mypy e
+  lock check passano. Test indipendenti coprono quote, IVA, graduatoria,
+  scadenza inclusiva, attivazione futura, promozioni e snapshot legacy.
+- Replay ufficiale del 18 ottobre: 257 candidate annuali per il profilo
+  sintetico Roma/non residente, contro otto del filtro precedente; 57 con
+  condizioni oltre dodici mesi. È una prova di selezione, non una nuova
+  attestazione della regolazione futura o un confronto completo live.
+- Preparazione locale; nessuna pubblicazione, adozione o deployment impliciti.
+  Evidenze in `docs/offer-economic-validity-0.13.5.md`.
+
 ## [0.13.4] - 2026-10-18
 
 ### Added

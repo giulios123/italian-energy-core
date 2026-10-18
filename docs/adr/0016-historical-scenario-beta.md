@@ -80,6 +80,15 @@ dodici mesi futuri è un'assunzione tracciata, uniforme nei tre scenari; non
 richiede che siano già pubblicati i consuntivi futuri, non estende le righe
 storiche e non aggiunge nuovamente perdite o mercato capacità.
 
+L'addendum 0.13.5 separa la sottoscrizione a `as_of` dall'attivazione
+economica all'inizio dell'orizzonte. La scadenza di adesione è inclusiva e non
+tronca prezzi o quote. La durata dichiarata deriva dal `DURATA` diretto di
+`DettaglioOfferta`; le finestre dei singoli prezzi rimangono autonome secondo
+Spec 008 v0.8.4. Il risultato congela attivazione, metodo, durata e ambito
+economico; le condizioni dichiarate oltre un anno possono essere esposte
+come tali, mantenendo il periodo simulato di dodici mesi. La stima con prezzi
+predefiniti non attribuisce una durata certa a condizioni indeterminate.
+
 ## Conseguenze
 
 - L’output è una stima condizionata alle assunzioni esposte.

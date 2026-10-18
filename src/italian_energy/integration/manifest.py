@@ -28,6 +28,7 @@ class CoreCapability(StrEnum):
     PORTAL_OFFERS_IMPORT = "portal_offers_import"
     PORTAL_CDISPD_REFERENCE_PRICING = "portal_cdispd_reference_pricing"
     PORTAL_CDISPD_PARAMETER_PROJECTION = "portal_cdispd_parameter_projection"
+    PORTAL_OFFER_ECONOMIC_VALIDITY = "portal_offer_economic_validity"
     HISTORICAL_PORTAL_COMPARISON = "historical_portal_comparison"
     CURRENT_PORTAL_COMPARISON = "current_portal_comparison"
     CURRENT_PORTAL_PREFLIGHT = "current_portal_preflight"

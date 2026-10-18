@@ -1,5 +1,21 @@
 # Progress
 
+## Core 0.13.5 — adesione e durata, preparata 2026-10-18
+
+- **Scritto:** Spec 008 v0.8.4, Spec 013, ADR 0012/0016; DATA_FINE limita
+  l'adesione inclusiva, non la validità economica successiva all'attivazione.
+- **Implementato:** parser v6/mapping v2, contesto economico prospettico,
+  economic_terms e capability portal_offer_economic_validity; prezzi default,
+  durate esplicite, scadenze autonome e sconti mantengono significati distinti.
+  I nodi Sconto non modellati non vengono più ignorati nel percorso proiettato.
+- **Verificato:** 895 test / 95,00%, Ruff, mypy e lock check passano; quota
+  annua 84/120, differenza IVA inclusa 39,60 EUR, ranking e sconto semestrale
+  sono attesi indipendenti. Replay ufficiale: 257 candidate invece di otto,
+  con 57 durate oltre un anno; è normalizzazione, non live billing/regolazione.
+- **Aperto separatamente:** pubblicazione, artefatto adottato da Platform,
+  nuovo refresh v6, collaudo HTTP/worker/browser e deployment. Nessun
+  commit/push/tag incluso. Report: `docs/offer-economic-validity-0.13.5.md`.
+
 ## Release Core 0.13.4 — pubblicata 2026-10-18
 
 - Commit `b4de15af1561eb3cef33910bca7e60bc4ead1bdb` e tag `v0.13.4` pubblicati

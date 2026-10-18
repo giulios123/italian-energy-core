@@ -1,0 +1,178 @@
+{
+  "dataset_date": "2026-10-18",
+  "profile": {
+    "territory": {
+      "region_code": "12",
+      "province_code": "058",
+      "municipality_code": "058091"
+    },
+    "voltage_level": "BT",
+    "domestic": true,
+    "residential": false,
+    "activation_method": "01",
+    "payment_method": "01"
+  },
+  "catalog_snapshot_id": "portal-snapshot:1360d71b92cc45cc8f8b6c1f8ec6fe18c7bbda53d9f21d2b4b02fc5027ca0412",
+  "parser_version": "008-portal-offers-v6",
+  "records": 4550,
+  "future_period": {
+    "start": "2026-11-01",
+    "end": "2027-11-01"
+  },
+  "normalized": 257,
+  "eligible_full_horizon": 257,
+  "old_horizon_count": 8,
+  "exclusions": {
+    "classification_not_covered": 2117,
+    "activation_not_covered": 1735,
+    "unsupported_commercial_component": 116,
+    "tariff_not_representable": 53,
+    "unsupported_offer_type": 1,
+    "payment_not_covered": 205,
+    "dual_fuel_required": 2,
+    "missing_commercial_component": 2,
+    "period_not_covered": 1,
+    "territory_not_covered": 51,
+    "duplicate_offer_id": 10
+  },
+  "duration_months": {
+    "24": 32,
+    "None": 22,
+    "36": 8,
+    "12": 178,
+    "60": 1,
+    "39": 1,
+    "27": 2,
+    "26": 2,
+    "99": 4,
+    "18": 4,
+    "25": 3
+  },
+  "duration_basis": {
+    "declared_economic_conditions": 232,
+    "published_default_prices": 22,
+    "explicit_component_validity": 3
+  },
+  "offers_beyond_twelve_months": 57,
+  "examples_beyond_twelve_months": [
+    {
+      "offer_id": "000039ESVOL01XXREAE1001261260401",
+      "name": "REALE LUCE DOMESTICA",
+      "economic_terms": {
+        "activation_date": "2026-11-01",
+        "estimate_period": {
+          "start": "2026-11-01",
+          "end": "2027-11-01"
+        },
+        "known_duration_months": 24,
+        "duration_scope": "seller_conditions",
+        "extends_beyond_12_months": true,
+        "basis": "declared_economic_conditions",
+        "provenance": [
+          {
+            "source": "portale_offerte",
+            "source_identifier": "000039ESVOL01XXREAE1001261260401",
+            "retrieved_at": "2026-10-18T17:05:38.796900Z",
+            "effective_period": null,
+            "dataset_version": "OffertaRetail/01",
+            "sha256": "747f0d9ce0aef0475aae9281e51dd56a632c6bf9fc97e0748dd2bd1c947f552e",
+            "url": "https://www.ilportaleofferte.it/portaleOfferte/resources/opendata/csv/offerteML/2026_10/PO_Offerte_E_MLIBERO_20261018.xml",
+            "locator": {
+              "document": "market_free_offers",
+              "sheet": null,
+              "cell": null,
+              "section": "offer:000039ESVOL01XXREAE1001261260401/DettaglioOfferta/DURATA"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "offer_id": "000139ESFML01XXW78250WR000000000",
+      "name": "DOLOMITI FISSO LUCE 36 WEB",
+      "economic_terms": {
+        "activation_date": "2026-11-01",
+        "estimate_period": {
+          "start": "2026-11-01",
+          "end": "2027-11-01"
+        },
+        "known_duration_months": 36,
+        "duration_scope": "seller_conditions",
+        "extends_beyond_12_months": true,
+        "basis": "declared_economic_conditions",
+        "provenance": [
+          {
+            "source": "portale_offerte",
+            "source_identifier": "000139ESFML01XXW78250WR000000000",
+            "retrieved_at": "2026-10-18T17:05:38.796900Z",
+            "effective_period": null,
+            "dataset_version": "OffertaRetail/01",
+            "sha256": "747f0d9ce0aef0475aae9281e51dd56a632c6bf9fc97e0748dd2bd1c947f552e",
+            "url": "https://www.ilportaleofferte.it/portaleOfferte/resources/opendata/csv/offerteML/2026_10/PO_Offerte_E_MLIBERO_20261018.xml",
+            "locator": {
+              "document": "market_free_offers",
+              "sheet": null,
+              "cell": null,
+              "section": "offer:000139ESFML01XXW78250WR000000000/DettaglioOfferta/DURATA"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "offer_id": "000142ESFML01XXResECAn0000119016",
+      "name": "Enel Drive Luce",
+      "economic_terms": {
+        "activation_date": "2026-11-01",
+        "estimate_period": {
+          "start": "2026-11-01",
+          "end": "2027-11-01"
+        },
+        "known_duration_months": 24,
+        "duration_scope": "seller_conditions",
+        "extends_beyond_12_months": true,
+        "basis": "declared_economic_conditions",
+        "provenance": [
+          {
+            "source": "portale_offerte",
+            "source_identifier": "000142ESFML01XXResECAn0000119016",
+            "retrieved_at": "2026-10-18T17:05:38.796900Z",
+            "effective_period": null,
+            "dataset_version": "OffertaRetail/01",
+            "sha256": "747f0d9ce0aef0475aae9281e51dd56a632c6bf9fc97e0748dd2bd1c947f552e",
+            "url": "https://www.ilportaleofferte.it/portaleOfferte/resources/opendata/csv/offerteML/2026_10/PO_Offerte_E_MLIBERO_20261018.xml",
+            "locator": {
+              "document": "market_free_offers",
+              "sheet": null,
+              "cell": null,
+              "section": "offer:000142ESFML01XXResECAn0000119016/DettaglioOfferta/DURATA"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "sources": [
+    {
+      "role": "market_free_offers",
+      "url": "https://www.ilportaleofferte.it/portaleOfferte/resources/opendata/csv/offerteML/2026_10/PO_Offerte_E_MLIBERO_20261018.xml",
+      "sha256": "747f0d9ce0aef0475aae9281e51dd56a632c6bf9fc97e0748dd2bd1c947f552e"
+    },
+    {
+      "role": "market_free_parameters",
+      "url": "https://www.ilportaleofferte.it/portaleOfferte/resources/opendata/csv/parametriML/2026_10/PO_Parametri_Mercato_Libero_E_20261018.csv",
+      "sha256": "801bb798d551656be3e7e9db45431d81fc0bb5df147dfb4f94b722e577e639d0"
+    },
+    {
+      "role": "placet_offers",
+      "url": "https://www.ilportaleofferte.it/portaleOfferte/resources/opendata/csv/offerte/2026_10/PO_Offerte_E_PLACET_20261018.csv",
+      "sha256": "2aa3e04b0df72b0a7dcfa17530e406c2336b4f333ff182414ccfb312f6d024e6"
+    },
+    {
+      "role": "placet_parameters",
+      "url": "https://www.ilportaleofferte.it/portaleOfferte/resources/opendata/csv/parametri/2026_10/PO_Parametri_E_20261018.csv",
+      "sha256": "801bb798d551656be3e7e9db45431d81fc0bb5df147dfb4f94b722e577e639d0"
+    }
+  ],
+  "scope": "catalogue parsing and projected normalization after envelope hydration; not a regulatory/market preflight or full live billing comparison"
+}

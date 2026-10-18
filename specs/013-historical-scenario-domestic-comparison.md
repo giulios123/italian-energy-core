@@ -7,6 +7,8 @@ applicate rilasciate in Core `v0.13.3` il 2026-10-18.
 **Addendum CdispD:** parametro corrente del Portal per la proiezione annuale
 implementato e rilasciato in Core `v0.13.4` il 2026-10-18. Il gate sulla
 copertura tariffaria effettiva dei dodici mesi resta aperto e distinto.
+**Addendum 0.13.5:** sottoscrizione separata dalle condizioni economiche,
+attivazione all'inizio dell'orizzonte e durata dichiarata secondo Spec 008 v0.8.4.
 
 ## Stato e scopo
 
@@ -33,10 +35,19 @@ il mese di `as_of`. Per `as_of = 2026-09-27`, il periodo è
   complessiva. Usare `Decimal` senza introdurre arrotondamenti intermedi.
 - Usare lo snapshot catalogo ufficiale acquisito a `as_of`. Verificare la
   sottoscrivibilità a tale data separatamente dalla decorrenza e durata delle
-  condizioni economiche. Escludere condizioni note che non coprono i dodici
-  mesi. La finestra di sottoscrizione del catalogo non prova la durata del prezzo:
-  se la durata economica è assente, non estendere il prezzo e riportare
-  l'esclusione; esporre le assunzioni commerciali applicate.
+  condizioni economiche. La scadenza di adesione è inclusiva: un'offerta è
+  sottoscrivibile anche il giorno `DATA_FINE`. Nel solo percorso prospettico,
+  far decorrere le condizioni dall'inizio dei dodici mesi simulati, senza
+  troncarle alla fine della sottoscrizione. Usare il `DURATA` diretto di
+  `DettaglioOfferta` per la durata dichiarata delle condizioni economiche;
+  `-1` significa indeterminata. Interpretare separatamente i periodi strutturati
+  dei singoli prezzi, i prezzi predefiniti e le scadenze autonome secondo
+  Spec 008 v0.8.4. I prezzi predefiniti pubblicati permettono una stima annua
+  esplicita senza inventare una promessa di prezzo per dodici mesi; condizioni
+  note insufficienti, ambigue o non rappresentabili restano escluse.
+  Conservare durata e ambito, evidenziando solo durate provate oltre dodici
+  mesi; la stima resta sempre annuale. Questo addendum sostituisce il precedente
+  divieto assoluto di stima in assenza di durata numerica.
 - Selezionare componenti regolatorie e fiscali ufficiali valide a `as_of`, con
   profilo residente/non residente, unità, periodi, digest e riferimenti di
   fonte. Applicarle uniformemente agli scenari come assunzione futura. La

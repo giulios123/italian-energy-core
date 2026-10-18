@@ -448,6 +448,30 @@ def test_projected_comparison_result_checks_scenario_order_and_exact_windows() -
         )
 
 
+def test_projected_activation_assumption_is_paired_frozen_and_legacy_optional() -> None:
+    result = _projected_result()
+    assert result.assumptions.offer_activation_date == result.period.start
+    assert result.assumptions.offer_validity_method == "separate_subscription_and_economic_terms"
+    for missing in ("offer_activation_date", "offer_validity_method"):
+        payload = deepcopy(result.model_dump(mode="python"))
+        payload["assumptions"].pop(missing)
+        with pytest.raises(ValidationError, match="supplied together"):
+            ProjectedDomesticComparisonResult.model_validate(payload)
+
+    payload = deepcopy(result.model_dump(mode="python"))
+    payload["assumptions"]["offer_activation_date"] = result.as_of
+    with pytest.raises(ValidationError, match="future estimate start"):
+        ProjectedDomesticComparisonResult.model_validate(payload)
+
+    payload = deepcopy(result.model_dump(mode="python"))
+    payload["assumptions"].pop("offer_activation_date")
+    payload["assumptions"].pop("offer_validity_method")
+    restored = ProjectedDomesticComparisonResult.model_validate(payload)
+    assert restored.assumptions.offer_activation_date is None
+    assert restored.assumptions.offer_validity_method is None
+    assert restored.result_id == result.result_id
+
+
 def test_verified_inputs_fail_closed_for_status_digest_window_and_source_url() -> None:
     evidence = _projected_result().verified_inputs
     base = evidence.model_dump(mode="python")

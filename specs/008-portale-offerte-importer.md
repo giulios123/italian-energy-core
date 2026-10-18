@@ -779,3 +779,110 @@ malformato, origine o data errata, bytes manomessi, nessun doppio conteggio,
 nessuna maggiorazione perdite, nessuna variazione con gli scenari PUN,
 provenance e assunzione in envelope/digest, nessun utilizzo implicito nel replay
 storico, e catalogo misto con altre offerte complete.
+
+## Addendum v0.8.4 — adesione, decorrenza e durata economica (Core 0.13.5)
+
+**Stato:** specifica normativa richiesta il 2026-10-18; preparazione della
+versione 0.13.5, senza autorizzazione a commit, push, tag o pubblicazione.
+
+### Selezione e date
+
+La data limite dell'offerta stabilisce fino a quando è possibile aderire.
+L'offerta è selezionabile se `DATA_INIZIO <= as_of <= DATA_FINE`; le date civili
+inclusive sono conservate internamente come intervallo half-open con fine al
+giorno successivo. La fine adesione non limita i prezzi dopo l'attivazione.
+Data iniziale futura, offerta già scaduta, territorio o modalità incompatibili
+continuano a produrre le esclusioni pertinenti.
+
+Il percorso prospettico passa esplicitamente al normalizzatore la data di
+attivazione e il periodo economico, distinti da `as_of`. Nella beta,
+`activation_date == economic_period.start == future_period(as_of).start`.
+Una durata relativa di dodici mesi dal 1° novembre 2026 termina il 1° novembre
+2027 escluso, anche quando l'adesione scade il 31 ottobre 2026. Né `as_of`
+né la finestra adesione sono scadenze economiche implicite.
+
+Il normalizzatore conserva il comportamento storico quando il nuovo contesto
+prospettico è assente. I risultati persistiti non vengono ricalcolati o
+modificati in lettura; il nuovo parser e il mapping temporale sono versionati.
+Gli snapshot precedenti non sono reinterpretati come prova di campi che non
+conservavano: un refresh acquisisce la nuova rappresentazione strutturata.
+
+### Lettura delle condizioni economiche
+
+I campi di durata devono essere letti da percorsi XML strutturali espliciti.
+La ricerca ricorsiva del primo `DURATA` nell'offerta è vietata per determinare
+la validità economica o una garanzia di prezzo. Il [tracciato ufficiale SII
+v5.0 del 15 dicembre 2025](https://siiportale.acquirenteunico.it/documents/11387888/11426817/Funzionamento%2Be%2BSpecifiche%2Bdel%2BProcesso%2Bdi%2BTrasmissione%2BOfferte%2BMercato%2BRetail_v5.0.pdf/c7fb0256-ce8d-0977-3356-227cfaa91443?download=true&t=1765796222946),
+§7.1 p.53, definisce `DettaglioOfferta/DURATA` come durata delle condizioni
+economiche in mesi. Il parser legge esattamente quel percorso: un intero
+positivo conserva la durata dichiarata, `-1` significa durata indeterminata.
+L'assenza o un valore sconosciuto non diventano una durata positiva. Il campo
+è distinto dalla durata del singolo prezzo e non è un'enumerazione limitata
+a 12/24/36 mesi. La base del relativo metadato è
+`declared_economic_conditions`, con scope `seller_conditions`.
+
+Le [Regole Portale v4.2 del 5 ottobre 2026](https://www.ilportaleofferte.it/portaleOfferte/resources/cms/documents/6bc502553cb0ea45958840b2de20078d.pdf),
+sezione validità condizioni economiche della spesa materia energia, definiscono
+`ComponenteImpresa/IntervalloPrezzi/PeriodoValidita`: `DURATA` indica i primi
+mesi dall'attivazione, `VALIDO_FINO` il mese limite in formato `MM/AAAA` e
+`MESE_VALIDITA` il mese
+solare. Le modalità sono alternative. Una riga senza limitazione è il prezzo
+di default per la stima e copre i periodi non coperti da prezzi specifici.
+
+Il parser conserva limitazione, unità, codice componente, fascia, macroarea,
+locator, campi raw e provenance. Un periodo presente ma malformato o non
+supportato non equivale a un prezzo di default. Non si ignorano sconti,
+scaglioni o cambi di prezzo per rendere artificialmente completa l'offerta.
+I nodi XML `Sconto` non ancora rappresentabili con le regole canoniche
+conservano raw fields e locator dedicati e bloccano la nuova normalizzazione
+prospettica con `unsupported_commercial_component`. Non diventano né zero né
+un addebito ricorrente. Questo gate prudenziale non introduce il supporto
+economico completo a tutte le tipologie di sconto del tracciato.
+
+Nella stima annuale sono utilizzabili i prezzi di default pubblicati e le
+condizioni esplicite che coprono il periodo economico. L'assenza di una durata
+esplicita non blocca da sola un prezzo di default annualizzabile; comporta
+invece una durata garantita non dimostrata. Prezzi o quote ricorrenti non
+scadono con la sottoscrizione. Promozioni e sconti mantengono la propria
+validità e non sono estesi automaticamente. Se una struttura temporale non è
+rappresentabile senza perdere un cambio di prezzo, l'offerta resta esclusa
+con motivo e fonte: non si inventano prezzi per i mesi mancanti.
+
+### Informazione oltre dodici mesi
+
+La normalizzazione espone metadati tipizzati sul periodo applicato, sulla
+base della stima e sulla durata economica **provata**. Il dato distingue le
+condizioni del venditore dal solo prezzo/parametro energia quando la prova
+riguarda una componente. Un prezzo di default consente la stima annuale ma
+non prova una garanzia di 12, 24 o 36 mesi. Una durata generale del contratto
+non prova la durata dei prezzi. Per un'offerta indicizzata, il periodo di
+validità riguarda la formula/spread del venditore e non rende costante l'indice.
+
+Un indicatore positivo oltre 12 mesi richiede un periodo esplicito, fonte
+puntuale e scope coerente. Quote o componenti con scadenze diverse non sono
+nascoste da un'unica durata più lunga. Dove la durata non è provata, il campo
+resta sconosciuto e non appare una promessa di prezzo. Core determina i
+metadati; Platform può copiarli e formattare l'etichetta senza ricostruire
+validità, costi o ranking.
+
+Il nuovo contesto, le durate applicate e i relativi metadati partecipano agli
+identificatori canonici. Preflight e compare usano lo stesso contesto. I prezzi
+regolati, CdispD, imposte e scenari mantengono le proprie regole e assunzioni.
+
+### Regressioni obbligatorie
+
+- Offerta valida nel giorno di scadenza, esclusa il giorno successivo e prima
+  della data iniziale; nessuna estensione della finestra di adesione.
+- Adesione entro 31 ottobre, attivazione 1° novembre, prezzo per dodici mesi:
+  copertura fino al 1° novembre dell'anno successivo senza taglio a DATA_FINE.
+- Durata annidata distinta da quella generale, `-1`, durata assente, prezzi
+  default, validità esplicita inferiore all'anno e dati malformati.
+- Quote annuali ordinarie applicate per dodici mesi, promozioni non prolungate,
+  importi e IVA verificati indipendentemente.
+- Metadati per 12/24/36 mesi e sconosciuto, scope corretto per indicizzate,
+  assenza di badge ingannevoli, envelope/hydration e digest sensibili alle date.
+- Replay storico compatibile, vecchi snapshot leggibili, nuova normalizzazione
+  esplicitamente versionata e nessun ricalcolo dello storico in lettura.
+- Riprova sul catalogo ufficiale: conteggi delle esclusioni motivati e confronto
+  tra il vecchio filtro a 8 candidate e il criterio corretto, senza usare il
+  solo aumento del numero come prova di correttezza economica.

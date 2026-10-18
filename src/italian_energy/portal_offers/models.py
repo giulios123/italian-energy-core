@@ -87,6 +87,9 @@ class PortalLossTreatment(StrEnum):
 
 
 PORTAL_DISPATCHING_MAPPING_VERSION = "portale-dispacciamento-v1"
+PORTAL_ECONOMIC_VALIDITY_VERSION: Literal["portale-regole-4.2-economic-validity-v2"] = (
+    "portale-regole-4.2-economic-validity-v2"
+)
 
 
 class PortalOfferExclusionCode(StrEnum):
@@ -109,6 +112,28 @@ class PortalOfferExclusionCode(StrEnum):
     UNSUPPORTED_COMMERCIAL_COMPONENT = "unsupported_commercial_component"
     MISSING_COMMERCIAL_COMPONENT = "missing_commercial_component"
     AMBIGUOUS_COMPONENT_COMPOSITION = "ambiguous_component_composition"
+    ECONOMIC_TERMS_UNVERIFIED = "economic_terms_unverified"
+    ECONOMIC_PERIOD_NOT_REPRESENTABLE = "economic_period_not_representable"
+
+
+class PortalPriceValidityKind(StrEnum):
+    DEFAULT = "default"
+    DURATION = "duration"
+    VALID_UNTIL = "valid_until"
+    MONTH = "month"
+    UNSUPPORTED = "unsupported"
+
+
+class PortalEconomicTermsBasis(StrEnum):
+    DECLARED_ECONOMIC_CONDITIONS = "declared_economic_conditions"
+    EXPLICIT_COMPONENT_VALIDITY = "explicit_component_validity"
+    PUBLISHED_DEFAULT_PRICES = "published_default_prices"
+    UNKNOWN = "unknown"
+
+
+class PortalEconomicDurationScope(StrEnum):
+    SELLER_CONDITIONS = "seller_conditions"
+    ENERGY_PRICE = "energy_price"
 
 
 class PortalFileSnapshot(DomainModel):
@@ -323,6 +348,56 @@ class VerifiedMarketData(DomainModel):
         return self
 
 
+class PortalComponentPriceValidity(DomainModel):
+    """A structurally parsed component-price validity declaration."""
+
+    kind: PortalPriceValidityKind
+    duration_months: int | None = Field(default=None, ge=1)
+    month: date | None = None
+    raw_fields: tuple[tuple[str, str], ...] = ()
+
+    @model_validator(mode="after")
+    def validate_shape(self) -> PortalComponentPriceValidity:
+        if self.kind == PortalPriceValidityKind.DURATION:
+            if self.duration_months is None or self.month is not None:
+                raise ValueError("duration validity requires only a positive month count")
+        elif self.kind in {
+            PortalPriceValidityKind.VALID_UNTIL,
+            PortalPriceValidityKind.MONTH,
+        }:
+            if self.month is None or self.duration_months is not None or self.month.day != 1:
+                raise ValueError("calendar validity requires the first day of its month")
+        elif self.duration_months is not None or self.month is not None:
+            raise ValueError("default and unsupported validity cannot carry parsed bounds")
+        return self
+
+
+class PortalEconomicTerms(DomainModel):
+    """Coverage and duration evidence used for a projected annual estimate."""
+
+    activation_date: date
+    estimate_period: DatePeriod
+    known_duration_months: int | None = Field(default=None, ge=1)
+    duration_scope: PortalEconomicDurationScope | None = None
+    extends_beyond_12_months: bool | None = None
+    basis: PortalEconomicTermsBasis
+    provenance: tuple[Provenance, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_evidence(self) -> PortalEconomicTerms:
+        if self.estimate_period.start != self.activation_date:
+            raise ValueError("economic estimate must start on its activation date")
+        if self.known_duration_months is None and self.extends_beyond_12_months is True:
+            raise ValueError("extension beyond twelve months requires a known duration")
+        if self.known_duration_months is not None:
+            expected = self.known_duration_months > 12
+            if self.extends_beyond_12_months is not expected:
+                raise ValueError("extension flag must match the proven duration")
+            if self.duration_scope is None or not self.provenance:
+                raise ValueError("proven duration requires a scope and source provenance")
+        return self
+
+
 class PortalEconomicComponent(DomainModel):
     code: str = Field(min_length=1)
     description: str = Field(min_length=1)
@@ -340,6 +415,7 @@ class PortalEconomicComponent(DomainModel):
     loss_treatment: PortalLossTreatment = PortalLossTreatment.NOT_APPLICABLE
     included_semantics: tuple[PortalComponentSemantic, ...] = ()
     period: DatePeriod | None = None
+    price_validity: PortalComponentPriceValidity | None = None
     mapping_version: str | None = None
     source_provenance: tuple[Provenance, ...] = ()
     source_fields: tuple[tuple[str, str], ...] = ()
@@ -359,6 +435,10 @@ class PortalOfferRecord(DomainModel):
     subscription_period: DatePeriod
     tariff_validity: DatePeriod
     duration_months: int | None = Field(default=None, ge=1)
+    economic_conditions_duration_raw: str | None = None
+    economic_conditions_duration_provenance: tuple[Provenance, ...] = ()
+    economic_validity_version: str | None = None
+    unmodeled_commercial_terms: tuple[Provenance, ...] = ()
     customer_type: str = Field(min_length=1)
     activation_methods: tuple[str, ...] = ()
     payment_methods: tuple[str, ...] = ()
@@ -385,6 +465,7 @@ class NormalizedPortalOffer(DomainModel):
     source_record: PortalOfferRecord
     assumptions: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    economic_terms: PortalEconomicTerms | None = None
 
 
 class PortalOfferExclusion(DomainModel):

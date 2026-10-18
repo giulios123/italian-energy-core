@@ -67,6 +67,28 @@ copertura mensile esatta. Parametro assente o non valido esclude le sole
 offerte dipendenti; fonte/data/digest, aggregato unico e assenza di doppi
 conteggi restano vincolanti. Dettagli in Spec 008 addendum v0.8.3.
 
+### Decisione v0.8.4 — sottoscrizione e condizioni economiche
+
+Nel percorso prospettico, le date di `ValiditaOfferta` delimitano l'adesione:
+`DATA_FINE` è inclusiva e non è la scadenza del prezzo dopo l'attivazione.
+Il confronto verifica l'adesione a `as_of` e attiva economicamente l'offerta
+all'inizio del suo orizzonte futuro. Il replay storico conserva il percorso
+originario e non ricalcola risultati già congelati.
+
+Le Specifiche SII del Processo di Trasmissione Offerte Mercato Retail v5.0,
+p. 53, definiscono il `DURATA` diretto di `DettaglioOfferta` come durata delle
+condizioni economiche in mesi; `-1` significa indeterminata. I periodi dei
+prezzi sono nodi distinti, descritti dalle Regole Portale v4.2 pp. 25–26:
+primi N mesi, mese finale `MM/AAAA`, mese di calendario o prezzo predefinito.
+La lettura ricorsiva di un qualunque `DURATA` non è quindi ammessa.
+
+Il parser v6 conserva questi dati strutturati e il normalizzatore espone
+ambito e base della durata. Prezzi predefiniti consentono la stima annuale
+senza una garanzia numerica di durata. Nessuna promozione, scadenza autonoma
+o cambiamento di prezzo viene esteso o eliminato per rendere l'offerta
+calcolabile. Snapshot precedenti restano leggibili ma richiedono un nuovo
+refresh per accedere a questa semantica, senza deduzioni da campi mancanti.
+
 ## Conseguenze
 
 - Il dominio rimane indipendente da web framework, browser, database, cloud e

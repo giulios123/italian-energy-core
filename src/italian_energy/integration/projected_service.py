@@ -794,6 +794,8 @@ class ProjectedDomesticEnergyService:
             regulatory_anchor_date=anchor.as_of,
             current_contract_continued=request.continuation_assumption,
             cdispd_projection=cdispd_projection,
+            offer_activation_date=horizon.start,
+            offer_validity_method="separate_subscription_and_economic_terms",
         )
         digest = _digest(
             {
@@ -912,8 +914,8 @@ class ProjectedDomesticEnergyService:
                         offer_id=offer.offer_id,
                         code=OfferExclusionCode.PERIOD_NOT_COVERED,
                         detail=(
-                            "known economic duration does not cover the full future horizon; "
-                            "an absent duration is not inferred from the subscription window"
+                            "published economic conditions do not cover the full future "
+                            "horizon from simulated activation"
                         ),
                     )
                 )
@@ -1067,6 +1069,8 @@ class ProjectedDomesticEnergyService:
             cdispd_reference=cdispd_reference,
             cdispd_reference_period=cdispd_reference_period,
             cdispd_projection=cdispd_projection,
+            activation_date=future_period(request.as_of).start,
+            economic_period=future_period(request.as_of),
         )
         return import_result.model_copy(update={"index_snapshot": catalog.snapshot.indexes})
 
@@ -1099,9 +1103,11 @@ class ProjectedDomesticEnergyService:
 
     @staticmethod
     def _offer_covers_horizon(item: NormalizedPortalOffer, horizon: DatePeriod) -> bool:
-        # DATA_FINE describes the subscription window; without a known economic
-        # duration it cannot support an assumed twelve-month price lock.
-        if item.source_record.duration_months is None:
+        # Resolve seller conditions from activation, separately from subscription expiry.
+        terms = item.economic_terms
+        if terms is None:
+            return False
+        if terms.activation_date != horizon.start or terms.estimate_period != horizon:
             return False
         return (
             item.offer.tariff.validity.start <= horizon.start

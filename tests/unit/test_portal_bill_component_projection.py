@@ -13,7 +13,11 @@ from italian_energy.integration import ProjectedDomesticEnergyService
 from italian_energy.integration.current import future_period
 from italian_energy.integration.service import CurrentDomesticEnergyService
 from italian_energy.portal_offers.importer import PortalOffersImporter
-from italian_energy.portal_offers.models import PortalEconomicComponent
+from italian_energy.portal_offers.models import (
+    PortalComponentPriceValidity,
+    PortalEconomicComponent,
+    PortalPriceValidityKind,
+)
 
 
 def test_imported_capacity_market_addition_reaches_annual_bill_once() -> None:
@@ -53,6 +57,7 @@ def test_imported_capacity_market_addition_reaches_annual_bill_once() -> None:
         unit="EUR/kWh",
         band="ALL",
         macroarea="04",
+        price_validity=PortalComponentPriceValidity(kind=PortalPriceValidityKind.DEFAULT),
     )
     records = tuple(
         record.model_copy(
@@ -60,6 +65,7 @@ def test_imported_capacity_market_addition_reaches_annual_bill_once() -> None:
                 "subscription_period": subscription,
                 "tariff_validity": tariff_validity,
                 "duration_months": 13,
+                "economic_conditions_duration_provenance": record.source_provenance,
                 "components": (
                     energy,
                     *((imported_charge,) if record.source_offer_id == "XML1" else ()),

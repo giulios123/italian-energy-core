@@ -23,7 +23,9 @@ from italian_energy.domain.regulatory import VerificationStatus
 from italian_energy.domain.time import DatePeriod
 from italian_energy.portal_offers.dispatching_mapping import make_dispatching_component
 from italian_energy.portal_offers.models import (
+    PORTAL_ECONOMIC_VALIDITY_VERSION,
     PortalCatalog,
+    PortalComponentPriceValidity,
     PortalComponentSemantic,
     PortalEconomicComponent,
     PortalEligibilityProfile,
@@ -33,6 +35,7 @@ from italian_energy.portal_offers.models import (
     PortalOffersImportResult,
     PortalOffersSnapshot,
     PortalOfferType,
+    PortalPriceValidityKind,
     PortalSnapshot,
     PortalSourceRole,
 )
@@ -42,7 +45,7 @@ PORTAL_HOST = "www.ilportaleofferte.it"
 PORTAL_BASE = "https://www.ilportaleofferte.it"
 PORTAL_SCHEMA_VERSION = "OffertaRetail/01"
 PORTAL_XML_NAMESPACE = "http://www.acquirenteunico.it/schemas/SII_AU/OffertaRetail/01"
-PORTAL_PARSER_VERSION = "008-portal-offers-v4"
+PORTAL_PARSER_VERSION = "008-portal-offers-v6"
 PORTAL_INDEX_URL = (
     f"{PORTAL_BASE}/portaleOfferte/resources/cms/documents/5d6f1085b4d5f20821af55764e647671.csv"
 )
@@ -203,6 +206,80 @@ def _text(element: Any, name: str) -> str | None:
             if value:
                 return value
     return None
+
+
+def _direct_children(element: Any, name: str) -> tuple[Any, ...]:
+    return tuple(child for child in element if _local_name(child.tag) == name)
+
+
+def _direct_text(element: Any, name: str) -> str | None:
+    for child in _direct_children(element, name):
+        if child.text is not None:
+            value = str(child.text).strip()
+            if value:
+                return value
+    return None
+
+
+def _parse_portal_month(value: str) -> date:
+    raw = value.strip()
+    for fmt in ("%m/%Y", "%Y-%m"):
+        try:
+            parsed = datetime.strptime(raw, fmt).date()
+            return parsed.replace(day=1)
+        except ValueError:
+            continue
+    raise ValueError(f"unsupported Portale Offerte month: {value!r}")
+
+
+def _component_price_validity(interval: Any) -> PortalComponentPriceValidity:
+    declarations = _direct_children(interval, "PeriodoValidita")
+    if not declarations:
+        return PortalComponentPriceValidity(kind=PortalPriceValidityKind.DEFAULT)
+
+    raw_fields = tuple(
+        (_local_name(field.tag), str(field.text or "").strip())
+        for declaration in declarations
+        for field in declaration
+        if field.text is not None
+    )
+    if len(declarations) != 1:
+        return PortalComponentPriceValidity(
+            kind=PortalPriceValidityKind.UNSUPPORTED, raw_fields=raw_fields
+        )
+    declaration = declarations[0]
+    values = tuple(
+        (_local_name(field.tag), str(field.text).strip())
+        for field in declaration
+        if field.text is not None and str(field.text).strip()
+    )
+    supported_names = {"DURATA", "VALIDO_FINO", "MESE_VALIDITA"}
+    if len(values) != 1 or values[0][0] not in supported_names:
+        return PortalComponentPriceValidity(
+            kind=PortalPriceValidityKind.UNSUPPORTED, raw_fields=raw_fields
+        )
+    name, value = values[0]
+    try:
+        if name == "DURATA":
+            duration = int(value)
+            if duration < 1:
+                raise ValueError("component duration must be positive")
+            return PortalComponentPriceValidity(
+                kind=PortalPriceValidityKind.DURATION,
+                duration_months=duration,
+                raw_fields=raw_fields,
+            )
+        month = _parse_portal_month(value)
+    except ValueError:
+        return PortalComponentPriceValidity(
+            kind=PortalPriceValidityKind.UNSUPPORTED, raw_fields=raw_fields
+        )
+    kind = (
+        PortalPriceValidityKind.VALID_UNTIL
+        if name == "VALIDO_FINO"
+        else PortalPriceValidityKind.MONTH
+    )
+    return PortalComponentPriceValidity(kind=kind, month=month, raw_fields=raw_fields)
 
 
 def _all_text(element: Any, name: str) -> tuple[str, ...]:
@@ -543,6 +620,9 @@ def _parse_placet_csv(file: PortalFileSnapshot) -> tuple[PortalOfferRecord, ...]
                     # not a second index reference.
                     index_code=None,
                     locator=ProvenanceLocator(document=file.role.value, section=f"row:{number}"),
+                    price_validity=PortalComponentPriceValidity(
+                        kind=PortalPriceValidityKind.DEFAULT
+                    ),
                 )
             )
         provenance = (_provenance(file, offer_id, number),)
@@ -556,6 +636,7 @@ def _parse_placet_csv(file: PortalFileSnapshot) -> tuple[PortalOfferRecord, ...]
                 subscription_period=period,
                 tariff_validity=period,
                 duration_months=None,
+                economic_validity_version=PORTAL_ECONOMIC_VALIDITY_VERSION,
                 customer_type=row.get("tipo_cliente", ""),
                 activation_methods=tuple(
                     item.strip()
@@ -620,15 +701,42 @@ def _parse_market_free_xml(file: PortalFileSnapshot) -> tuple[PortalOfferRecord,
             offer_type = PortalOfferType.UNSUPPORTED
         else:
             offer_type = PortalOfferType.FIXED if kind == "01" else PortalOfferType.INDEXED
+        detail = next(
+            (child for child in offer if _local_name(child.tag) == "DettaglioOfferta"), None
+        )
+        offer_duration_raw = _direct_text(detail, "DURATA") if detail is not None else None
+        offer_duration_provenance: tuple[Provenance, ...] = ()
+        if offer_duration_raw is not None:
+            offer_duration_provenance = (
+                _provenance(file, offer_id, number).model_copy(
+                    update={
+                        "locator": ProvenanceLocator(
+                            document=file.role.value,
+                            section=f"offer:{offer_id}/DettaglioOfferta/DURATA",
+                        )
+                    }
+                ),
+            )
+        unmodeled_commercial_terms = tuple(
+            _provenance(file, offer_id, number).model_copy(
+                update={
+                    "locator": ProvenanceLocator(
+                        document=file.role.value,
+                        section=f"offer:{offer_id}/Sconto:{position}",
+                    )
+                }
+            )
+            for position, _ in enumerate(_direct_children(offer, "Sconto"), start=1)
+        )
         components: list[PortalEconomicComponent] = []
         component_elements = () if offer_type == PortalOfferType.UNSUPPORTED else offer
-        for component in component_elements:
+        for component_position, component in enumerate(component_elements, start=1):
             if _local_name(component.tag) != "ComponenteImpresa":
                 continue
             code = _text(component, "NOME") or "component"
             description = _text(component, "DESCRIZIONE") or code
             macroarea = _text(component, "MACROAREA")
-            for interval in component:
+            for interval_position, interval in enumerate(component, start=1):
                 if _local_name(interval.tag) != "IntervalloPrezzi":
                     continue
                 price = _text(interval, "PREZZO")
@@ -638,6 +746,17 @@ def _parse_market_free_xml(file: PortalFileSnapshot) -> tuple[PortalOfferRecord,
                 unit = {"01": "EUR/year", "02": "EUR/kW/year", "03": "EUR/kWh"}.get(unit_code)
                 if unit is None:
                     continue
+                locator = ProvenanceLocator(
+                    document=file.role.value,
+                    section=(
+                        f"offer:{offer_id}/ComponenteImpresa:{component_position}/"
+                        f"IntervalloPrezzi:{interval_position}"
+                    ),
+                )
+                price_validity = _component_price_validity(interval)
+                price_provenance = (
+                    _provenance(file, offer_id, number).model_copy(update={"locator": locator}),
+                )
                 components.append(
                     PortalEconomicComponent(
                         code=code,
@@ -647,15 +766,16 @@ def _parse_market_free_xml(file: PortalFileSnapshot) -> tuple[PortalOfferRecord,
                         band=_text(interval, "FASCIA_COMPONENTE"),
                         macroarea=macroarea,
                         discount="scont" in f"{code} {description}".lower(),
-                        locator=ProvenanceLocator(
-                            document=file.role.value, section=f"offer:{offer_id}"
-                        ),
+                        locator=locator,
                         semantic=(
                             PortalComponentSemantic.ENERGY_PRICE
                             if macroarea in {"04", "06"}
                             else PortalComponentSemantic.COMMERCIAL_CHARGE
                         ),
                         period=period,
+                        price_validity=price_validity,
+                        source_provenance=price_provenance,
+                        source_fields=price_validity.raw_fields,
                     )
                 )
         dispatch_position = 0
@@ -717,7 +837,11 @@ def _parse_market_free_xml(file: PortalFileSnapshot) -> tuple[PortalOfferRecord,
                 offer_type=offer_type,
                 subscription_period=period,
                 tariff_validity=period,
-                duration_months=_parse_duration(_text(offer, "DURATA")),
+                duration_months=_parse_duration(offer_duration_raw),
+                economic_conditions_duration_raw=offer_duration_raw,
+                economic_conditions_duration_provenance=offer_duration_provenance,
+                economic_validity_version=PORTAL_ECONOMIC_VALIDITY_VERSION,
+                unmodeled_commercial_terms=unmodeled_commercial_terms,
                 customer_type=_text(offer, "TIPO_CLIENTE") or "",
                 activation_methods=_all_text(offer, "MODALITA"),
                 payment_methods=_all_text(offer, "MODALITA_PAGAMENTO"),
