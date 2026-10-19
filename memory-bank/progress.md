@@ -1,5 +1,17 @@
 # Progress
 
+## Core 0.13.5 — pubblicazione completata, 2026-10-19
+
+- Tag `v0.13.5`, GitHub Release e package PyPI pubblicati dal commit
+  `6220db76f88085ae1e759774b985ce7b8f544c87`. Release workflow
+  `39289896115` completato con successo, inclusi Trusted Publishing e build.
+- Digest wheel e sdist coincidono tra PyPI e GitHub Release; Platform ha
+  verificato digest, manifest, provenance PEP 740 e identità repository.
+- Suite Core: 895 test e 95,00% branch coverage; Ruff, format, mypy, lock check,
+  build wheel/sdist e smoke isolato passano.
+- L'adozione runtime/catalogo e il deployment Platform restano milestone
+  separate. Evidenza: `docs/release-0.13.5-publication.md`.
+
 ## Core 0.13.5 — adesione e durata, preparata 2026-10-18
 
 - **Scritto:** Spec 008 v0.8.4, Spec 013, ADR 0012/0016; DATA_FINE limita

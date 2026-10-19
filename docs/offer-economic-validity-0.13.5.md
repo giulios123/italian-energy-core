@@ -1,5 +1,11 @@
 # Core 0.13.5 — adesione e durata economica
 
+> **Stato aggiornato 2026-10-19:** la versione `0.13.5` è stata rilasciata su
+> GitHub e PyPI, dopo le verifiche descritte in questo rapporto preparatorio.
+> La pubblicazione è documentata in
+> [`release-0.13.5-publication.md`](release-0.13.5-publication.md); l'adozione
+> Platform e il deployment restano separati.
+
 Data della preparazione: 2026-10-18. Base sorgente: `b4de15a` (0.13.4).
 Integrato anche il successore documentale `e8ac2bf`, senza modifiche al codice
 di base e senza perdere le evidenze della pubblicazione 0.13.4.

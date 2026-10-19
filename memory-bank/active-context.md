@@ -1,5 +1,16 @@
 # Active context
 
+## Core 0.13.5 — pubblicata 2026-10-19
+
+Il tag `v0.13.5` e il commit `6220db76f88085ae1e759774b985ce7b8f544c87` sono
+pubblicati su GitHub; PyPI espone `italian-energy==0.13.5`. Il workflow release
+`39289896115`, inclusi build e Trusted Publishing, è riuscito. I digest PyPI e
+GitHub coincidono: wheel `33b20140e3e84c3f79be61eef6c192641da1f9c219c3acaf57845b4250d21ed5`,
+sdist `a610f40aac3903055d0ff70eeb2db9129179a8717b84fdae40db945035c7620a`.
+Suite locale: 895 test, 95,00% branch coverage, Ruff check/format, mypy, lock
+check, build e smoke isolato passano. La pubblicazione non prova adozione o
+deployment Platform. Evidenza: `docs/release-0.13.5-publication.md`.
+
 ## Core 0.13.5 — preparazione della durata economica, 2026-10-18
 
 - **Scritto:** Spec 008 v0.8.4, Spec 013 e ADR 0012/0016 separano adesione

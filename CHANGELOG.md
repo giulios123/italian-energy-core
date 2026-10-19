@@ -31,6 +31,13 @@
   sintetico Roma/non residente, contro otto del filtro precedente; 57 con
   condizioni oltre dodici mesi. È una prova di selezione, non una nuova
   attestazione della regolazione futura o un confronto completo live.
+- Release `v0.13.5` pubblicata su [GitHub](https://github.com/giulios123/italian-energy-core/releases/tag/v0.13.5)
+  e [PyPI](https://pypi.org/project/italian-energy/0.13.5/) il 2026-10-19.
+  Release workflow `39289896115` e relativi job completati; il digest wheel
+  `33b20140e3e84c3f79be61eef6c192641da1f9c219c3acaf57845b4250d21ed5` e il
+  digest sdist `a610f40aac3903055d0ff70eeb2db9129179a8717b84fdae40db945035c7620a`
+  coincidono tra PyPI e asset GitHub. Vedi
+  `docs/release-0.13.5-publication.md`.
 
 ## [0.13.4] - 2026-10-18
 
