@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.13.5] - Unreleased
+## [0.13.5] - 2026-10-19
 
 ### Fixed
 
@@ -31,8 +31,6 @@
   sintetico Roma/non residente, contro otto del filtro precedente; 57 con
   condizioni oltre dodici mesi. È una prova di selezione, non una nuova
   attestazione della regolazione futura o un confronto completo live.
-- Preparazione locale; nessuna pubblicazione, adozione o deployment impliciti.
-  Evidenze in `docs/offer-economic-validity-0.13.5.md`.
 
 ## [0.13.4] - 2026-10-18
 

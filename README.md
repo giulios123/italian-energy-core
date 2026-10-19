@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Release Core `0.13.4` — parametro CdispD ufficiale per la stima annuale delle offerte Portal.
+> Release Core `0.13.5` — validità economica delle offerte e durata delle condizioni.
 
 Il package installabile è disponibile come wheel e sdist. L'importer Portale
 Offerte opera solo su cataloghi open-data ufficiali, replay storici esatti e
@@ -24,7 +24,7 @@ uv run pytest
 Installazione del package dalla release pubblicata:
 
 ```bash
-pip install italian-energy==0.13.4
+pip install italian-energy==0.13.5
 ```
 
 La release `0.13.4` conserva provenienza e semantica delle voci `Dispacciamento`
@@ -39,9 +39,9 @@ acquisisce il CdispD ufficiale dal CSV giornaliero e lo applica alla stima
 annuale come assunzione esplicita, mantenendo digest e provenance senza
 alterare il replay storico o i tre scenari PUN.
 
-### In preparazione: 0.13.5
+### Novità della 0.13.5
 
-La prossima versione separa la scadenza per aderire dalla durata economica:
+La versione separa la scadenza per aderire dalla durata economica:
 un'offerta rimane selezionabile fino al giorno di scadenza incluso, mentre i
 prezzi e le quote decorrono dall'attivazione simulata. Le condizioni dichiarate
 per dodici mesi coprono così l'intero anno, anche se l'adesione termina prima
@@ -49,9 +49,7 @@ dell'attivazione. I metadati `economic_terms` riportano durata, ambito e fonte
 per evidenziare condizioni superiori a dodici mesi, senza attribuire un prezzo
 bloccato alle offerte indicizzate. Le condizioni indeterminate permettono una
 stima annua sui prezzi predefiniti pubblicati, senza una promessa di durata.
-Un nuovo refresh del catalogo è necessario per acquisire il parser v6;
-risultati e snapshot storici rimangono leggibili. La preparazione del sorgente
-e degli artefatti locali non costituisce pubblicazione o adozione Platform.
+Un nuovo refresh del catalogo è necessario per acquisire il parser v6; risultati e snapshot storici restano leggibili senza ricalcolo.
 
 ## Architettura
 
