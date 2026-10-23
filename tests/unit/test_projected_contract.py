@@ -320,6 +320,9 @@ def test_projection_assumptions_fix_multipliers_and_horizon_semantics() -> None:
         historical_consumption_period=DatePeriod(start=date(2025, 9, 1), end=date(2026, 9, 1)),
         historical_market_period=DatePeriod(start=date(2025, 9, 1), end=date(2026, 9, 1)),
         future_period=DatePeriod(start=date(2026, 10, 1), end=date(2027, 10, 1)),
+        market_reference_method="latest_complete_month_held_constant",
+        market_reference_period=DatePeriod(start=date(2026, 8, 1), end=date(2026, 9, 1)),
+        market_reference_value_eur_per_kwh=Decimal("0.10"),
         regulatory_anchor_date=AS_OF,
         current_contract_continued=False,
     )
@@ -328,6 +331,11 @@ def test_projection_assumptions_fix_multipliers_and_horizon_semantics() -> None:
         Decimal("1.00"),
         Decimal("1.20"),
     )
+    assert assumptions.market_reference_method == "latest_complete_month_held_constant"
+    assert assumptions.market_reference_period == DatePeriod(
+        start=date(2026, 8, 1), end=date(2026, 9, 1)
+    )
+    assert assumptions.market_reference_value_eur_per_kwh == Decimal("0.10")
     assert assumptions.future_values_verified is False
     assert assumptions.costs_are_estimates is True
     with pytest.raises(ValidationError, match=r"must be 0\.80"):
@@ -339,6 +347,41 @@ def test_projection_assumptions_fix_multipliers_and_horizon_semantics() -> None:
         ProjectedComparisonAssumptions.model_validate(
             assumptions.model_dump(mode="python") | {"index_multipliers": (Decimal("0.8"),)}
         )
+
+
+def test_pun_reference_assumptions_are_optional_only_as_a_complete_group() -> None:
+    result = _projected_result()
+    legacy_payload = deepcopy(result.model_dump(mode="python"))
+    legacy_payload["assumptions"].update(
+        {
+            "market_reference_method": None,
+            "market_reference_period": None,
+            "market_reference_value_eur_per_kwh": None,
+        }
+    )
+
+    legacy_result = ProjectedDomesticComparisonResult.model_validate(legacy_payload)
+    assert legacy_result.assumptions.market_reference_period is None
+
+    partial_assumptions = result.assumptions.model_dump(mode="python")
+    partial_assumptions["market_reference_period"] = None
+    with pytest.raises(ValidationError, match="must be supplied together"):
+        ProjectedComparisonAssumptions.model_validate(partial_assumptions)
+
+    negative_assumptions = result.assumptions.model_dump(mode="python")
+    negative_assumptions["market_reference_value_eur_per_kwh"] = Decimal("-0.01")
+    with pytest.raises(ValidationError, match="must be non-negative"):
+        ProjectedComparisonAssumptions.model_validate(negative_assumptions)
+
+
+def test_projected_result_requires_latest_month_as_pun_reference() -> None:
+    payload = deepcopy(_projected_result().model_dump(mode="python"))
+    payload["assumptions"]["market_reference_period"] = DatePeriod(
+        start=date(2026, 7, 1), end=date(2026, 8, 1)
+    )
+
+    with pytest.raises(ValidationError, match="latest complete historical month"):
+        ProjectedDomesticComparisonResult.model_validate(payload)
 
 
 def test_preflight_readiness_cannot_collapse_source_and_calculation_gates() -> None:

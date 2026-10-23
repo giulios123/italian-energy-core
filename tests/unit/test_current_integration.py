@@ -235,7 +235,7 @@ def test_consumption_and_market_scenarios_shift_and_scale() -> None:
     assert low.points[0].interval.start.date() == date(2026, 10, 1)
 
 
-def test_projection_pairs_consumption_and_indexes_by_calendar_month() -> None:
+def test_projection_uses_latest_complete_month_for_each_future_month() -> None:
     source = _market_data()
     monthly = MarketData(
         indexes=source.indexes,
@@ -249,11 +249,22 @@ def test_projection_pairs_consumption_and_indexes_by_calendar_month() -> None:
     projected_consumption = project_consumption(_profile(), AS_OF)
 
     assert projected.points[0].interval.start.date() == date(2026, 10, 1)
-    assert projected.points[0].value == Decimal(10)
+    assert projected.points[0].interval.start.tzinfo == ZoneInfo("Europe/Rome")
+    assert projected.points[0].value == Decimal(8)
     assert projected.points[-1].interval.start.date() == date(2027, 9, 1)
-    assert projected.points[-1].value == Decimal(9)
+    assert projected.points[-1].value == Decimal(8)
+    assert {point.value for point in projected.points} == {Decimal(8)}
     assert projected_consumption.buckets[0].interval.start.date() == date(2026, 10, 1)
     assert projected_consumption.buckets[-1].interval.start.date() == date(2027, 9, 1)
+
+
+def test_market_projection_rejects_non_monthly_index_granularity() -> None:
+    source = _market_data()
+    daily_index = source.indexes[0].model_copy(update={"granularity": Granularity.DAY})
+    daily = MarketData(indexes=(daily_index,), points=source.points)
+
+    with pytest.raises(Exception, match="twelve latest consecutive"):
+        project_market_data(daily, AS_OF, CurrentScenario.BASE, Decimal("0.20"))
 
 
 def test_market_projection_rejects_twelve_points_from_stale_window() -> None:

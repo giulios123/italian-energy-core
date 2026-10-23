@@ -76,6 +76,7 @@ from italian_energy.portal_offers.importer import PortalOffersImporter
 from italian_energy.portal_offers.models import (
     PortalComponentPriceValidity,
     PortalEconomicComponent,
+    PortalOfferType,
     PortalPriceValidityKind,
 )
 from italian_energy.recommendation import Recommendation, RecommendationRequest
@@ -195,6 +196,51 @@ def _indexed_request(
     return original.model_copy(update={"current_contract": contract})
 
 
+def _trioraria_request() -> ProjectedDomesticComparisonRequest:
+    source_profile = _profile()
+    band_shares = (("F1", Decimal("0.40")), ("F2", Decimal("0.35")), ("F3", Decimal("0.25")))
+    profile = ConsumptionProfile(
+        profile_id="same-profile-three-bands",
+        buckets=tuple(
+            bucket.model_copy(
+                update={
+                    "band": band,
+                    "energy": EnergyQuantity(kwh=bucket.energy.kwh * share),
+                }
+            )
+            for bucket in source_profile.buckets
+            for band, share in band_shares
+        ),
+    )
+    original = _request(profile)
+    horizon = future_period(AS_OF)
+    current_tariff = FixedTariff(
+        tariff_id="current-trioraria",
+        validity=horizon,
+        prices=(
+            BandPrice(
+                band="F1",
+                rate=UnitRate(amount=Decimal("0.08"), unit=RateUnit.EUR_PER_KWH),
+            ),
+            BandPrice(
+                band="F2",
+                rate=UnitRate(amount=Decimal("0.12"), unit=RateUnit.EUR_PER_KWH),
+            ),
+            BandPrice(
+                band="F3",
+                rate=UnitRate(amount=Decimal("0.18"), unit=RateUnit.EUR_PER_KWH),
+            ),
+        ),
+    )
+    return original.model_copy(
+        update={
+            "current_contract": original.current_contract.model_copy(
+                update={"tariff": current_tariff}
+            )
+        }
+    )
+
+
 def _coverage(
     anchor: DomesticProjectionAnchor,
     as_of: date,
@@ -270,6 +316,11 @@ def test_projected_comparison_bills_three_estimates_and_recommends_on_base_only(
     assert result.assumptions.future_values_verified is False
     assert result.assumptions.costs_are_estimates is True
     assert result.assumptions.calendar_month_matching == "same_calendar_month_number"
+    assert result.assumptions.market_reference_method == "latest_complete_month_held_constant"
+    assert result.assumptions.market_reference_period == DatePeriod(
+        start=date(2026, 8, 1), end=date(2026, 9, 1)
+    )
+    assert result.assumptions.market_reference_value_eur_per_kwh == Decimal("0.10")
     assert result.verified_inputs.market_status == VerificationStatus.VERIFIED
     assert result.verified_inputs.regulatory_anchor_date == date(2026, 9, 27)
     assert result.assumptions.regulatory_anchor_date == date(2026, 9, 27)
@@ -294,6 +345,154 @@ def test_projected_comparison_bills_three_estimates_and_recommends_on_base_only(
         for item in base.alternatives
         if item.billing is not None
     )
+
+
+def test_projected_comparison_uses_latest_pun_and_applies_declared_spread() -> None:
+    source = _history(AS_OF)
+    reports = []
+    for index, report in enumerate(source.reports):
+        value = Decimal("0.10") if index < 11 else Decimal("0.20")
+        reports.append(
+            report.model_copy(
+                update={
+                    "parsed": report.parsed.model_copy(
+                        update={
+                            "published_value_eur_per_mwh": value.scaleb(3),
+                            "value_eur_per_kwh": value,
+                        }
+                    )
+                }
+            )
+        )
+    history = history_from_reports(AS_OF, tuple(reports))
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
+    anchor = load_domestic_projection_anchor()
+
+    result = service.compare(
+        _indexed_request(), _catalog(AS_OF), history, anchor, _coverage(anchor, AS_OF)
+    )
+
+    low, base, high = (item.comparison.comparison_result for item in result.scenarios)
+    assert low.current_pricing.breakdown.total.amount == Decimal("684.00")
+    assert base.current_pricing.breakdown.total.amount == Decimal("828.00")
+    assert high.current_pricing.breakdown.total.amount == Decimal("972.00")
+    assert result.assumptions.market_reference_value_eur_per_kwh == Decimal("0.20")
+
+
+def test_projected_comparison_prices_bioraria_offer_against_trioraria_current() -> None:
+    request = _trioraria_request()
+    original_catalog = _catalog(AS_OF)
+    source_offer = original_catalog.records[0]
+    bioraria_offer = source_offer.model_copy(
+        update={
+            "offer_type": PortalOfferType.FIXED,
+            "index_code": None,
+            "index_codes": (),
+            "index_granularity": None,
+            "components": (
+                PortalEconomicComponent(
+                    code="energy_bf1",
+                    description="Prezzo energia fascia BF1",
+                    amount=Decimal("0.10"),
+                    unit="EUR/kWh",
+                    band="07",
+                    macroarea="04",
+                    price_validity=PortalComponentPriceValidity(
+                        kind=PortalPriceValidityKind.DEFAULT
+                    ),
+                ),
+                PortalEconomicComponent(
+                    code="energy_bf23",
+                    description="Prezzo energia fasce BF23",
+                    amount=Decimal("0.11"),
+                    unit="EUR/kWh",
+                    band="08",
+                    macroarea="04",
+                    price_validity=PortalComponentPriceValidity(
+                        kind=PortalPriceValidityKind.DEFAULT
+                    ),
+                ),
+            ),
+            "raw_fields": (("TIPOLOGIA_FASCE:1", "07"),),
+        }
+    )
+    catalog = original_catalog.model_copy(update={"records": (bioraria_offer,)})
+    anchor = load_domestic_projection_anchor()
+
+    result = ProjectedDomesticEnergyService(
+        clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC)
+    ).compare(request, catalog, _history(AS_OF), anchor, _coverage(anchor, AS_OF))
+
+    base = result.scenarios[1].comparison.comparison_result
+    assert len(base.alternatives) == 1
+    assert base.current_pricing.breakdown.total.amount == Decimal("142.80")
+    assert base.alternatives[0].pricing.breakdown.total.amount == Decimal("127.20")
+    assert base.alternatives[0].savings is not None
+    assert base.alternatives[0].savings.amount > 0
+
+
+def test_trioraria_current_tariff_compares_with_bioraria_pun_plus_spread() -> None:
+    request = _trioraria_request()
+    original_catalog = _catalog(AS_OF)
+    source_offer = original_catalog.records[0]
+    pun_offer = source_offer.model_copy(
+        update={
+            "offer_type": PortalOfferType.INDEXED,
+            "index_code": "01",
+            "index_codes": (),
+            "index_granularity": "month",
+            "components": (
+                PortalEconomicComponent(
+                    code="spread",
+                    description="PUN più delta commerciale",
+                    amount=Decimal("0.03"),
+                    unit="EUR/kWh",
+                    band="01",
+                    macroarea="04",
+                    index_code="01",
+                    price_validity=PortalComponentPriceValidity(
+                        kind=PortalPriceValidityKind.DEFAULT
+                    ),
+                ),
+            ),
+            "raw_fields": (("TIPOLOGIA_FASCE:1", "07"),),
+        }
+    )
+    catalog = original_catalog.model_copy(update={"records": (pun_offer,)})
+    source_history = _history(AS_OF)
+    reports = tuple(
+        report.model_copy(
+            update={
+                "parsed": report.parsed.model_copy(
+                    update={
+                        "published_value_eur_per_mwh": Decimal("200")
+                        if index == len(source_history.reports) - 1
+                        else Decimal("100"),
+                        "value_eur_per_kwh": Decimal("0.20")
+                        if index == len(source_history.reports) - 1
+                        else Decimal("0.10"),
+                    }
+                )
+            }
+        )
+        for index, report in enumerate(source_history.reports)
+    )
+    history = history_from_reports(AS_OF, reports)
+    anchor = load_domestic_projection_anchor()
+
+    result = ProjectedDomesticEnergyService(
+        clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC)
+    ).compare(request, catalog, history, anchor, _coverage(anchor, AS_OF))
+
+    base = result.scenarios[1].comparison.comparison_result
+    import_result = result.scenarios[1].comparison.import_result
+    assert len(import_result.eligible_offers) == 1, import_result.exclusions[0].detail
+    assert result.assumptions.market_reference_value_eur_per_kwh == Decimal("0.20")
+    assert base.current_pricing.breakdown.total.amount == Decimal("142.80")
+    assert len(base.alternatives) == 1, base.excluded_offers
+    assert base.alternatives[0].pricing.breakdown.total.amount == Decimal("276.00")
+    assert base.alternatives[0].savings is not None
+    assert base.alternatives[0].savings.amount < 0
 
 
 def test_projected_comparison_stays_offline_after_sources_are_supplied(

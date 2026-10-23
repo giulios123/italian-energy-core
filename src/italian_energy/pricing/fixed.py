@@ -210,7 +210,18 @@ class FixedPricingEngine:
         if "ALL" not in tariff_bands and "ALL" in profile_bands:
             raise FixedPricingError("named bands cannot price an ALL consumption profile")
         if "ALL" not in tariff_bands:
-            missing = profile_bands - tariff_bands
+            profile_is_trioraria = profile_bands == {"F1", "F2", "F3"}
+            profile_is_bioraria = profile_bands == {"BF1", "BF23"}
+            tariff_is_bioraria = tariff_bands == {"BF1", "BF23"}
+            if tariff_is_bioraria and not (profile_is_trioraria or profile_is_bioraria):
+                raise FixedPricingError(
+                    "bioraria pricing requires complete F1/F2/F3 or BF1/BF23 consumption bands"
+                )
+            missing = (
+                set()
+                if tariff_is_bioraria and profile_is_trioraria
+                else profile_bands - tariff_bands
+            )
             if missing:
                 raise FixedPricingError(f"consumption band {sorted(missing)[0]} has no fixed price")
 
@@ -219,8 +230,12 @@ class FixedPricingEngine:
             if price.band == "ALL":
                 quantity = sum((bucket.energy.kwh for bucket in buckets), Decimal(0))
             else:
+                applicable_bands = {
+                    "BF1": {"BF1", "F1"},
+                    "BF23": {"BF23", "F2", "F3"},
+                }.get(price.band, {price.band})
                 quantity = sum(
-                    (bucket.energy.kwh for bucket in buckets if bucket.band == price.band),
+                    (bucket.energy.kwh for bucket in buckets if bucket.band in applicable_bands),
                     Decimal(0),
                 )
             if quantity == 0:

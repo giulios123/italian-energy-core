@@ -727,6 +727,10 @@ class ProjectedDomesticEnergyService:
             (CurrentScenario.HIGH_INDEX, multipliers[2]),
         )
         scenarios: list[ProjectedScenarioComparison] = []
+        # Only market indexes differ across these scenarios. Fixed pricing
+        # receives no market data; keep its complete immutable results local
+        # to this request so no later comparison can reuse stale inputs.
+        fixed_evaluations: dict[Contract, tuple[PricingResult, BillingResult]] = {}
         for scenario, multiplier in scenario_pairs:
             projected_market = project_market_data(
                 market_history.market_data,
@@ -743,6 +747,7 @@ class ProjectedDomesticEnergyService:
                 ruleset,
                 horizon,
                 scenario,
+                fixed_evaluations,
             )
             scenarios.append(
                 ProjectedScenarioComparison(
@@ -787,10 +792,14 @@ class ProjectedDomesticEnergyService:
                 else None
             ),
         )
+        latest_pun = market_history.reports[-1].parsed
         assumptions = ProjectedComparisonAssumptions(
             historical_consumption_period=history_period,
             historical_market_period=history_period,
             future_period=horizon,
+            market_reference_method="latest_complete_month_held_constant",
+            market_reference_period=latest_pun.period,
+            market_reference_value_eur_per_kwh=latest_pun.value_eur_per_kwh,
             regulatory_anchor_date=anchor.as_of,
             current_contract_continued=request.continuation_assumption,
             cdispd_projection=cdispd_projection,
@@ -881,10 +890,11 @@ class ProjectedDomesticEnergyService:
         ruleset: RegulatoryRuleSet,
         horizon: DatePeriod,
         scenario: CurrentScenario,
+        fixed_evaluations: dict[Contract, tuple[PricingResult, BillingResult]],
     ) -> PortalComparisonResult:
         try:
-            current_pricing, current_billing = self._evaluate_contract(
-                request, current_contract, consumption, market_data, ruleset
+            current_pricing, current_billing = self._evaluate_scenario_contract(
+                request, current_contract, consumption, market_data, ruleset, fixed_evaluations
             )
         except (BillingError, FixedPricingError, IndexedPricingError, ValueError) as exc:
             raise CoreContractError(
@@ -930,8 +940,8 @@ class ProjectedDomesticEnergyService:
                 provenance=offer.provenance,
             )
             try:
-                pricing, billing = self._evaluate_contract(
-                    request, contract, consumption, market_data, ruleset
+                pricing, billing = self._evaluate_scenario_contract(
+                    request, contract, consumption, market_data, ruleset, fixed_evaluations
                 )
             except (BillingError, FixedPricingError, IndexedPricingError, ValueError) as exc:
                 exclusions.append(
@@ -1003,6 +1013,25 @@ class ProjectedDomesticEnergyService:
             import_result=import_result,
             comparison_result=result,
         )
+
+    def _evaluate_scenario_contract(
+        self,
+        request: ProjectedDomesticComparisonRequest,
+        contract: Contract,
+        consumption: ConsumptionProfile,
+        market_data: MarketData,
+        ruleset: RegulatoryRuleSet,
+        fixed_evaluations: dict[Contract, tuple[PricingResult, BillingResult]],
+    ) -> tuple[PricingResult, BillingResult]:
+        if contract.tariff.kind == "fixed":
+            cached = fixed_evaluations.get(contract)
+            if cached is not None:
+                return cached
+        result = self._evaluate_contract(request, contract, consumption, market_data, ruleset)
+        # Failures never reach this point and retain their per-scenario handling.
+        if contract.tariff.kind == "fixed":
+            fixed_evaluations[contract] = result
+        return result
 
     def _evaluate_contract(
         self,

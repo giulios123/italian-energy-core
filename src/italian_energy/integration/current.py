@@ -271,9 +271,10 @@ def project_market_data(
     scenario: CurrentScenario,
     stress_delta: Decimal,
 ) -> MarketData:
-    """Repeat matching calendar months from the exact recent window and scale the index."""
+    """Hold the latest complete monthly observation across the estimate horizon."""
 
     cutoff = _first_of_month(as_of)
+    horizon = future_period(as_of)
     points: list[MarketDataPoint] = []
     for index in market_data.indexes:
         history = sorted(
@@ -287,7 +288,8 @@ def project_market_data(
         expected_starts = tuple(_add_months(cutoff, -offset) for offset in range(12, 0, -1))
         actual_starts = tuple(point.interval.start.date().replace(day=1) for point in history)
         if (
-            len(history) != 12
+            index.granularity.value != "month"
+            or len(history) != 12
             or actual_starts != expected_starts
             or any(
                 point.interval.start.date() != point.interval.start.date().replace(day=1)
@@ -306,16 +308,17 @@ def project_market_data(
             CurrentScenario.BASE: Decimal(1),
             CurrentScenario.HIGH_INDEX: Decimal(1) + stress_delta,
         }[scenario]
-        for source in history:
-            target = _same_calendar_month_target(source.interval.start.date(), as_of)
-            start = datetime(target.year, target.month, 1, tzinfo=source.interval.start.tzinfo)
+        reference = history[-1]
+        for offset in range(12):
+            target = _add_months(horizon.start, offset)
+            start = _month_start(reference.interval.start, target)
             end_date = _add_months(target, 1)
-            end = datetime(end_date.year, end_date.month, 1, tzinfo=source.interval.end.tzinfo)
+            end = _month_start(reference.interval.end, end_date)
             points.append(
-                source.model_copy(
+                reference.model_copy(
                     update={
                         "interval": TimeInterval(start=start, end=end),
-                        "value": source.value * multiplier,
+                        "value": reference.value * multiplier,
                     }
                 )
             )

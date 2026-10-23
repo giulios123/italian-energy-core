@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.13.6] - 2026-10-23
+
+### Changed
+
+- Riferimento PUN all'ultimo mese completo verificato, mantenuto sui dodici
+  mesi stimati con metodo, periodo e valore esposti; scenari 0,80/1,00/1,20
+  e dichiarazione di stima conservati (Spec 016, ADR 0018).
+- Prezzi biorari BF1/BF23 applicati a profili F1/F2/F3 completi, senza inventare
+  medie o consumi mancanti; fasce incomplete restano rifiutate (Spec 017).
+- Ricerca senza preferenza di canale tramite l'esplicito `ALL`, distinto da
+  `02`, con gli altri filtri invariati (Spec 008).
+- Riuso locale di pricing e billing fissi riusciti fra i tre scenari dello
+  stesso confronto. Nessun riuso fra richieste; indicizzati, differenze e
+  ranking conservano il calcolo per scenario (Spec 018).
+
+### Fixed
+
+- Gli identificativi compatti ufficiali ARERA, come `5-26dicu`, sono acquisiti
+  con controllo esatto di URL, anno e metadati, senza indebolire i gate normativi.
+- Le componenti `energy:<band>` indicizzate conservano il significato
+  `energy_price` fino alla bolletta simulata.
+
+### Verification
+
+- La verifica della sorgente precedente al bump ha 924 test passati e 95,08%
+  di copertura con branch; i gate della versione di rilascio sono descritti
+  in `docs/release-0.13.6-preparation.md`.
+- Replay locale da 950 offerte: riuso fisso 174 → 58 valutazioni riuscite nei
+  tre scenari, 1.392 mesi evitati, risultato pubblico e digest identici.
+  Una coppia locale misura 193,315 → 175,433 s, senza garanzia di latenza.
+- Nessuna nuova attestazione della regolazione futura: catalogo e copertura
+  verificati restano requisiti indipendenti dalla pubblicazione del package.
+
+
 ## [0.13.5] - 2026-10-19
 
 ### Fixed

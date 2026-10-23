@@ -23,6 +23,9 @@ Le specifiche sono il contratto normativo del progetto. Una funzionalità rileva
 | 013 | Confronto beta con scenari storici | Base in `v0.12.0`, fallback GME in `v0.13.1`, quote fisse continuate e finestre applicate in `v0.13.3` |
 | 014 | Regulatory Anchor Rollover | Core M1–M23 implementate e Q4 incluso con evidence al 2026-10-08; 689 test, 95,05% branch coverage; Core 0.13.0 pubblicata su PyPI/GitHub; accettazione Platform PostgreSQL differita |
 | 015 | Copertura delle componenti attuali e motivazioni fiscali | Implementata in Core `v0.13.3`; adozione del contratto Platform separata |
+| 016 | Riferimento PUN per il confronto fisso/indicizzato | Implementata e verificata localmente il 2026-10-20 |
+| 017 | Applicazione bioraria ai consumi F1/F2/F3 | Implementata e verificata localmente il 2026-10-20 |
+| 018 | Riuso delle valutazioni fisse fra scenari | Verificata localmente: 924 test / 95,08%; replay 950 offerte con digest invariati e 1.392 valutazioni mensili evitate |
 
 Le spec pianificate non autorizzano ancora codice produttivo. I dettagli diventano vincolanti soltanto quando la spec viene scritta e accettata.
 

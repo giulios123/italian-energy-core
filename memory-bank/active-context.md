@@ -1,5 +1,54 @@
 # Active context
 
+## Preparazione Core 0.13.6 — 2026-10-23
+
+- Release GitHub/PyPI e adozione Platform autorizzate esplicitamente. Ambito:
+  Specs 016/017/018, canale ALL della 008, correzioni ARERA e significato
+  energia indicizzata già presenti su main.
+- Package/lock/workflow dispatch aggiornati a 0.13.6; altre dipendenze invariate.
+- Verificati 924 test, branch coverage 95,08%, Ruff check/format, mypy,
+  pre-commit all-files, due golden privati, build wheel/sdist e import isolato.
+- Pubblicazione non ancora verificata a questo checkpoint; evidenza locale
+  in `docs/release-0.13.6-preparation.md`. La Platform deve adottare la wheel
+  pubblicata con digest/provenance, separatamente dal mount sorgente locale.
+
+
+## Riuso delle tariffe fisse fra scenari — verificato localmente 2026-10-23
+
+- **Scritta e implementata:** Spec 018. Cache locale a ogni `compare()`,
+  keyed dall'intero contratto immutabile; pricing/billing fissi condivisi fra
+  low/base/high, indicizzati e differenze economiche ricalcolati per scenario.
+  Nessuna cache persistente, riuso fra richieste o memorizzazione di errori.
+- **Verificata:** cinque nuove regressioni, 924 test totali / 95,08% branch,
+  Ruff check/format e mypy `src tests` superati. JSON/raccomandazione identici
+  al percorso senza cache; verificati cambio consumi, gate, ID uguale con
+  contenuto diverso, errori e alternative indicizzate.
+- Replay Platform offline dello stesso job `6027d0b8-d989-4792-8697-6c40ce9c3054`:
+  950 offerte; fisse riuscite nei tre scenari 174 → 58, 1.392 mensili evitate;
+  indicizzate tentate 2.724 invariate, risultato pubblico e due digest identici,
+  951 bollette base coerenti. Una coppia locale misura 193,315 → 175,433 s;
+  è variabile, non una garanzia di latenza. Nessun nuovo job o storico riscritto.
+- API/worker locali riavviati sul mount sorgente esistente dopo assenza di
+  job attivi. Nessun commit/push, nuova wheel o deployment. Evidenze Platform:
+  `docs/fixed-scenario-reuse-2026-10-23/verification.md`.
+
+## Nessuna preferenza del canale — verificato localmente 2026-10-23
+
+- **Scritta:** Spec 008 distingue la preferenza di ricerca `ALL` dal codice
+  fonte `02` (Qualsiasi canale); allineamento al selettore ufficiale del Portale.
+- **Implementata:** solo `activation_method=ALL` salta il filtro del canale;
+  `02`, assenza del dato, pagamento e altri vincoli restano invariati.
+- **Verificata:** quattro regressioni inizialmente fallite; dopo la correzione
+  45 test importer e 919 test totali, copertura branch 95,07%, Ruff check/format
+  e mypy `src tests` superati. Nuovi casi coprono anche pagamento e dato assente.
+- Replay Platform in sola lettura dello storico Torino/catalogo 22 ottobre:
+  33 record Alperia; `02` dà 0 ammissibili, `01` dà Smile Easy, `ALL` ne dà 15.
+  Si verifica ammissibilità, non ranking o pricing. Platform: 49 test web,
+  build e browser mobile superati; storici e preferenze salvate invariati.
+- Runtime locale aggiornato dal mount sorgente; nessuna nuova wheel, modifica
+  pin, pubblicazione o commit/push. Evidenze nel repository Platform:
+  `docs/alperia-activation-filter-2026-10-23/verification.md`.
+
 ## Significato energia indicizzata — verificato localmente 2026-10-23
 
 - **Scritto:** addendum Spec 003 per `energy:<band>` con `meaning=energy_price`
@@ -16,6 +65,7 @@
   API/worker riavviati sul mount sorgente read-only, senza confronti attivi.
 - Modifiche concorrenti preservate; nessun ricalcolo, wheel, pin aggiornato,
   commit/push o deployment. La correzione è solo nel sorgente/runtime locale.
+
 
 ## Refresh ARERA con ID compatto — verificato localmente 2026-10-23
 
@@ -46,6 +96,28 @@
 - **Confini:** modifiche preesistenti conservate, nessun nuovo confronto,
   commit, push, wheel pubblicata o deployment di produzione. Il pin wheel
   0.13.5 resta distinto dall'esecuzione del sorgente locale corretto.
+
+
+## Confronto tariffa fissa e indicizzata PUN — locale, 2026-10-20
+
+- **Scritto:** Spec 016 e ADR 0018 fissano il confronto fisso↔PUN sullo stesso
+  profilo; monoraria, bioraria e trioraria sono schemi distinti, ma non bloccano
+  il totale annuo quando Core riesce a calcolare entrambe le tariffe.
+- **Implementato:** Core mantiene l'ultimo mese PUN completo verificato sui
+  dodici mesi stimati, applica la formula commerciale e lo spread dichiarato,
+  ed espone metodo, periodo e valore. Il Core applica inoltre le tariffe
+  biorarie BF1/BF23 ai consumi F1/F2/F3 sommando F2+F3, senza inventare fasce.
+  Il fuso Europe/Rome è preservato dopo la serializzazione dei dati sorgente.
+- **Verificato:** 903 test, 95,02% branch coverage, Ruff check/format, mypy su
+  `src tests` e `git diff --check` passano. Platform locale ricostruita con API,
+  comparison worker, retention worker e web healthy; API e comparison worker
+  importano `/opt/local-core-src/italian_energy/integration/current.py`.
+- **Limite:** il catalogo del 2026-10-19 è verificato ma ha
+  `comparisons_enabled=false` per `source_validation_failed` e
+  `regulatory_coverage_unconfirmed`; non prova un nuovo confronto HTTP live.
+  Core 0.13.5 pubblicata e wheel pin restano invariati; il sorgente locale è
+  montato solo in questa sessione Compose. Nessuna release o deployment.
+- Dettagli: Spec 016 per il riferimento PUN e Spec 017 per la mappatura BF1/BF23.
 
 ## Core 0.13.5 — pubblicata 2026-10-19
 

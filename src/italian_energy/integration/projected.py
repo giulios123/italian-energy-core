@@ -316,6 +316,9 @@ class ProjectedComparisonAssumptions(DomainModel):
         Decimal("1.00"),
         Decimal("1.20"),
     )
+    market_reference_method: Literal["latest_complete_month_held_constant"] | None = None
+    market_reference_period: DatePeriod | None = None
+    market_reference_value_eur_per_kwh: Decimal | None = None
     regulatory_anchor_date: date
     regulatory_application: Literal["freeze_verified_anchor_for_future"] = (
         "freeze_verified_anchor_for_future"
@@ -329,6 +332,16 @@ class ProjectedComparisonAssumptions(DomainModel):
     offer_activation_date: date | None = None
     offer_validity_method: Literal["separate_subscription_and_economic_terms"] | None = None
 
+    @field_validator("market_reference_value_eur_per_kwh", mode="before")
+    @classmethod
+    def validate_market_reference_value(cls, value: object) -> Decimal | None:
+        if value is None:
+            return None
+        result = strict_decimal(value)
+        if result < 0:
+            raise ValueError("market reference value must be non-negative")
+        return result
+
     @field_validator("index_multipliers", mode="before")
     @classmethod
     def validate_index_multipliers(cls, value: object) -> tuple[Decimal, Decimal, Decimal]:
@@ -339,6 +352,17 @@ class ProjectedComparisonAssumptions(DomainModel):
         if values != expected:
             raise ValueError("projection index multipliers must be 0.80, 1.00 and 1.20")
         return values[0], values[1], values[2]
+
+    @model_validator(mode="after")
+    def validate_market_reference(self) -> Self:
+        values = (
+            self.market_reference_method,
+            self.market_reference_period,
+            self.market_reference_value_eur_per_kwh,
+        )
+        if any(value is None for value in values) and not all(value is None for value in values):
+            raise ValueError("PUN reference method, period and value must be supplied together")
+        return self
 
 
 class ProjectedVerifiedInputs(DomainModel):
@@ -490,6 +514,17 @@ class ProjectedDomesticComparisonResult(DomainModel):
             or self.verified_inputs.market_period != expected_history
         ):
             raise ValueError("historical assumptions must preserve the exact source window")
+        if self.assumptions.market_reference_period is not None:
+            reference_month = history[-1]
+            expected_reference_period = DatePeriod(
+                start=reference_month, end=_add_months(reference_month, 1)
+            )
+            if self.assumptions.market_reference_period != expected_reference_period:
+                raise ValueError(
+                    "market reference must identify the latest complete historical month"
+                )
+            if self.assumptions.market_reference_method != "latest_complete_month_held_constant":
+                raise ValueError("projected PUN method must hold the latest month constant")
         expected = (
             CurrentScenario.LOW_INDEX,
             CurrentScenario.BASE,

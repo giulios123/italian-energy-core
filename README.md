@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Release Core `0.13.5` — validità economica delle offerte e durata delle condizioni.
+> Release Core `0.13.6` — confronto PUN/biorario, filtri espliciti e riuso dei calcoli fissi.
 
 Il package installabile è disponibile come wheel e sdist. L'importer Portale
 Offerte opera solo su cataloghi open-data ufficiali, replay storici esatti e
@@ -24,7 +24,7 @@ uv run pytest
 Installazione del package dalla release pubblicata:
 
 ```bash
-pip install italian-energy==0.13.5
+pip install italian-energy==0.13.6
 ```
 
 La release `0.13.4` conserva provenienza e semantica delle voci `Dispacciamento`
@@ -38,6 +38,19 @@ aggiunge dipendenze XLSX. Per le offerte domestiche col codice Portal 14,
 acquisisce il CdispD ufficiale dal CSV giornaliero e lo applica alla stima
 annuale come assunzione esplicita, mantenendo digest e provenance senza
 alterare il replay storico o i tre scenari PUN.
+
+### Novità della 0.13.6
+
+Il confronto usa l'ultimo mese PUN completo verificato come riferimento sui
+dodici mesi stimati, con metodo, periodo e valore esposti. Le tariffe biorarie
+BF1/BF23 sono applicabili ai consumi F1/F2/F3 completi senza medie inventate.
+La preferenza esplicita `activation_method="ALL"` ricerca su tutti i canali;
+`02` mantiene il suo significato originale. I calcoli fissi riusciti sono
+riutilizzati nei tre scenari dello stesso confronto, conservando risultati
+e digest; gli indicizzati e i risparmi restano specifici dello scenario.
+Sono incluse le correzioni degli ID ARERA compatti e della semantica delle
+componenti energetiche indicizzate. Le Specs 016/017/018 e l'addendum della
+Spec 008 documentano comportamento, limiti e regressioni.
 
 ### Novità della 0.13.5
 
@@ -202,10 +215,10 @@ del catalogo, e `preflight(request, ...).ready` prima del confronto cliente.
 Questo percorso è locale alla Core; l'allineamento e la persistenza Platform
 restano separati.
 
-### Handoff Platform del wheel 0.13.4
+### Handoff Platform del wheel 0.13.6
 
 La Platform mantiene il vincolo SemVer
-`required-version = ">=0.13.0,<0.14.0"`. Per accettare il wheel Core `0.13.4`,
+`required-version = ">=0.13.0,<0.14.0"`. Per accettare il wheel Core `0.13.6`,
 una milestone Platform separata aggiornerà il pin puntuale di versione e SHA-256 in
 `pyproject.toml`, i valori attesi e il nome del wheel in
 `scripts/verify_core_artifact.py` e `scripts/verify_core_runtime.py`, e il

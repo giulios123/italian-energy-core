@@ -1408,3 +1408,40 @@ def test_models_reject_scope_and_provenance_violations() -> None:
         portal_models.PortalEconomicComponent.model_validate(
             {"code": "x", "description": "x", "amount": "not-a-decimal", "unit": "EUR/kWh"}
         )
+
+
+@pytest.mark.parametrize(
+    ("offered", "requested", "eligible"),
+    [
+        ("01", "ALL", True),
+        ("03", "ALL", True),
+        ("02", "ALL", True),
+        ("01", "02", False),
+        ("03", "01", False),
+        ("02", "02", True),
+        ("01", None, False),
+    ],
+)
+def test_explicit_all_activation_channels_are_distinct_from_offer_channel_02(
+    offered: str, requested: str | None, eligible: bool
+) -> None:
+    snapshot = PortalOffersImporter(transport=_transport()).fetch(DATE, include_indexes=False)
+    record = PortalOffersImporter.parse_offers(snapshot.offers)[0].model_copy(
+        update={"activation_methods": (offered,)}
+    )
+    profile = _eligibility().model_copy(update={"activation_method": requested})
+    result = normalize_offers(snapshot.offers, (record,), profile, DATE, date(2026, 2, 1))
+    assert result.eligible_count == int(eligible)
+    if not eligible:
+        assert result.exclusions[0].code == PortalOfferExclusionCode.ACTIVATION_NOT_COVERED
+
+
+def test_all_activation_channels_do_not_relax_payment_requirements() -> None:
+    snapshot = PortalOffersImporter(transport=_transport()).fetch(DATE, include_indexes=False)
+    record = PortalOffersImporter.parse_offers(snapshot.offers)[0]
+    profile = _eligibility().model_copy(
+        update={"activation_method": "ALL", "payment_method": "ALL"}
+    )
+    result = normalize_offers(snapshot.offers, (record,), profile, DATE, date(2026, 2, 1))
+    assert result.eligible_count == 0
+    assert result.exclusions[0].code == PortalOfferExclusionCode.PAYMENT_NOT_COVERED

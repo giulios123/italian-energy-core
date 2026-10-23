@@ -393,6 +393,64 @@ def test_band_mapping_and_boundary_errors_are_fail_closed() -> None:
         )
 
 
+def test_bioraria_prices_f1_and_aggregates_f2_f3() -> None:
+    profile = ConsumptionProfile(
+        profile_id="trioraria-consumption",
+        buckets=(
+            bucket(date(2026, 1, 1), "4", "F1"),
+            bucket(date(2026, 1, 1), "3", "F2"),
+            bucket(date(2026, 1, 1), "5", "F3"),
+        ),
+    )
+    bioraria = tariff(
+        (
+            BandPrice(
+                band="BF1",
+                rate=UnitRate(amount=Decimal("0.10"), unit=RateUnit.EUR_PER_KWH),
+            ),
+            BandPrice(
+                band="BF23",
+                rate=UnitRate(amount=Decimal("0.11"), unit=RateUnit.EUR_PER_KWH),
+            ),
+        )
+    )
+
+    result = FixedPricingEngine().price(request(contract_for(bioraria), profile))
+
+    assert result.breakdown.total.amount == Decimal("1.28")
+    assert [
+        (item.code, item.quantity, item.amount.amount) for item in result.breakdown.components
+    ] == [
+        ("energy:BF1", Decimal("4"), Decimal("0.40")),
+        ("energy:BF23", Decimal("8"), Decimal("0.88")),
+    ]
+
+
+def test_bioraria_requires_complete_trioraria_consumption_bands() -> None:
+    profile = ConsumptionProfile(
+        profile_id="incomplete-trioraria-consumption",
+        buckets=(
+            bucket(date(2026, 1, 1), "4", "F1"),
+            bucket(date(2026, 1, 1), "3", "F2"),
+        ),
+    )
+    bioraria = tariff(
+        (
+            BandPrice(
+                band="BF1",
+                rate=UnitRate(amount=Decimal("0.10"), unit=RateUnit.EUR_PER_KWH),
+            ),
+            BandPrice(
+                band="BF23",
+                rate=UnitRate(amount=Decimal("0.11"), unit=RateUnit.EUR_PER_KWH),
+            ),
+        )
+    )
+
+    with pytest.raises(FixedPricingError, match="complete F1/F2/F3"):
+        FixedPricingEngine().price(request(contract_for(bioraria), profile))
+
+
 def test_external_buckets_are_ignored_and_period_must_be_covered() -> None:
     fixed = tariff(
         (BandPrice(band="ALL", rate=UnitRate(amount=Decimal("0.20"), unit=RateUnit.EUR_PER_KWH)),)

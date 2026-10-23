@@ -616,7 +616,9 @@ def _record_applicability(
         return _exclude(
             record, PortalOfferExclusionCode.TERRITORY_NOT_COVERED, "municipality is not covered"
         )
-    if not _contains(record.activation_methods, eligibility.activation_method):
+    if eligibility.activation_method != "ALL" and not _contains(
+        record.activation_methods, eligibility.activation_method
+    ):
         return _exclude(
             record,
             PortalOfferExclusionCode.ACTIVATION_NOT_COVERED,

@@ -886,3 +886,19 @@ regolati, CdispD, imposte e scenari mantengono le proprie regole e assunzioni.
 - Riprova sul catalogo ufficiale: conteggi delle esclusioni motivati e confronto
   tra il vecchio filtro a 8 candidate e il criterio corretto, senza usare il
   solo aumento del numero come prova di correttezza economica.
+
+
+## Ricerca senza preferenza di canale — 2026-10-23
+
+Il parametro di ricerca `activation_method="ALL"` indica assenza esplicita di
+preferenza del canale e supera soltanto il filtro delle modalità di attivazione.
+È distinto dal codice offerta `02`, “Qualsiasi canale”, che conserva il matching
+esistente: selezionarlo non autorizza offerte dichiarate solo online (`01`).
+Il modulo ufficiale del Portale espone `ALL` separatamente da `02`, `01`, `03`,
+`04`. `None` resta non specificato; non diventa `ALL`. Pagamento, territorio,
+classificazione e completezza economica continuano a essere verificati.
+Gli snapshot già persistiti non vengono modificati né ricalcolati.
+
+Regressioni: `ALL` accetta record online/punto vendita/qualsiasi canale; il
+matching specifico e `02` conservano gli scarti pertinenti. `ALL` nel pagamento
+non assume il significato di tutti i metodi.
