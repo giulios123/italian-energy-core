@@ -212,3 +212,14 @@ la copertura temporale o le unità non sono sufficienti.
 - La Spec 005 definirà raw snapshot, versioning ARERA, normalizzazione e warning
   di parsing.
 - La Spec 007 definirà ranking, percentuali e confronto tra risultati.
+
+
+## Identità semantica energia indicizzata — 2026-10-23
+
+Ogni componente `energy:<band>` dell'evaluator indicizzato deve dichiarare
+`meaning=energy_price`, come nel pricing fisso. Il billing deve preservare tale
+significato senza applicare il fallback `commercial_charge`. Quote commerciali,
+formule, quantità, tassi, arrotondamenti, provenance e totali restano invariati.
+Regressione richiesta sul risultato di pricing e sulla serializzazione: energia
+indicizzata distinta dalla quota commerciale annua nello stesso risultato.
+Gli snapshot storici immutabili non vengono riscritti.

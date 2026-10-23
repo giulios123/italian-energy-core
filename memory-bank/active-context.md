@@ -1,5 +1,22 @@
 # Active context
 
+## Significato energia indicizzata — verificato localmente 2026-10-23
+
+- **Scritto:** addendum Spec 003 per `energy:<band>` con `meaning=energy_price`
+  prima del billing, senza modifiche a formule, prezzi o snapshot storici.
+- **Implementato:** l'evaluator indexed assegna il significato come il fixed;
+  il billing non ricade più su `commercial_charge` per l'energia indicizzata.
+- **Verificato:** regressione prima falliva con significato assente; dopo
+  911 test, copertura branch 95,07%, Ruff check/format, mypy `src tests` e
+  diff check passano. Test distingue energia e quota commerciale nello stesso
+  risultato, ne conserva importi/totale e verifica la serializzazione.
+- Platform locale: 43 test web/build; lo storico FraM conserva integralmente
+  il payload API e ora mostra energia 110,04/207,49 EUR separata dalla quota
+  72/36 EUR. Browser desktop/mobile senza errori o mutazioni. UI ricostruita;
+  API/worker riavviati sul mount sorgente read-only, senza confronti attivi.
+- Modifiche concorrenti preservate; nessun ricalcolo, wheel, pin aggiornato,
+  commit/push o deployment. La correzione è solo nel sorgente/runtime locale.
+
 ## Refresh ARERA con ID compatto — verificato localmente 2026-10-23
 
 - **Scritto:** Spec 014 §28 documenta il record ufficiale `5-26dicu` del

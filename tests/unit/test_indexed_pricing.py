@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from italian_energy.domain.consumption import ConsumptionBucket, ConsumptionProfile
+from italian_energy.domain.costs import ComponentMeaning
 from italian_energy.domain.formula import (
     AddPrice,
     ClampPrice,
@@ -828,3 +829,31 @@ def test_ast_edge_paths_and_provenance_are_deterministic() -> None:
     result = IndexedPricingEngine().price(request(expression, profile, market_data=data))
     assert result.warnings == ()
     assert result.provenance == (source,)
+
+
+def test_indexed_energy_keeps_its_meaning_separate_from_commercial_charges() -> None:
+    expression = IndexReference(
+        index_code="PUN", unit=RateUnit.EUR_PER_MWH, granularity=Granularity.HOUR
+    )
+    profile = ConsumptionProfile(profile_id="profile", buckets=(bucket(1, "1000"),))
+    data = MarketData(indexes=(index(),), points=(point(1, 0, "207.54"),))
+    fee = ChargeRule(
+        code="commercial",
+        description="Quota commerciale",
+        basis=ChargeBasis.FLAT,
+        value=Money(amount=Decimal("36")),
+        validity=PERIOD,
+        meaning=ComponentMeaning.COMMERCIAL_CHARGE,
+    )
+    result = IndexedPricingEngine().price(
+        request(expression, profile, market_data=data, charge_rules=(fee,))
+    )
+    energy, commercial = result.breakdown.components
+    assert energy.code == "energy:ALL"
+    assert energy.meaning == ComponentMeaning.ENERGY_PRICE
+    assert commercial.meaning == ComponentMeaning.COMMERCIAL_CHARGE
+    assert energy.amount.amount == Decimal("207.54")
+    assert commercial.amount.amount == Decimal("36.00")
+    assert result.breakdown.total.amount == Decimal("243.54")
+    payload = result.model_dump(mode="json")
+    assert payload["breakdown"]["components"][0]["meaning"] == "energy_price"

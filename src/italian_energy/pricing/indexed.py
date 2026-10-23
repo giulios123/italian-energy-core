@@ -8,7 +8,12 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from italian_energy.domain.consumption import ConsumptionBucket
-from italian_energy.domain.costs import CostBreakdown, CostComponent, PricingResult
+from italian_energy.domain.costs import (
+    ComponentMeaning,
+    CostBreakdown,
+    CostComponent,
+    PricingResult,
+)
 from italian_energy.domain.formula import (
     AddPrice,
     ClampPrice,
@@ -261,6 +266,7 @@ class IndexedPricingEngine:
             components.append(
                 CostComponent(
                     code=f"energy:{formula.band}",
+                    meaning=ComponentMeaning.ENERGY_PRICE,
                     description=f"Energy {formula.band}",
                     amount=Money(amount=raw_amount).round(policy),
                     quantity=quantity,
