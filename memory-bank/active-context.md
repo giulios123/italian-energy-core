@@ -1,5 +1,35 @@
 # Active context
 
+## Refresh ARERA con ID compatto — verificato localmente 2026-10-23
+
+- **Scritto:** Spec 014 §28 documenta il record ufficiale `5-26dicu` del
+  22 ottobre che interrompeva l'indice generale e i controlli di identità.
+- **Implementato:** `AreraActsIndexAdapter` 1.2.0 riconosce il formato compatto
+  preservando ID, data e URL esatti. Nessuna modifica a scope, fonti, valori
+  economici o policy di promozione. Sette regressioni coprono ID e metadati
+  discordanti, paginazione e mancato avanzamento del cursore su errore.
+- **Verificato:** 910 test, branch coverage 95,07%, Ruff check/format, mypy
+  `src tests` e diff check passano sul checkout completo. La regressione del
+  formato fallisce sul codice originale e passa dopo la correzione. Replay
+  del raw ufficiale SHA-256
+  `2d9641c0ae0e498e8a9bad5a548e894bdb3a06586cea1828e4ad331cc1e2ba2f`
+  passato: dieci righe nella prima pagina, totale 463 su 47 pagine.
+- **Runtime Platform locale:** tutti i cinque canali completati, 47 pagine
+  ARERA, coverage/preflight corrente ready con motivi vuoti. I 69 finding
+  Gazzetta rimasti in review durante il guasto sono risolti dalle regole di
+  scope già esistenti; non sono state aggiunte esclusioni per titolo.
+  Anchor corrente e digest invariati. Successore futuro ancora separatamente
+  bloccato per `incomplete_coverage`, senza promozione.
+- **Accettazione locale:** catalogo 2026-10-23
+  `1c5146b5-0b02-41d9-b7b4-3adfbc521131`, verified e confronti abilitati;
+  GET preflight del profilo Torino salvato ready con 265 offerte ammissibili;
+  browser senza avviso fonti, errori o mutazioni. La Platform usa un override
+  Compose locale ignorato da Git che monta questo sorgente in sola lettura
+  su API, comparison worker, regulatory worker e catalog worker.
+- **Confini:** modifiche preesistenti conservate, nessun nuovo confronto,
+  commit, push, wheel pubblicata o deployment di produzione. Il pin wheel
+  0.13.5 resta distinto dall'esecuzione del sorgente locale corretto.
+
 ## Core 0.13.5 — pubblicata 2026-10-19
 
 Il tag `v0.13.5` e il commit `6220db76f88085ae1e759774b985ce7b8f544c87` sono

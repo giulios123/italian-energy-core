@@ -478,11 +478,11 @@ def _date_italian_long(value: str) -> date:
 
 
 class AreraActsIndexAdapter:
-    """ARERA acts listing v1, paginated by year and exact detail links."""
+    """ARERA acts listing, paginated by year and exact detail links."""
 
     channel = RegulatoryRegistryChannel.ARERA_ACTS
     adapter_id = "arera-acts-index"
-    adapter_version = "1.1.0"
+    adapter_version = "1.2.0"
     _base_url = "https://www.arera.it/atti-e-provvedimenti"
     _result_count = re.compile(r"Numero pagine:\s*(\d+)\s+per\s+(\d+)\s+risultati", re.I)
     # The official index uses both date-first rows and rows with an opaque
@@ -497,6 +497,8 @@ class AreraActsIndexAdapter:
         r"(?:\s*-\s*[A-Z]+(?:-[a-z]+)?)?|\s*-\s*[A-Z]+(?:-[a-z]+)?)?|"
         r"\d+/\d{2}\s*-\s*[A-Z]+(?:-[a-z]+)?)\b"
     )
+
+    _compact_act_id = re.compile(r"^(?P<id>\d+-(?P<year>\d{2})[a-z]+)(?=\s|$)")
 
     def __init__(self, transport: OfficialRegistryTransport | None = None) -> None:
         self._transport = transport or UrllibOfficialRegistryTransport()
@@ -594,14 +596,28 @@ class AreraActsIndexAdapter:
             match = self._act_prefix.match(label)
             if match is None:
                 raise DiscoveryFailure(RegulatoryRolloverReason.PARSER_FAILURE)
-            id_match = self._act_id.match(match.group("rest"))
-            if id_match is None:
-                raise DiscoveryFailure(RegulatoryRolloverReason.PARSER_FAILURE)
-            act_id = " ".join(id_match.group("id").split())
             try:
                 published_at = _date_ddmmyyyy(match.group("date"))
             except ValueError as exc:
                 raise DiscoveryFailure(RegulatoryRolloverReason.PARSER_FAILURE) from exc
+            id_match = self._act_id.match(match.group("rest"))
+            compact_match = self._compact_act_id.match(match.group("rest"))
+            if id_match is not None:
+                act_id = " ".join(id_match.group("id").split())
+            elif compact_match is not None:
+                act_id = compact_match.group("id")
+                detail_url = urlsplit(urljoin(response.final_url, href))
+                if (
+                    detail_url.scheme != "https"
+                    or detail_url.hostname not in {"arera.it", "www.arera.it"}
+                    or detail_url.path != f"/atti-e-provvedimenti/dettaglio/{act_id}"
+                    or detail_url.query
+                    or detail_url.fragment
+                    or published_at.year % 100 != int(compact_match.group("year"))
+                ):
+                    raise DiscoveryFailure(RegulatoryRolloverReason.PARSER_FAILURE)
+            else:
+                raise DiscoveryFailure(RegulatoryRolloverReason.PARSER_FAILURE)
             records.append(
                 OfficialRegistryRecord(
                     channel=self.channel,

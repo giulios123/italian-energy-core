@@ -930,3 +930,85 @@ def test_default_factory_records_exact_bytes_from_registry_requests() -> None:
     assert saved[0].body == body
     assert saved[0].sha256 == sha256(body).hexdigest()
     assert saved[0].byte_length == len(body)
+
+
+def _compact_arera_index(
+    identifier: str = "5-26dicu", href: str = "5-26dicu", published: str = "22/10/2026"
+) -> bytes:
+    return (
+        "<html><body>Atti e provvedimenti Numero pagine: 1 per 1 risultati"
+        f"<a href='/atti-e-provvedimenti/dettaglio/{href}'>"
+        f"Determina {published} {identifier} Istruzioni operative</a></body></html>"
+    ).encode()
+
+
+def test_arera_compact_identifier_preserves_exact_official_identity() -> None:
+    adapter = AreraActsIndexAdapter(_RouteTransport({"anno=2026": _compact_arera_index()}))
+    period = DatePeriod(start=date(2026, 10, 16), end=date(2026, 10, 24))
+    page = adapter.fetch_page(period, 1, None)
+    assert page.complete
+    assert len(page.records) == page.total_results == 1
+    assert page.records[0].act_id == page.records[0].document_id == "5-26dicu"
+    assert page.records[0].published_at == date(2026, 10, 22)
+    assert page.records[0].url.endswith("/dettaglio/5-26dicu")
+
+
+@pytest.mark.parametrize(
+    ("identifier", "href", "published"),
+    [
+        ("5-26dicu", "6-26dicu", "22/10/2026"),
+        ("5-26dicu", "5-26dicu", "22/10/2025"),
+        ("5-26dicu-v2", "5-26dicu-v2", "22/10/2026"),
+        ("5-26dicu", "5-26dicu?view=other", "22/10/2026"),
+        ("5-26dicu", "5-26dicu#other", "22/10/2026"),
+    ],
+)
+def test_arera_compact_identifier_rejects_inconsistent_or_unknown_metadata(
+    identifier: str,
+    href: str,
+    published: str,
+) -> None:
+    adapter = AreraActsIndexAdapter(
+        _RouteTransport(
+            {
+                "anno=2026": _compact_arera_index(identifier, href, published),
+            }
+        )
+    )
+    with pytest.raises(DiscoveryFailure) as error:
+        adapter.fetch_page(PERIOD, 1, None)
+    assert error.value.reason == RegulatoryRolloverReason.PARSER_FAILURE
+
+
+def test_arera_compact_identifier_scan_requires_all_pages_before_advancing_cursor() -> None:
+    from italian_energy.arera.discovery import scan_regulatory_registry
+
+    first = _compact_arera_index().replace(
+        b"Numero pagine: 1 per 1 risultati", b"Numero pagine: 2 per 2 risultati"
+    )
+    second = (
+        b"<html><body>Atti e provvedimenti Numero pagine: 2 per 2 risultati"
+        b"<a href='/atti-e-provvedimenti/dettaglio/26/343-26'>"
+        b"Delibera 29/09/2026 343/2026/R/com Aggiornamento</a></body></html>"
+    )
+    transport = _RouteTransport({"pagina=1": first, "pagina=2": second})
+    adapter = AreraActsIndexAdapter(transport)
+    period = DatePeriod(start=date(2026, 10, 16), end=date(2026, 10, 24))
+    result = scan_regulatory_registry(adapter, period, FETCHED_AT)
+    assert result.complete
+    assert result.pages_received == 2
+    # The September record is counted for pagination, then filtered by the cutoff.
+    assert {record.act_id for record in result.records} == {"5-26dicu"}
+    assert result.next_cursor is not None
+    assert result.next_cursor.covered_through == period.end
+    assert len(transport.requests) == 2
+
+    invalid = _compact_arera_index("6-26dicu", "7-26dicu")
+    blocked = scan_regulatory_registry(
+        AreraActsIndexAdapter(_RouteTransport({"pagina=1": first, "pagina=2": invalid})),
+        period,
+        FETCHED_AT,
+    )
+    assert not blocked.complete
+    assert blocked.next_cursor is None
+    assert blocked.reason_code == RegulatoryRolloverReason.PARSER_FAILURE

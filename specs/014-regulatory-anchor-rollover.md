@@ -1331,3 +1331,41 @@ che la Platform abbia già aggiornato il proprio vincolo o attivato il worker.
   `as_of=2026-10-08`.
 - Il rilascio non certifica PostgreSQL/Platform, scheduler giornaliero o la
   freschezza della coverage per date successive al 2026-10-08.
+
+
+## 28. Indice ARERA con identificativi compatti — 2026-10-23
+
+Il refresh persistito del 23 ottobre interrompe la prima pagina dell'indice
+ARERA sul record del 22 ottobre con ID `5-26dicu`, conservato anche nel
+percorso ufficiale `/atti-e-provvedimenti/dettaglio/5-26dicu`. L'adapter 1.1.0
+richiede identificativi con slash e produce `parser_failure`. La successiva
+policy di scope conserva correttamente i record generali in review quando
+una scansione è incompleta; non va aggirata.
+
+L'adapter 1.2.0 riconosce anche il formato compatto
+`numero-anno_breveufficio`, trattando l'ufficio come identificativo opaco.
+Richiede che il token completo coincida con il segmento finale del percorso
+ufficiale, che l'anno coincida con la data di pubblicazione e che l'URL non
+contenga query o frammento. L'ID originale è conservato senza conversioni.
+Nessuna semantica economica è dedotta da titolo o ufficio. Formati ignoti,
+metadati incoerenti, duplicati e paginazione incompleta restano bloccanti.
+
+Accettazione: regressioni per riga compatta, identità discordante, anno
+discordante, suffisso non supportato e indice con più pagine; replay della
+prima pagina originale (SHA-256
+`2d9641c0ae0e498e8a9bad5a548e894bdb3a06586cea1828e4ad331cc1e2ba2f`),
+gate Core completi e refresh regulatory → catalog sul servizio locale.
+Anchor storici e dati economici non vengono modificati per sbloccare il gate.
+Nessun commit, push o rilascio è incluso nella correzione.
+
+### Esito §28
+
+Scritta, implementata e verificata localmente: sette regressioni, suite Core
+910 passed / 95,07% branch coverage, Ruff/format/mypy e diff passano. Replay
+della prima pagina originale e refresh completo su 47 pagine ARERA riusciti.
+Tutti i cinque canali completi, coverage corrente ready, nessuna modifica
+all'anchor corrente. Il successivo refresh catalogo Platform produce lo
+snapshot 2026-10-23 `1c5146b5-0b02-41d9-b7b4-3adfbc521131`, verified,
+confronti abilitati e motivi vuoti. GET preflight Torino ready con 265 offerte
+ammissibili; avviso UI assente. Runtime locale con mount sorgente, distinto
+dalla wheel pubblicata. Nessun nuovo confronto, commit, push o release.
