@@ -1,5 +1,18 @@
 # Progress
 
+## Core 0.13.6 pubblicato — 2026-10-23, verificato 2026-10-24
+
+- Commit/tag `8b0d147`/`v0.13.6`; CI main/tag Python 3.12–3.14 tutte verdi.
+- GitHub Release e PyPI pubblicati tramite workflow Trusted Publishing
+  40029005191 riuscito, con attestazioni digitali. Wheel e sdist scaricati:
+  SHA-256 GitHub/SHA256SUMS/PyPI coincidono. Nessun golden privato incluso.
+- Wheel `b557d28fe8776ccae3fa43fe38053d26e082daf3de57c745153910083115e37a`.
+- Platform ha verificato PEP 740 e installato la wheel host; immagine locale
+  0.13.6 costruita. Accettazione HTTP/fonti correnti registrata separatamente
+  nel repository Platform, non dedotta dalla pubblicazione o dallo smoke Q4.
+- Evidenze: `docs/release-0.13.6-publication.md`. Nessun deployment produzione.
+
+
 ## Preparazione Core 0.13.6 — 2026-10-23
 
 - Release GitHub/PyPI e adozione Platform autorizzate esplicitamente. Ambito:

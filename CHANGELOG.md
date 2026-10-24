@@ -34,6 +34,13 @@
   verificati restano requisiti indipendenti dalla pubblicazione del package.
 
 
+### Pubblicazione
+
+- Core 0.13.6 pubblicato su GitHub/PyPI con CI Python 3.12–3.14 riuscita e
+  Trusted Publishing. Digest wheel/sdist coincidenti fra i due servizi.
+- Evidenze e hash: `docs/release-0.13.6-publication.md`. Adozione Platform
+  verificata separatamente dalla pubblicazione del pacchetto.
+
 ## [0.13.5] - 2026-10-19
 
 ### Fixed
