@@ -38,3 +38,9 @@ separate dalla release Core. Non cambiare i confronti storici per il rilascio.
   alla sorgente verificata; nessun dato privato negli artefatti.
 - CI remota, tag, Trusted Publishing e confronto hash PyPI/GitHub restano
   da verificare dopo il push, prima di dichiarare pubblicata la versione.
+
+## Pubblicazione completata
+
+GitHub/PyPI verificati il 2026-10-25: CI main/tag, Trusted Publishing,
+attestazioni e hash concordanti. Vedi [evidenze](release-0.13.7-publication.md).
+L'adozione Platform rimane separata.

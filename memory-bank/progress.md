@@ -1,5 +1,20 @@
 # Progress
 
+## Core 0.13.7 pubblicato — 2026-10-25
+
+- Release commit `53b1e94948b5b7910fde0c188b70cb7800907776`, tag annotato
+  `v0.13.7`; GitHub Release e PyPI pubblicati. CI main/tag su Python
+  3.12–3.14 e workflow Publish to PyPI tutti riusciti.
+- Wheel `0a07154623c86d77d6e9d05f28e2f07f6270f745fc555545aa1c97f386093b13`;
+  sdist `109836c2efb8677d42fa24366074ac15a9264e94d5587c0119035f9dbde08a7a`.
+  Byte/hash identici GitHub/PyPI/build locale; attestazioni repository OK.
+- Installazione isolata da PyPI conferma 0.13.7 e contratto v1. Gate locali:
+  939 test, 95,12% con branch, Ruff/mypy/pre-commit e due golden privati.
+- La Platform usa ancora il mount sorgente locale e metadata installata
+  0.13.6; la wheel nuova non è stata adottata. Nessun deployment o mutazione
+  dei confronti/fonti. Evidenze: docs/release-0.13.7-publication.md.
+
+
 ## Preparazione Core 0.13.7 — 2026-10-25
 
 Rilascio richiesto dall'utente per le Specs 019/020, preservando contratti e

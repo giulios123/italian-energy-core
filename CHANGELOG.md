@@ -23,6 +23,14 @@
   include modifiche Platform separate dalla wheel e non è una garanzia SLA.
 - Schemi, capability, contratto v1, formule e dipendenze runtime invariati.
 
+### Pubblicazione
+
+- Core 0.13.7 pubblicato su GitHub e PyPI il 2026-10-25: CI main/tag
+  Python 3.12–3.14, Trusted Publishing e attestazioni di entrambi gli artefatti
+  verificati. Byte e SHA-256 coincidono fra GitHub, PyPI e build locale.
+- Evidenze: `docs/release-0.13.7-publication.md`. Adozione Platform e
+  deployment rimangono separati dalla pubblicazione.
+
 ## [0.13.6] - 2026-10-23
 
 ### Changed
