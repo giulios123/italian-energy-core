@@ -30,6 +30,7 @@ from italian_energy.domain.tariff import ChargeBasis, ChargeRule, IndexedTariff
 from italian_energy.domain.time import DatePeriod, Granularity
 from italian_energy.pricing.engine import PricingRequest
 from italian_energy.pricing.fixed import FixedPricingEngine, FixedPricingError
+from italian_energy.provenance import merge_provenance
 
 
 class IndexedPricingError(ValueError):
@@ -419,9 +420,4 @@ class IndexedPricingEngine:
 
     @staticmethod
     def _merge_provenance(*groups: Iterable[Provenance]) -> tuple[Provenance, ...]:
-        result: list[Provenance] = []
-        for group in groups:
-            for item in group:
-                if item not in result:
-                    result.append(item)
-        return tuple(result)
+        return merge_provenance(*groups)

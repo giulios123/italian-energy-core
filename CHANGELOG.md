@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.13.7] - 2026-10-25
+
+### Changed
+
+- Riuso delle serializzazioni canoniche degli input immutabili per gli ID
+  pricing/billing e deduplicazione della provenance nello scope della singola
+  compare(), preservando uguaglianza, primo oggetto, ordine e byte JSON
+  (Spec 019). Il cache del pricing mensile conserva soltanto l'ultimo frammento.
+- Riuso delle sole componenti regolatorie lineari con tutte le dipendenze
+  invariate, dopo la validazione di ogni bolletta. Nessun riuso di IVA,
+  accise a soglia, prezzi energia, errori o risultati di motori derivati
+  (Spec 020). Le cache terminano con il confronto.
+
+### Verification
+
+- Il package 0.13.7 supera 939 test con copertura con branch
+  95,12%; gate del package in `docs/release-0.13.7-preparation.md`.
+- Replay integrato con la Platform ottimizzata: 950 offerte, vista pubblica e
+  due digest identici, 951 bollette coerenti. Le valutazioni lineari osservate
+  passano da 197.064 a 144. Mediana locale 169,943 → 57,148 s; la misura
+  include modifiche Platform separate dalla wheel e non è una garanzia SLA.
+- Schemi, capability, contratto v1, formule e dipendenze runtime invariati.
+
 ## [0.13.6] - 2026-10-23
 
 ### Changed

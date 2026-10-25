@@ -1,5 +1,14 @@
 # Active context
 
+## Preparazione Core 0.13.7 — 2026-10-25
+
+Rilascio richiesto dall'utente per le Specs 019/020, preservando contratti e
+risultati. Versione package, lock, note e workflow aggiornati; 939 test / 95,12%,
+Ruff, mypy, pre-commit, golden privati, build e smoke isolato superati.
+CI remota e pubblicazione ancora da verificare.
+L'adozione della wheel nella Platform resta distinta dal mount sorgente locale.
+
+
 ## Core 0.13.6 pubblicato — 2026-10-23, verificato 2026-10-24
 
 - Commit/tag `8b0d147`/`v0.13.6`; CI main/tag Python 3.12–3.14 tutte verdi.
@@ -722,3 +731,22 @@ manuale ha pubblicato il tag già esistente `v0.11.0` su PyPI.
   dataset e blocca la completezza del confronto; nessuna ripartizione o tariffa
   è stata inventata.
 - Nessun rilascio Core.
+
+
+### Prestazioni confronto proiettato — 2026-10-25
+
+- Spec 019/020 implementate: riuso della serializzazione/provenance nello
+  scope della compare() e delle sole componenti regolatorie lineari con
+  dipendenze identiche. Preflight, controlli, scenari, IVA e soglie restano attivi.
+- Gate finale: 939 test, coverage con rami 95,12%, Ruff check/format, mypy e
+  diff check passano. Regole variate, consumo/potenza/residenza, misure,
+  periodo, rounding e provenance dei parametri confrontati con motore uncached.
+- Replay storico Platform 950 offerte: risultati pubblici e due digest identici,
+  951 bollette coerenti; tempo iniziale 169,943 s e prime misure della
+  configurazione finale 57,121 / 60,189 s. Non è una garanzia per ogni carico.
+- API/worker locali adottano le sorgenti in sola lettura; metadata wheel
+  ancora 0.13.6. Nessun commit/push/release/deployment. Rapporto e prove in
+  Platform docs/comparison-performance-2026-10-25/verification.md.
+
+Conferma finale nel worker senza suite parallele: 57,148 s; mediana
+57,148 s su tre prove finali (57,121 / 60,189 / 57,148), -66,37%.

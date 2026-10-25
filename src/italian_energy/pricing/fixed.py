@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from collections.abc import Iterable
 from datetime import date, datetime, time
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
+from italian_energy.canonical import canonical_request
 from italian_energy.domain.consumption import ConsumptionBucket
 from italian_energy.domain.costs import (
     ComponentMeaning,
@@ -22,6 +22,7 @@ from italian_energy.domain.provenance import Provenance
 from italian_energy.domain.tariff import ChargeBasis, ChargeRule, FixedTariff, Tariff
 from italian_energy.domain.time import DatePeriod
 from italian_energy.pricing.engine import PricingRequest
+from italian_energy.provenance import merge_provenance
 
 ROME = ZoneInfo("Europe/Rome")
 SUPPORTED_BASES = frozenset(
@@ -129,12 +130,7 @@ class FixedPricingEngine:
 
     @staticmethod
     def _pricing_id(request: PricingRequest) -> str:
-        payload = json.dumps(
-            request.model_dump(mode="json"),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        ).encode("utf-8")
+        payload = canonical_request(request)
         return f"fixed:{hashlib.sha256(payload).hexdigest()}"
 
     @staticmethod
@@ -398,9 +394,4 @@ class FixedPricingEngine:
 
     @staticmethod
     def _merge_provenance(*groups: Iterable[Provenance]) -> tuple[Provenance, ...]:
-        result: list[Provenance] = []
-        for group in groups:
-            for item in group:
-                if item not in result:
-                    result.append(item)
-        return tuple(result)
+        return merge_provenance(*groups)

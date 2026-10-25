@@ -64,3 +64,7 @@ mentre il nuovo servizio Core prepara il successore. I gate Core della 0.13.0
 passano; il test persistente PostgreSQL/Platform è separato e differito su
 richiesta dell'utente. La release Core `v0.13.0` è pubblicata; il dettaglio e
 i limiti sono in Spec 014 §26–27.
+
+- [Spec 019 — Riuso delle serializzazioni nel confronto](019-comparison-serialization-reuse.md)
+
+- [Spec 020 — Riuso delle componenti lineari proiettate](020-projected-linear-component-reuse.md)

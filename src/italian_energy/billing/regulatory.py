@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, datetime, time
 from decimal import ROUND_HALF_UP, Decimal
 from hashlib import sha256
 from zoneinfo import ZoneInfo
 
 from italian_energy.billing.engine import BillingRequest
+from italian_energy.canonical import canonical_request
 from italian_energy.domain.consumption import ConsumptionBucket
 from italian_energy.domain.costs import (
     Bill,
@@ -53,6 +55,21 @@ from italian_energy.domain.regulatory import (
     VerificationStatus,
 )
 from italian_energy.domain.time import DatePeriod
+from italian_energy.provenance import merge_provenance
+
+_linear_components: ContextVar[
+    dict[tuple[object, ...], tuple[tuple[object, ...], CostComponent]] | None
+] = ContextVar("linear_components", default=None)
+
+
+@contextmanager
+def linear_component_scope() -> Iterator[None]:
+    """Reuse successful invariant linear components in one projected comparison."""
+    token = _linear_components.set({})
+    try:
+        yield
+    finally:
+        _linear_components.reset(token)
 
 
 class BillingError(ValueError):
@@ -172,7 +189,7 @@ class RegulatoryBillingEngine:
             if window is None:
                 continue
             if isinstance(rule, LinearRegulatoryRule):
-                component = self._linear_component(
+                component = self._linear_component_reusing(
                     request,
                     rule,
                     window,
@@ -396,6 +413,41 @@ class RegulatoryBillingEngine:
                 "reconciliation_key": key,
             }
         )
+
+    def _linear_component_reusing(
+        self,
+        request: BillingRequest,
+        rule: LinearRegulatoryRule,
+        window: DatePeriod,
+        buckets: tuple[ConsumptionBucket, ...],
+        policy: RoundingPolicy,
+        parameters: tuple[RegulatoryParameter, ...],
+    ) -> CostComponent:
+        cache = _linear_components.get()
+        if cache is None or type(self) is not RegulatoryBillingEngine:
+            return self._linear_component(request, rule, window, buckets, policy, parameters)
+        key = (
+            id(self),
+            id(rule),
+            window,
+            tuple(map(id, buckets)),
+            id(request.consumption),
+            request.period,
+            request.contract.supply,
+            id(request.measurements),
+            request.classification,
+            policy,
+            id(parameters),
+            request.regulatory_projection_as_of,
+        )
+        known = cache.get(key)
+        if known is not None:
+            return known[1]
+        component = self._linear_component(request, rule, window, buckets, policy, parameters)
+        # Every identity-keyed dependency remains alive until scope exit.
+        references = (self, rule, buckets, request.consumption, request.measurements, parameters)
+        cache[key] = (references, component)
+        return component
 
     def _linear_component(
         self,
@@ -999,18 +1051,12 @@ class RegulatoryBillingEngine:
 
     @staticmethod
     def _bill_id(request: BillingRequest) -> str:
-        payload = request.model_dump(mode="json", exclude={"observed_bill"})
-        encoded = json.dumps(
-            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-        ).encode()
+        encoded = canonical_request(request, exclude=frozenset({"observed_bill"}))
         return f"bill:{sha256(encoded).hexdigest()}"
 
     @staticmethod
     def _billing_id(request: BillingRequest) -> str:
-        payload = request.model_dump(mode="json")
-        encoded = json.dumps(
-            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-        ).encode()
+        encoded = canonical_request(request)
         return f"billing:{sha256(encoded).hexdigest()}"
 
     @staticmethod
@@ -1023,9 +1069,4 @@ class RegulatoryBillingEngine:
 
     @staticmethod
     def _merge_provenance(*groups: Iterable[Provenance]) -> tuple[Provenance, ...]:
-        result: list[Provenance] = []
-        for group in groups:
-            for item in group:
-                if item not in result:
-                    result.append(item)
-        return tuple(result)
+        return merge_provenance(*groups)

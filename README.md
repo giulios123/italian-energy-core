@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Release Core `0.13.6` — confronto PUN/biorario, filtri espliciti e riuso dei calcoli fissi.
+> Release Core `0.13.7` — riuso delle serializzazioni e delle componenti regolatorie lineari nel confronto.
 
 Il package installabile è disponibile come wheel e sdist. L'importer Portale
 Offerte opera solo su cataloghi open-data ufficiali, replay storici esatti e
@@ -24,7 +24,7 @@ uv run pytest
 Installazione del package dalla release pubblicata:
 
 ```bash
-pip install italian-energy==0.13.6
+pip install italian-energy==0.13.7
 ```
 
 La release `0.13.4` conserva provenienza e semantica delle voci `Dispacciamento`
@@ -38,6 +38,20 @@ aggiunge dipendenze XLSX. Per le offerte domestiche col codice Portal 14,
 acquisisce il CdispD ufficiale dal CSV giornaliero e lo applica alla stima
 annuale come assunzione esplicita, mantenendo digest e provenance senza
 alterare il replay storico o i tre scenari PUN.
+
+### Novità della 0.13.7
+
+Il confronto riusa le serializzazioni degli input immutabili e della provenance
+nella singola richiesta. Le componenti regolatorie lineari mensili vengono
+riutilizzate soltanto con tutte le dipendenze invariate, dopo i controlli di
+ogni bolletta. Prezzi indicizzati, IVA, accise a soglia, ranking e totali
+continuano a essere calcolati per lo scenario corretto. Schemi, capability,
+formule, precisione e digest rimangono compatibili (Specs 019/020).
+
+Il replay integrato da 950 offerte, insieme alle ottimizzazioni di
+serializzazione della Platform, misura una mediana locale di 57,148 s contro
+169,943 s. La sola wheel Core non contiene le modifiche della Platform e
+queste misure non garantiscono una latenza massima su altri carichi.
 
 ### Novità della 0.13.6
 
@@ -215,18 +229,16 @@ del catalogo, e `preflight(request, ...).ready` prima del confronto cliente.
 Questo percorso è locale alla Core; l'allineamento e la persistenza Platform
 restano separati.
 
-### Handoff Platform del wheel 0.13.6
+### Handoff Platform del wheel 0.13.7
 
-La Platform mantiene il vincolo SemVer
-`required-version = ">=0.13.0,<0.14.0"`. Per accettare il wheel Core `0.13.6`,
-una milestone Platform separata aggiornerà il pin puntuale di versione e SHA-256 in
-`pyproject.toml`, i valori attesi e il nome del wheel in
-`scripts/verify_core_artifact.py` e `scripts/verify_core_runtime.py`, e il
-percorso del wheel nel `Dockerfile`. Il verificatore runtime dovrà continuare a
-provare il wheel esatto; poi andranno rieseguiti i gate Platform inclusi quelli
-PostgreSQL/worker. La release rende disponibili la policy `TIPO_OFFERTA=04`,
-i campi additivi per copertura e semantica delle componenti e la capability
-`portal_cdispd_parameter_projection` nel Core. La
-Platform deve inviare `current_component_coverage` completa e gestire i nuovi
-metadati `CostComponent`; il rilascio non attesta da solo la freschezza del
-catalogo né la copertura regolatoria pronta nella Platform.
+La Platform mantiene il vincolo `required-version = ">=0.13.0,<0.14.0"`.
+Per adottare la wheel Core 0.13.7 occorre verificare digest e attestazioni
+dell'artefatto pubblicato, aggiornare pin e SHA-256 puntuali, script di
+verifica e immagine, poi rieseguire i gate Platform e il replay economico.
+Gli override locali delle sorgenti devono essere rimossi dai servizi che
+si dichiarano basati sulla wheel pubblicata. Anche le ottimizzazioni proprie
+della Platform devono essere incluse per riprodurre il percorso integrato.
+
+Questa release non modifica schemi o capability e non richiede migrazioni.
+L'adozione Platform, la freschezza delle fonti e il deployment rimangono
+verifiche separate dalla pubblicazione del package.

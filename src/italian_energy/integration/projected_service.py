@@ -19,7 +19,12 @@ from italian_energy.arera.projection import (
 from italian_energy.arera.rollover_coverage import RegulatoryAnchorCoverageEvidence
 from italian_energy.arera.rollover_models import RegulatoryRolloverReason
 from italian_energy.billing.engine import BillingRequest
-from italian_energy.billing.regulatory import BillingError, RegulatoryBillingEngine
+from italian_energy.billing.regulatory import (
+    BillingError,
+    RegulatoryBillingEngine,
+    linear_component_scope,
+)
+from italian_energy.canonical import serialization_scope
 from italian_energy.comparison import (
     AlternativePricing,
     ComparisonResult,
@@ -70,6 +75,7 @@ from italian_energy.portal_offers.recommendation import PortalRecommendationAdap
 from italian_energy.pricing.engine import PricingRequest
 from italian_energy.pricing.fixed import FixedPricingEngine, FixedPricingError
 from italian_energy.pricing.indexed import IndexedPricingEngine, IndexedPricingError
+from italian_energy.provenance import merge_provenance, provenance_scope
 from italian_energy.recommendation import (
     DeterministicRecommendationEngine,
     RecommendationEngine,
@@ -640,6 +646,9 @@ class ProjectedDomesticEnergyService:
             for source in anchor.sources
         )
 
+    @linear_component_scope()
+    @serialization_scope()
+    @provenance_scope()
     def compare(
         self,
         request: ProjectedDomesticComparisonRequest,
@@ -1391,14 +1400,7 @@ def _digest(value: object) -> str:
 
 
 def _merge_provenance(*groups: Iterable[Provenance]) -> tuple[Provenance, ...]:
-    unique: dict[bytes, Provenance] = {}
-    for provenance_group in groups:
-        for item in provenance_group:
-            key = json.dumps(
-                item.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
-            ).encode("utf-8")
-            unique.setdefault(key, item)
-    return tuple(unique[key] for key in sorted(unique))
+    return merge_provenance(*groups, canonical=True)
 
 
 def _aggregate_components(
