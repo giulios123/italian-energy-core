@@ -156,15 +156,17 @@ _SCHEMA_TO_MODEL: dict[CoreSchemaId, type[DomainModel]] = {
     CoreSchemaId.REGULATORY_SOURCE_PREFLIGHT_RESULT: RegulatorySourcePreflightResult,
     CoreSchemaId.PROJECTED_SOURCE_BUNDLE: ProjectedSourceBundle,
     CoreSchemaId.PROJECTED_SOURCE_PREFLIGHT_RESULT: ProjectedSourcePreflightResult,
+    CoreSchemaId.PROJECTED_SOURCE_BUNDLE_V2: ProjectedSourceBundle,
+    CoreSchemaId.PROJECTED_SOURCE_PREFLIGHT_RESULT_V2: ProjectedSourcePreflightResult,
+    CoreSchemaId.PROJECTED_DOMESTIC_PREFLIGHT_RESULT_V3: ProjectedDomesticPreflightResult,
+    CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_RESULT_V3: ProjectedDomesticComparisonResult,
+    CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST_V3: (
+        ProjectedDomesticRecommendationRequest
+    ),
 }
 _MODEL_TO_SCHEMA = {model: schema for schema, model in _SCHEMA_TO_MODEL.items()}
 _MODEL_TO_SCHEMA.update(
     {
-        ProjectedDomesticComparisonResult: CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_RESULT_V2,
-        ProjectedDomesticPreflightResult: CoreSchemaId.PROJECTED_DOMESTIC_PREFLIGHT_RESULT_V2,
-        ProjectedDomesticRecommendationRequest: (
-            CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST_V2
-        ),
         ProjectedDomesticRecommendationResult: (
             CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_RESULT_V2
         ),
@@ -172,6 +174,8 @@ _MODEL_TO_SCHEMA.update(
         RegulatoryDiscoveryReport: CoreSchemaId.REGULATORY_DISCOVERY_REPORT_V2,
         DiscoverySnapshot: CoreSchemaId.REGULATORY_DISCOVERY_SNAPSHOT_V2,
         RegulatoryRolloverReport: CoreSchemaId.REGULATORY_ROLLOVER_REPORT_V2,
+        ProjectedSourceBundle: CoreSchemaId.PROJECTED_SOURCE_BUNDLE_V2,
+        ProjectedSourcePreflightResult: CoreSchemaId.PROJECTED_SOURCE_PREFLIGHT_RESULT_V2,
     }
 )
 
@@ -286,6 +290,20 @@ def load_envelope(data: bytes | str) -> IntegrationPayload:
             and result.schema_version != ROLLOVER_ANCHOR_SCHEMA_VERSION
         ):
             raise ValueError("anchor schema version does not match its envelope schema")
+        if schema == CoreSchemaId.PROJECTED_SOURCE_BUNDLE_V2 and (
+            not isinstance(result, ProjectedSourceBundle) or result.market_history.selection is None
+        ):
+            raise ValueError("source bundle v2 requires the GME monthly selection")
+        if schema == CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_RESULT_V3 and (
+            not isinstance(result, ProjectedDomesticComparisonResult)
+            or result.verified_inputs.market_selection is None
+        ):
+            raise ValueError("projected comparison v3 requires the GME monthly selection")
+        if schema == CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST_V3 and (
+            not isinstance(result, ProjectedDomesticRecommendationRequest)
+            or result.comparison.verified_inputs.market_selection is None
+        ):
+            raise ValueError("recommendation request v3 requires the GME monthly selection")
         return cast(IntegrationPayload, result)
     except (TypeError, ValueError, ValidationError) as exc:
         raise CoreContractError(

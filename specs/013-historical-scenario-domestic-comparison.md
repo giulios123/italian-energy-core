@@ -25,7 +25,11 @@ il mese di `as_of`. Per `as_of = 2026-09-27`, il periodo è
 ## Metodo normativo
 
 - Richiedere i dodici mesi civili consecutivi immediatamente precedenti il mese
-  di `as_of`; rifiutare gap, duplicati, copertura parziale e dati arretrati.
+  di `as_of` per i consumi. Per il solo storico PUN GME si applica Spec 016:
+  può terminare un mese prima se la pubblicazione dell'ultimo mese concluso è
+  incompleta e tutti i dodici mesi alternativi consecutivi sono verificati;
+  gap, duplicati, copertura parziale nei mesi selezionati e ritardo oltre un
+  mese falliscono chiusi. Il periodo dei consumi resta ancorato ad `as_of`.
 - Ripetere per ogni mese futuro il consumo e l’indice del medesimo mese
   dell’anno osservato. Non scalare la quantità mensile per la diversa durata
   del mese.
@@ -148,9 +152,12 @@ verifica dell’host ufficiale a ogni redirect e massimo tre redirect. Limiti:
 64 MB per singola parte e 40.000 righe. Rifiutare percorsi ZIP assoluti,
 parent traversal, duplicati e parti cifrate o sospette prima dell’estrazione.
 
-La finestra richiesta è una regola del servizio, non un fallback del provider:
-deve contenere esattamente i dodici mesi attesi, senza mesi futuri, buchi,
-duplicati o sovrapposizioni. Uno storico più vecchio non è sostituto valido.
+La finestra di consumi richiesta è una regola del servizio, non un fallback del
+provider: deve contenere esattamente i dodici mesi attesi, senza mesi futuri,
+buchi, duplicati o sovrapposizioni. Per il solo PUN GME si applica l'eccezione
+esplicita di Spec 016: in caso di ritardo provato della pubblicazione, lo
+storico può terminare un mese prima, se i dodici mesi ufficiali selezionati
+sono completi e consecutivi. Uno storico più vecchio non è sostituto valido.
 
 L’ancora tariffaria ARERA deriva dagli atti e dataset ufficiali applicabili
 alla data richiesta, integrando il workbook quando il suo periodo non arriva

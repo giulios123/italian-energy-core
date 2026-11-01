@@ -35,6 +35,7 @@ class CoreCapability(StrEnum):
     PROJECTED_DOMESTIC_COMPARISON = "projected_domestic_comparison"
     PROJECTED_DOMESTIC_PREFLIGHT = "projected_domestic_preflight"
     PROJECTED_SOURCE_PREFLIGHT = "projected_source_preflight"
+    GME_MONTHLY_PUBLICATION_LAG = "gme_monthly_publication_lag"
     REGULATORY_ANCHOR_REFRESH = "regulatory_anchor_refresh"
     REGULATORY_ANCHOR_ROLLOVER = "regulatory_anchor_rollover"
     PROJECTED_DOMESTIC_RECOMMENDATION = "projected_domestic_recommendation"
@@ -103,6 +104,15 @@ class CoreSchemaId(StrEnum):
     REGULATORY_SOURCE_PREFLIGHT_RESULT = "italian-energy/regulatory-source-preflight-result/v1"
     PROJECTED_SOURCE_BUNDLE = "italian-energy/projected-source-bundle/v1"
     PROJECTED_SOURCE_PREFLIGHT_RESULT = "italian-energy/projected-source-preflight-result/v1"
+    PROJECTED_SOURCE_BUNDLE_V2 = "italian-energy/projected-source-bundle/v2"
+    PROJECTED_SOURCE_PREFLIGHT_RESULT_V2 = "italian-energy/projected-source-preflight-result/v2"
+    PROJECTED_DOMESTIC_PREFLIGHT_RESULT_V3 = "italian-energy/projected-domestic-preflight-result/v3"
+    PROJECTED_DOMESTIC_COMPARISON_RESULT_V3 = (
+        "italian-energy/projected-domestic-comparison-result/v3"
+    )
+    PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST_V3 = (
+        "italian-energy/projected-domestic-recommendation-request/v3"
+    )
 
 
 class CoreManifest(DomainModel):

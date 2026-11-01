@@ -58,6 +58,8 @@ from italian_energy.integration.current import (
 from italian_energy.integration.errors import CoreContractError, CoreErrorCode
 from italian_energy.market.gme import (
     GmeMarketHistory,
+    GmeMarketSelection,
+    GmePublicationLagExceeded,
     fetch_recent_market_history,
     is_official_gme_monthly_provenance,
     recent_months,
@@ -158,6 +160,11 @@ class ProjectedDomesticEnergyService:
         """Acquire exactly the twelve complete historical GME PUN months."""
         try:
             return fetch_recent_market_history(as_of)
+        except GmePublicationLagExceeded as exc:
+            raise CoreContractError(
+                CoreErrorCode.GME_PUBLICATION_LAG_EXCEEDED,
+                "official GME PUN publication is delayed beyond the one-month limit",
+            ) from exc
         except ValueError as exc:
             raise CoreContractError(
                 CoreErrorCode.SOURCE_ACQUISITION_FAILED,
@@ -348,6 +355,7 @@ class ProjectedDomesticEnergyService:
                         request.as_of,
                         CurrentScenario.BASE,
                         _INDEX_DELTA,
+                        market_history=market_history,
                     ),
                     ruleset,
                 )
@@ -422,6 +430,7 @@ class ProjectedDomesticEnergyService:
             normalized_offer_count=normalized_count,
             horizon_eligible_offer_count=eligible_count,
             excluded_offer_count=excluded_count,
+            market_selection=source_gate.market_selection,
         )
 
     def source_preflight(
@@ -469,7 +478,11 @@ class ProjectedDomesticEnergyService:
         else:
             checks["market_window_verified"] = self._market_history_matches(market_history, as_of)
             if not checks["market_window_verified"]:
-                reasons.append(CoreErrorCode.SOURCE_VALIDATION_FAILED.value)
+                selection = market_history.selection
+                if selection is not None and selection.publication_lag_months > 1:
+                    reasons.append(CoreErrorCode.GME_PUBLICATION_LAG_EXCEEDED.value)
+                else:
+                    reasons.append(CoreErrorCode.SOURCE_VALIDATION_FAILED.value)
 
         if anchor is None:
             reasons.append("regulatory_anchor_missing")
@@ -539,6 +552,11 @@ class ProjectedDomesticEnergyService:
             as_of=as_of,
             checks=checks,
             reason_codes=unique_reasons,
+            market_selection=(
+                self._selection_for_history(market_history, as_of)
+                if market_history is not None and checks["market_window_verified"]
+                else None
+            ),
         )
 
     def _coverage_evidence_reasons(
@@ -729,6 +747,12 @@ class ProjectedDomesticEnergyService:
             for item in import_result.normalized
         ):
             cdispd_projection = None
+        selection = self._selection_for_history(market_history, request.as_of)
+        if selection is None:
+            raise CoreContractError(
+                CoreErrorCode.SOURCE_VALIDATION_FAILED,
+                "verified GME history has no valid monthly reference selection",
+            )
         multipliers = (Decimal("0.80"), Decimal("1.00"), Decimal("1.20"))
         scenario_pairs = (
             (CurrentScenario.LOW_INDEX, multipliers[0]),
@@ -746,6 +770,7 @@ class ProjectedDomesticEnergyService:
                 request.as_of,
                 scenario,
                 _INDEX_DELTA,
+                market_history=market_history,
             )
             comparison = self._compare_scenario(
                 request,
@@ -766,18 +791,20 @@ class ProjectedDomesticEnergyService:
                 )
             )
 
-        history_period = DatePeriod(
+        consumption_period = DatePeriod(
             start=recent_months(request.as_of)[0],
             end=_add_months(recent_months(request.as_of)[-1], 1),
         )
+        market_period = selection.historical_market_period
         provenance = anchor.to_bundle().provenance
         evidence = ProjectedVerifiedInputs(
             catalog_snapshot_id=catalog.snapshot.offers.snapshot_id,
             catalog_dataset_date=catalog.dataset_date,
             catalog_status=catalog.snapshot.offers.status,
             market_status=market_history.status,
-            market_period=history_period,
+            market_period=market_period,
             market_report_provenance=tuple(report.provenance for report in market_history.reports),
+            market_selection=selection,
             regulatory_anchor_id=anchor.anchor_id,
             regulatory_status=anchor.status,
             regulatory_anchor_date=anchor.as_of,
@@ -801,14 +828,13 @@ class ProjectedDomesticEnergyService:
                 else None
             ),
         )
-        latest_pun = market_history.reports[-1].parsed
         assumptions = ProjectedComparisonAssumptions(
-            historical_consumption_period=history_period,
-            historical_market_period=history_period,
+            historical_consumption_period=consumption_period,
+            historical_market_period=market_period,
             future_period=horizon,
             market_reference_method="latest_complete_month_held_constant",
-            market_reference_period=latest_pun.period,
-            market_reference_value_eur_per_kwh=latest_pun.value_eur_per_kwh,
+            market_reference_period=selection.reference_period,
+            market_reference_value_eur_per_kwh=selection.reference_value_eur_per_kwh,
             regulatory_anchor_date=anchor.as_of,
             current_contract_continued=request.continuation_assumption,
             cdispd_projection=cdispd_projection,
@@ -821,6 +847,7 @@ class ProjectedDomesticEnergyService:
                 "period": horizon.model_dump(mode="json"),
                 "catalog": catalog.snapshot.offers.snapshot_id,
                 "market_digests": [item.sha256 for item in evidence.market_report_provenance],
+                "market_selection": selection.model_dump(mode="json"),
                 "anchor": anchor.anchor_id,
                 "regulatory_coverage": coverage_evidence.evidence_id,
                 "cdispd_reference_snapshot_id": (
@@ -1321,9 +1348,20 @@ class ProjectedDomesticEnergyService:
 
     @staticmethod
     def _market_history_matches(history: GmeMarketHistory, as_of: date) -> bool:
+        try:
+            history = GmeMarketHistory.model_validate(history.model_dump(mode="python"))
+        except ValueError:
+            return False
         if history.status != VerificationStatus.VERIFIED or history.as_of != as_of:
             return False
-        expected = recent_months(as_of)
+        expected = (
+            tuple(
+                _add_months(history.selection.historical_market_period.start, offset)
+                for offset in range(12)
+            )
+            if history.selection is not None
+            else recent_months(as_of)
+        )
         actual = tuple(report.parsed.period.start for report in history.reports)
         if actual != expected or len(history.reports) != 12:
             return False
@@ -1349,6 +1387,31 @@ class ProjectedDomesticEnergyService:
                 for item in point.provenance
             )
             for report, point in zip(history.reports, history.market_data.points, strict=True)
+        )
+
+    @staticmethod
+    def _selection_for_history(history: GmeMarketHistory, as_of: date) -> GmeMarketSelection | None:
+        if history.selection is not None:
+            return history.selection if history.selection.comparison_as_of == as_of else None
+        expected = recent_months(as_of)
+        if (
+            history.as_of != as_of
+            or tuple(report.parsed.period.start for report in history.reports) != expected
+            or len(history.reports) != 12
+        ):
+            return None
+        latest = history.reports[-1]
+        return GmeMarketSelection(
+            comparison_as_of=as_of,
+            expected_latest_period=DatePeriod(start=expected[-1], end=_add_months(expected[-1], 1)),
+            historical_market_period=DatePeriod(
+                start=expected[0], end=_add_months(expected[-1], 1)
+            ),
+            reference_period=latest.parsed.period,
+            reference_value_eur_per_kwh=latest.parsed.value_eur_per_kwh,
+            reference_provenance=latest.provenance,
+            publication_lag_months=0,
+            publication_status="complete",
         )
 
     def _validate_as_of(self, as_of: date) -> None:

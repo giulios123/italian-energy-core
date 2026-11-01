@@ -256,6 +256,7 @@ def test_manifest_is_canonical_and_matches_package_identity() -> None:
     assert CoreCapability.CURRENT_PORTAL_PREFLIGHT in CORE_MANIFEST.capabilities
     assert CoreCapability.REGULATORY_ANCHOR_REFRESH in CORE_MANIFEST.capabilities
     assert CoreCapability.REGULATORY_ANCHOR_ROLLOVER in CORE_MANIFEST.capabilities
+    assert CoreCapability.GME_MONTHLY_PUBLICATION_LAG in CORE_MANIFEST.capabilities
     assert CORE_MANIFEST.schema_ids == tuple(sorted(CORE_MANIFEST.schema_ids))
     assert tuple(item.value for item in CORE_MANIFEST.schema_ids) == CORE_SCHEMA_IDS
 
@@ -309,6 +310,11 @@ def test_manifest_exposes_only_integration_schema_ids() -> None:
         CoreSchemaId.REGULATORY_SOURCE_PREFLIGHT_RESULT,
         CoreSchemaId.PROJECTED_SOURCE_BUNDLE,
         CoreSchemaId.PROJECTED_SOURCE_PREFLIGHT_RESULT,
+        CoreSchemaId.PROJECTED_SOURCE_BUNDLE_V2,
+        CoreSchemaId.PROJECTED_SOURCE_PREFLIGHT_RESULT_V2,
+        CoreSchemaId.PROJECTED_DOMESTIC_PREFLIGHT_RESULT_V3,
+        CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_RESULT_V3,
+        CoreSchemaId.PROJECTED_DOMESTIC_RECOMMENDATION_REQUEST_V3,
     }
 
 

@@ -13,15 +13,16 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation, localcontext
 from hashlib import sha256
 from io import BytesIO
-from typing import Any, cast
+from typing import Any, Literal, cast
 from urllib.parse import urljoin, urlsplit
 from zipfile import ZipFile, ZipInfo
 from zoneinfo import ZoneInfo
 
 from defusedxml import ElementTree as SafeET  # type: ignore[import-untyped, unused-ignore]
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from italian_energy.domain.base import DomainModel
+from italian_energy.domain.common import strict_decimal
 from italian_energy.domain.market import MarketData, MarketDataPoint, MarketIndex
 from italian_energy.domain.money import RateUnit
 from italian_energy.domain.provenance import Provenance, ProvenanceLocator
@@ -74,6 +75,24 @@ class GmeImportError(ValueError):
 
 class GmeReportNotFound(GmeImportError):
     """The exact official monthly PDF URL returned HTTP 404."""
+
+
+class GmeArchiveNotFound(GmeImportError):
+    """The exact official annual archive URL returned HTTP 404."""
+
+
+class GmePublicationLagExceeded(GmeImportError):
+    """The newest complete official PUN month is more than one month old."""
+
+
+class GmePublicationIncomplete(GmeImportError):
+    """The official archive proves a valid, complete-day prefix of its final month."""
+
+    def __init__(self, evidence: GmeArchiveCoverageEvidence) -> None:
+        self.evidence = evidence
+        super().__init__(
+            f"GME publication is incomplete for {evidence.expected_period.start:%Y-%m}"
+        )
 
 
 def _decimal_power_of_ten(value: Decimal, exponent_delta: int) -> Decimal:
@@ -207,6 +226,172 @@ class GmeBandReportSnapshot(DomainModel):
         return self
 
 
+class GmeArchiveCoverageEvidence(DomainModel):
+    """Observed coverage in one structurally validated official annual workbook."""
+
+    archive_url: str
+    archive_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    retrieved_at: datetime
+    workbook_name: str = Field(min_length=1)
+    expected_period: DatePeriod
+    coverage_start: date
+    coverage_end: date
+    locator: ProvenanceLocator
+
+    @model_validator(mode="after")
+    def validate_coverage(self) -> GmeArchiveCoverageEvidence:
+        if self.archive_url != annual_archive_url(self.expected_period.start.year):
+            raise ValueError("GME publication evidence must identify its official annual archive")
+        if self.retrieved_at.tzinfo is None or self.retrieved_at.utcoffset() is None:
+            raise ValueError("GME archive evidence retrieval time must be timezone-aware")
+        if self.coverage_start > self.coverage_end:
+            raise ValueError("GME archive coverage must have an ordered date range")
+        if self.coverage_end >= self.expected_period.end:
+            raise ValueError("GME incomplete publication evidence cannot cover the full month")
+        supported_start = date(
+            self.expected_period.start.year,
+            10 if self.expected_period.start.year == 2025 else 1,
+            1,
+        )
+        if self.coverage_start not in {supported_start, self.expected_period.start}:
+            raise ValueError(
+                "GME archive evidence must start at the supported year or expected month"
+            )
+        if (
+            self.coverage_start != self.expected_period.start
+            and self.coverage_end != self.expected_period.start - timedelta(days=1)
+        ):
+            raise ValueError("GME absent-month evidence must end on the preceding calendar day")
+        if (
+            self.locator.document != self.workbook_name
+            or self.locator.sheet != "Prezzi-Prices"
+            or self.locator.cell is None
+        ):
+            raise ValueError("GME archive evidence must preserve a worksheet row locator")
+        return self
+
+
+class GmePublicationEvidence(DomainModel):
+    """Proof that the expected GME month was not yet published in full."""
+
+    expected_period: DatePeriod
+    pdf_url: str
+    pdf_http_status: Literal[404] = 404
+    archive_url: str
+    archive_http_status: Literal[200, 404]
+    archive_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    pdf_checked_at: datetime
+    retrieved_at: datetime
+    coverage_start: date | None = None
+    coverage_end: date | None = None
+    workbook_name: str | None = None
+    locator: ProvenanceLocator | None = None
+
+    @model_validator(mode="after")
+    def validate_evidence(self) -> GmePublicationEvidence:
+        if self.pdf_url != report_url(self.expected_period.start):
+            raise ValueError("GME publication evidence must retain the exact monthly PDF URL")
+        if self.archive_url != annual_archive_url(self.expected_period.start.year):
+            raise ValueError("GME publication evidence must retain the official annual archive URL")
+        if self.retrieved_at.tzinfo is None or self.retrieved_at.utcoffset() is None:
+            raise ValueError("GME publication check time must be timezone-aware")
+        if self.pdf_checked_at.tzinfo is None or self.pdf_checked_at.utcoffset() is None:
+            raise ValueError("GME monthly PDF check time must be timezone-aware")
+        archive_fields = (
+            self.archive_sha256,
+            self.coverage_start,
+            self.coverage_end,
+            self.workbook_name,
+            self.locator,
+        )
+        if self.archive_http_status == 404:
+            if any(value is not None for value in archive_fields):
+                raise ValueError("a missing GME archive cannot claim workbook coverage or digest")
+        else:
+            if any(value is None for value in archive_fields):
+                raise ValueError(
+                    "validated GME archive evidence requires digest and coverage locator"
+                )
+            coverage_start = cast(date, self.coverage_start)
+            coverage_end = cast(date, self.coverage_end)
+            if coverage_start > coverage_end or coverage_end >= self.expected_period.end:
+                raise ValueError(
+                    "GME archive evidence must end before the expected month is complete"
+                )
+            supported_start = date(
+                self.expected_period.start.year,
+                10 if self.expected_period.start.year == 2025 else 1,
+                1,
+            )
+            if coverage_start not in {supported_start, self.expected_period.start}:
+                raise ValueError("GME publication evidence has an invalid archive coverage start")
+            if (
+                coverage_start != self.expected_period.start
+                and coverage_end != self.expected_period.start - timedelta(days=1)
+            ):
+                raise ValueError("GME absent-month evidence must end on the prior calendar day")
+            if self.locator is not None and (
+                self.locator.document != self.workbook_name
+                or self.locator.sheet != "Prezzi-Prices"
+                or self.locator.cell is None
+            ):
+                raise ValueError("GME archive evidence must point to the observed workbook rows")
+        return self
+
+
+class GmeMarketSelection(DomainModel):
+    """Verified twelve-month GME window and auditable monthly reference choice."""
+
+    comparison_as_of: date
+    expected_latest_period: DatePeriod
+    historical_market_period: DatePeriod
+    reference_period: DatePeriod
+    reference_value_eur_per_kwh: Decimal
+    reference_provenance: Provenance
+    publication_lag_months: Literal[0, 1]
+    publication_status: Literal["complete", "incomplete"]
+    publication_evidence: GmePublicationEvidence | None = None
+
+    @field_validator("reference_value_eur_per_kwh", mode="before")
+    @classmethod
+    def validate_reference_value(cls, value: object) -> Decimal:
+        result = strict_decimal(value)
+        if result < 0:
+            raise ValueError("GME reference value must be a finite non-negative Decimal")
+        return result
+
+    @model_validator(mode="after")
+    def validate_selection(self) -> GmeMarketSelection:
+        expected_start = _add_months(self.comparison_as_of.replace(day=1), -1)
+        expected_period = DatePeriod(start=expected_start, end=_add_months(expected_start, 1))
+        if self.expected_latest_period != expected_period:
+            raise ValueError("GME expected period must be the month before the comparison month")
+        expected_reference = _add_months(expected_start, -self.publication_lag_months)
+        if self.reference_period != DatePeriod(
+            start=expected_reference, end=_add_months(expected_reference, 1)
+        ):
+            raise ValueError("GME selected reference period does not match its publication lag")
+        history_start = _add_months(expected_start, -11 - self.publication_lag_months)
+        if self.historical_market_period != DatePeriod(
+            start=history_start,
+            end=_add_months(expected_start, 1 - self.publication_lag_months),
+        ):
+            raise ValueError("GME historical period must contain twelve consecutive months")
+        if self.publication_lag_months == 0:
+            if self.publication_status != "complete" or self.publication_evidence is not None:
+                raise ValueError("a current GME reference cannot claim publication delay")
+        else:
+            if (
+                self.publication_status != "incomplete"
+                or self.publication_evidence is None
+                or self.publication_evidence.expected_period != self.expected_latest_period
+            ):
+                raise ValueError("a delayed GME reference requires proof of the expected month gap")
+        if not is_official_gme_monthly_provenance(self.reference_provenance, self.reference_period):
+            raise ValueError("GME reference requires official provenance for the selected month")
+        return self
+
+
 class GmeMarketHistory(DomainModel):
     """An exact and source-verified monthly PUN window."""
 
@@ -214,10 +399,23 @@ class GmeMarketHistory(DomainModel):
     status: VerificationStatus
     reports: tuple[GmeMonthlyIndexSnapshot, ...]
     market_data: MarketData
+    selection: GmeMarketSelection | None = None
 
     @model_validator(mode="after")
     def validate_complete_window(self) -> GmeMarketHistory:
-        expected = recent_months(self.as_of)
+        expected = (
+            tuple(
+                _add_months(self.selection.historical_market_period.start, offset)
+                for offset in range(12)
+            )
+            if self.selection is not None
+            else recent_months(self.as_of)
+        )
+        if self.selection is not None:
+            if self.selection.comparison_as_of != self.as_of:
+                raise ValueError("GME selection must match the comparison date")
+            if self.selection.historical_market_period.end != _add_months(expected[-1], 1):
+                raise ValueError("GME selection period must match its twelve reports")
         actual = tuple(report.parsed.period.start for report in self.reports)
         if len({report.parsed.period for report in self.reports}) != 12:
             raise ValueError("GME history cannot contain duplicate months")
@@ -241,6 +439,14 @@ class GmeMarketHistory(DomainModel):
                 )
             ):
                 raise ValueError("GME market point must reproduce its source-backed report value")
+        if self.selection is not None:
+            selected = self.reports[-1]
+            if (
+                selected.parsed.period != self.selection.reference_period
+                or selected.parsed.value_eur_per_kwh != self.selection.reference_value_eur_per_kwh
+                or selected.provenance != self.selection.reference_provenance
+            ):
+                raise ValueError("GME selection must reproduce the latest report in its window")
         if len(self.market_data.indexes) != 1 or self.market_data.indexes[0].code != "PUN":
             raise ValueError("GME history must expose only the verified PUN index")
         if self.status == VerificationStatus.VERIFIED and any(
@@ -578,6 +784,8 @@ def _download_annual_archive(year: int, *, timeout_seconds: float = 30) -> tuple
                 raise GmeImportError("GME archive redirected outside the official HTTPS host")
             content = response.read(MAX_ARCHIVE_DOWNLOAD_BYTES + 1)
     except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise GmeArchiveNotFound(f"GME annual archive returned HTTP 404 for {year}") from exc
         raise GmeImportError(
             f"GME annual archive acquisition failed for {year} (HTTP {exc.code})"
         ) from exc
@@ -594,6 +802,7 @@ def parse_annual_market_archive(
     year: int,
     period_starts: tuple[date, ...],
     retrieved_at: datetime,
+    allow_incomplete_tail_period: date | None = None,
 ) -> dict[date, GmeMonthlyIndexSnapshot]:
     """Parse requested monthly PUN averages from an official annual GME ZIP."""
 
@@ -620,6 +829,7 @@ def parse_annual_market_archive(
             year=year,
             period_starts=period_starts,
             retrieved_at=retrieved_at,
+            allow_incomplete_tail_period=allow_incomplete_tail_period,
         )
     except GmeImportError:
         raise
@@ -680,9 +890,16 @@ def _parse_gme_workbook(
     year: int,
     period_starts: tuple[date, ...],
     retrieved_at: datetime,
+    allow_incomplete_tail_period: date | None = None,
 ) -> dict[date, GmeMonthlyIndexSnapshot]:
     if not content or len(content) > MAX_WORKBOOK_BYTES:
         raise GmeImportError("GME workbook is empty or exceeds the 48 MiB workbook limit")
+    if allow_incomplete_tail_period is not None and (
+        allow_incomplete_tail_period.year != year
+        or allow_incomplete_tail_period.day != 1
+        or allow_incomplete_tail_period not in period_starts
+    ):
+        raise GmeImportError("GME incomplete-tail inspection must select a requested archive month")
     with ZipFile(BytesIO(content)) as workbook:
         parts: dict[str, ZipInfo] = {}
         total_uncompressed = 0
@@ -707,9 +924,13 @@ def _parse_gme_workbook(
         selected = set(period_starts)
         monthly_values: dict[date, list[Decimal]] = {month: [] for month in period_starts}
         ranges: dict[date, tuple[int, int]] = {}
+        month_counts: dict[date, int] = {}
+        month_first_day: dict[date, date] = {}
+        month_last_day: dict[date, date] = {}
         header_columns: dict[str, str] | None = None
         selected_columns: dict[str, str] = {}
         current_day: date | None = None
+        first_archive_day: date | None = None
         day_period_count = 0
         previous_period = 0
         expected_row = 1
@@ -791,6 +1012,8 @@ def _parse_gme_workbook(
                                 "GME annual workbook has a missing or out-of-order day"
                             )
                     current_day = row_day
+                    if first_archive_day is None:
+                        first_archive_day = row_day
                     day_period_count = 0
                     previous_period = 0
                 day_period_count += 1
@@ -802,6 +1025,9 @@ def _parse_gme_workbook(
                     raise GmeImportError("GME interval sequence or local market hour is invalid")
                 previous_period = period_number
                 month_start = row_day.replace(day=1)
+                month_counts[month_start] = month_counts.get(month_start, 0) + 1
+                month_first_day.setdefault(month_start, row_day)
+                month_last_day[month_start] = row_day
                 if month_start in selected:
                     monthly_values[month_start].append(price)
                     if month_start not in ranges:
@@ -826,6 +1052,91 @@ def _parse_gme_workbook(
             for day_number in range(1, calendar.monthrange(year, month.month)[1] + 1)
         )
         if len(monthly_values[month]) != expected_count or month not in ranges:
+            if month == allow_incomplete_tail_period:
+                first_supported_day = date(year, 10 if year == 2025 else 1, 1)
+                if first_archive_day != first_supported_day:
+                    raise GmeImportError(
+                        "GME archive cannot prove publication status without full annual coverage"
+                    )
+                if month in month_counts:
+                    if (
+                        month_first_day[month] != month
+                        or month_last_day[month] != current_day
+                        or current_day is None
+                        or current_day.month != month.month
+                    ):
+                        raise GmeImportError(
+                            "GME incomplete publication is not a trailing month prefix"
+                        )
+                    prefix_count = sum(
+                        _expected_day_periods(date(year, month.month, day_number))
+                        for day_number in range(1, current_day.day + 1)
+                    )
+                    if month_counts[month] != prefix_count:
+                        raise GmeImportError(
+                            "GME incomplete month has internal gaps or partial civil days"
+                        )
+                    first_row, last_row = ranges[month]
+                    coverage_start = month
+                    coverage_end = current_day
+                    cell_range = (
+                        f"{selected_columns['pun']}{first_row}:{selected_columns['pun']}{last_row}"
+                    )
+                else:
+                    if current_day is None:
+                        raise GmeImportError("GME archive has no dated market rows")
+                    latest_complete_month: date | None = None
+                    for month_number in range(first_supported_day.month, current_day.month + 1):
+                        candidate = date(year, month_number, 1)
+                        candidate_end_day = calendar.monthrange(year, month_number)[1]
+                        expected_month_count = sum(
+                            _expected_day_periods(date(year, month_number, day_number))
+                            for day_number in range(1, candidate_end_day + 1)
+                        )
+                        if (
+                            month_counts.get(candidate) == expected_month_count
+                            and month_first_day.get(candidate) == candidate
+                            and month_last_day.get(candidate)
+                            == date(year, month_number, candidate_end_day)
+                        ):
+                            latest_complete_month = candidate
+                    if latest_complete_month is None:
+                        raise GmeImportError("GME archive has no complete month before the gap")
+                    month_gap = (
+                        (month.year - latest_complete_month.year) * 12
+                        + month.month
+                        - latest_complete_month.month
+                    )
+                    if month_gap > 1:
+                        raise GmePublicationLagExceeded(
+                            "gme_publication_lag_exceeded: latest complete archive month is "
+                            f"{latest_complete_month:%Y-%m}; expected {month:%Y-%m}"
+                        )
+                    if latest_complete_month != _add_months(month, -1):
+                        raise GmeImportError(
+                            "GME archive does not end in the month before the expected publication"
+                        )
+                    coverage_start = first_archive_day
+                    coverage_end = current_day
+                    cell_range = f"A2:D{expected_row - 1}"
+                evidence = GmeArchiveCoverageEvidence(
+                    archive_url=annual_archive_url(year),
+                    archive_sha256=archive_digest,
+                    retrieved_at=retrieved_at,
+                    workbook_name=workbook_name,
+                    expected_period=DatePeriod(start=month, end=_add_months(month, 1)),
+                    coverage_start=coverage_start,
+                    coverage_end=coverage_end,
+                    locator=ProvenanceLocator(
+                        document=workbook_name,
+                        sheet="Prezzi-Prices",
+                        cell=cell_range,
+                        section=(
+                            "Observed contiguous GME _15 archive coverage; partial month not valued"
+                        ),
+                    ),
+                )
+                raise GmePublicationIncomplete(evidence)
             raise GmeImportError(f"GME _15 workbook does not completely cover {month:%Y-%m}")
         first_row, last_row = ranges[month]
         if last_row - first_row + 1 != expected_count:
@@ -1120,42 +1431,159 @@ def fetch_recent_market_history(
     *,
     timeout_seconds: float = 30,
 ) -> GmeMarketHistory:
-    """Acquire and verify exactly the twelve most recent complete PUN months."""
+    """Acquire twelve verified months, allowing one proven publication delay."""
 
-    periods = recent_months(as_of)
+    current_periods = recent_months(as_of)
+    expected_period = DatePeriod(start=current_periods[-1], end=_add_months(current_periods[-1], 1))
     reports_by_month: dict[date, GmeMonthlyIndexSnapshot] = {}
     missing_by_year: dict[int, list[date]] = {}
-    for period in periods:
+    pdf_not_found_at: dict[date, datetime] = {}
+    for period in current_periods:
         try:
             reports_by_month[period] = fetch_monthly_report(period, timeout_seconds=timeout_seconds)
         except GmeReportNotFound as exc:
+            pdf_not_found_at[period] = datetime.now(UTC)
             if period < date(2025, 10, 1):
                 raise GmeImportError(
                     f"GME annual fallback does not support {period:%Y-%m}"
                 ) from exc
             missing_by_year.setdefault(period.year, []).append(period)
+
+    publication_evidence: GmePublicationEvidence | None = None
+    archive_cache: dict[int, tuple[bytes, datetime] | None] = {}
+    expected_month = expected_period.start
+    if expected_month in missing_by_year.get(expected_month.year, []):
+        try:
+            archive_cache[expected_month.year] = _download_annual_archive(
+                expected_month.year, timeout_seconds=timeout_seconds
+            )
+        except GmeArchiveNotFound as exc:
+            archive_cache[expected_month.year] = None
+            previous_month = _add_months(expected_month, -1)
+            if previous_month in missing_by_year.get(expected_month.year, []):
+                raise GmePublicationLagExceeded(
+                    "gme_publication_lag_exceeded: both the expected and preceding month "
+                    "are unpublished and the annual archive is unavailable"
+                ) from exc
+            publication_evidence = GmePublicationEvidence(
+                expected_period=expected_period,
+                pdf_url=report_url(expected_month),
+                archive_url=annual_archive_url(expected_month.year),
+                archive_http_status=404,
+                pdf_checked_at=pdf_not_found_at[expected_month],
+                retrieved_at=datetime.now(UTC),
+            )
+        candidate_archive = archive_cache[expected_month.year]
+        if candidate_archive is not None:
+            archive_bytes, archive_retrieved_at = candidate_archive
+            try:
+                latest_report = parse_annual_market_archive(
+                    archive_bytes,
+                    year=expected_month.year,
+                    period_starts=(expected_month,),
+                    retrieved_at=archive_retrieved_at,
+                    allow_incomplete_tail_period=expected_month,
+                )[expected_month]
+                reports_by_month[expected_month] = latest_report
+                missing_by_year.get(expected_month.year, []).remove(expected_month)
+            except GmePublicationIncomplete as exc:
+                coverage = exc.evidence
+                publication_evidence = GmePublicationEvidence(
+                    expected_period=expected_period,
+                    pdf_url=report_url(expected_month),
+                    archive_url=coverage.archive_url,
+                    archive_http_status=200,
+                    archive_sha256=coverage.archive_sha256,
+                    pdf_checked_at=pdf_not_found_at[expected_month],
+                    retrieved_at=coverage.retrieved_at,
+                    coverage_start=coverage.coverage_start,
+                    coverage_end=coverage.coverage_end,
+                    workbook_name=coverage.workbook_name,
+                    locator=coverage.locator,
+                )
+            if expected_month in missing_by_year[expected_month.year]:
+                missing_by_year[expected_month.year].remove(expected_month)
+
+    lag: Literal[0, 1] = 1 if publication_evidence is not None else 0
+    if lag:
+        alternate_start = _add_months(current_periods[0], -1)
+        periods = tuple(_add_months(alternate_start, offset) for offset in range(12))
+        oldest_alternative = periods[0]
+        if oldest_alternative not in reports_by_month:
+            try:
+                reports_by_month[oldest_alternative] = fetch_monthly_report(
+                    oldest_alternative, timeout_seconds=timeout_seconds
+                )
+                if oldest_alternative in missing_by_year.get(oldest_alternative.year, []):
+                    missing_by_year[oldest_alternative.year].remove(oldest_alternative)
+            except GmeReportNotFound:
+                missing_by_year.setdefault(oldest_alternative.year, []).append(oldest_alternative)
+    else:
+        periods = current_periods
+
     for year, missing_months in sorted(missing_by_year.items()):
-        archive_bytes, retrieved_at = _download_annual_archive(
-            year, timeout_seconds=timeout_seconds
-        )
+        selected_missing = tuple(month for month in missing_months if month in periods)
+        if not selected_missing:
+            continue
+        if year not in archive_cache:
+            try:
+                archive_cache[year] = _download_annual_archive(
+                    year, timeout_seconds=timeout_seconds
+                )
+            except GmeArchiveNotFound as exc:
+                raise GmeImportError(
+                    f"GME annual fallback returned HTTP 404 for required month in {year}"
+                ) from exc
+        cached_archive = archive_cache[year]
+        if cached_archive is None:
+            raise GmeImportError(f"GME annual fallback is unavailable for required month in {year}")
+        archive_bytes, retrieved_at = cached_archive
         reports_by_month.update(
             parse_annual_market_archive(
                 archive_bytes,
                 year=year,
-                period_starts=tuple(missing_months),
+                period_starts=selected_missing,
                 retrieved_at=retrieved_at,
             )
         )
-    return history_from_reports(as_of, tuple(reports_by_month[period] for period in periods))
+
+    if any(period not in reports_by_month for period in periods):
+        if publication_evidence is not None:
+            raise GmeImportError(
+                "GME publication is incomplete and the twelve-month alternative is unavailable"
+            )
+        raise GmeImportError("GME history does not contain twelve complete consecutive months")
+    reports = tuple(reports_by_month[period] for period in periods)
+    latest = reports[-1]
+    selection = GmeMarketSelection(
+        comparison_as_of=as_of,
+        expected_latest_period=expected_period,
+        historical_market_period=DatePeriod(start=periods[0], end=_add_months(periods[-1], 1)),
+        reference_period=latest.parsed.period,
+        reference_value_eur_per_kwh=latest.parsed.value_eur_per_kwh,
+        reference_provenance=latest.provenance,
+        publication_lag_months=lag,
+        publication_status="incomplete" if lag else "complete",
+        publication_evidence=publication_evidence,
+    )
+    return history_from_reports(as_of, reports, selection=selection)
 
 
 def history_from_reports(
     as_of: date,
     reports: tuple[GmeMonthlyIndexSnapshot, ...],
+    *,
+    selection: GmeMarketSelection | None = None,
 ) -> GmeMarketHistory:
     """Build a twelve-month view without elevating offline-parsed inputs."""
 
-    periods = tuple(recent_months(as_of))
+    periods = (
+        tuple(_add_months(selection.historical_market_period.start, offset) for offset in range(12))
+        if selection is not None
+        else tuple(recent_months(as_of))
+    )
+    if selection is not None and selection.comparison_as_of != as_of:
+        raise GmeImportError("GME selection does not match its comparison date")
     if tuple(item.parsed.period.start for item in reports) != periods:
         raise GmeImportError("GME reports do not match the latest consecutive twelve-month window")
     provenance = tuple(report.provenance for report in reports)
@@ -1196,6 +1624,7 @@ def history_from_reports(
         status=status,
         reports=reports,
         market_data=MarketData(indexes=(index,), points=points),
+        selection=selection,
     )
 
 
@@ -1221,10 +1650,16 @@ __all__ = [
     "GME_DOCUMENT_ROOT",
     "GME_INDEX_DEFINITION_SHA256",
     "GME_INDEX_DEFINITION_URL",
+    "GmeArchiveCoverageEvidence",
+    "GmeArchiveNotFound",
     "GmeBandReportSnapshot",
     "GmeImportError",
     "GmeMarketHistory",
+    "GmeMarketSelection",
     "GmeMonthlyIndexSnapshot",
+    "GmePublicationEvidence",
+    "GmePublicationIncomplete",
+    "GmePublicationLagExceeded",
     "GmeReportNotFound",
     "ParsedGmeBandPrice",
     "ParsedGmeBandReport",

@@ -19,6 +19,7 @@ class CoreErrorCode(StrEnum):
     REGULATORY_COVERAGE_UNCONFIRMED = "regulatory_coverage_unconfirmed"
     SOURCE_ACQUISITION_FAILED = "source_acquisition_failed"
     SOURCE_VALIDATION_FAILED = "source_validation_failed"
+    GME_PUBLICATION_LAG_EXCEEDED = "gme_publication_lag_exceeded"
     COMPARISON_FAILED = "comparison_failed"
     RECOMMENDATION_FAILED = "recommendation_failed"
     CURRENT_NETWORK_LOSSES_COVERAGE_UNKNOWN = "current_network_losses_coverage_unknown"

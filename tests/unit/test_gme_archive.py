@@ -23,6 +23,7 @@ from italian_energy.market.gme import (
     GmeImportError,
     GmeMonthlyIndexSnapshot,
     GmeReportNotFound,
+    ParsedGmeBaseload,
     annual_archive_url,
     fetch_monthly_report,
     fetch_recent_market_history,
@@ -86,6 +87,11 @@ def _worksheet_xml(
         rows.pop()
     elif mutation == "incomplete_day":
         rows.pop(95)
+    elif mutation == "partial_final_month":
+        final_month = max(month_starts)
+        rows = [row for row in rows if row[0] < final_month or row[0].day < 31]
+    elif mutation == "partial_final_day":
+        rows.pop()
 
     header = (
         "   Data/Date\n(YYYYMMDD)",
@@ -282,6 +288,551 @@ def test_official_archive_parser_rejects_incomplete_or_ambiguous_intervals(
             period_starts=(month,),
             retrieved_at=_RETRIEVED,
         )
+
+
+def _verified_pdf_report(month: date, value: str = "207.54") -> GmeMonthlyIndexSnapshot:
+    from italian_energy.market.gme import make_report_provenance, report_url
+
+    period = DatePeriod(
+        start=month, end=date(month.year + (month.month == 12), month.month % 12 + 1, 1)
+    )
+    value_mwh = Decimal(value)
+    return GmeMonthlyIndexSnapshot(
+        parsed=ParsedGmeBaseload(
+            period=period,
+            published_value_eur_per_mwh=value_mwh,
+            value_eur_per_kwh=value_mwh.scaleb(-3),
+        ),
+        status=VerificationStatus.VERIFIED,
+        provenance=make_report_provenance(
+            f"official PDF {month}".encode(),
+            report_period=period,
+            retrieved_at=_RETRIEVED,
+            url=report_url(month),
+        ),
+    )
+
+
+def test_recent_history_uses_one_month_alternative_and_switches_when_published(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2026, 11, 1)
+    alternate_months = tuple(
+        date(2025 + (month == 12), month % 12 + 1, 1) for month in range(9, 21)
+    )
+    # October 2025 through September 2026, with distinct monthly values.
+    alternate_months = tuple(
+        date(2025, month, 1) if month >= 10 else date(2026, month, 1)
+        for month in (*range(10, 13), *range(1, 10))
+    )
+    reports = {
+        month: _verified_pdf_report(month, f"{100 + index}.00")
+        for index, month in enumerate(alternate_months)
+    }
+    archive_months = tuple(date(2026, month, 1) for month in range(1, 11))
+    partial_archive = _annual_zip(archive_months, mutation="partial_final_month")
+    archive_calls: list[int] = []
+
+    def fetch_pdf(month: date, **_kwargs: object) -> GmeMonthlyIndexSnapshot:
+        if month == date(2026, 10, 1):
+            raise GmeReportNotFound("October PDF is not published")
+        return reports[month]
+
+    monkeypatch.setattr(gme, "fetch_monthly_report", fetch_pdf)
+
+    def download(year: int, **_kwargs: object) -> tuple[bytes, datetime]:
+        archive_calls.append(year)
+        return partial_archive, _RETRIEVED
+
+    monkeypatch.setattr(gme, "_download_annual_archive", download)
+    delayed = fetch_recent_market_history(comparison_date)
+
+    assert tuple(item.parsed.period.start for item in delayed.reports) == alternate_months
+    assert delayed.selection is not None
+    assert delayed.selection.comparison_as_of == comparison_date
+    assert delayed.selection.expected_latest_period == DatePeriod(
+        start=date(2026, 10, 1), end=date(2026, 11, 1)
+    )
+    assert delayed.selection.reference_period == DatePeriod(
+        start=date(2026, 9, 1), end=date(2026, 10, 1)
+    )
+    assert delayed.selection.publication_lag_months == 1
+    assert (
+        delayed.selection.reference_value_eur_per_kwh
+        == reports[date(2026, 9, 1)].parsed.value_eur_per_kwh
+    )
+    publication_evidence = delayed.selection.publication_evidence
+    assert publication_evidence is not None
+    assert publication_evidence.coverage_end == date(2026, 10, 30)
+    assert publication_evidence.pdf_checked_at.tzinfo is not None
+    assert archive_calls == [2026]
+
+    reports[date(2026, 10, 1)] = _verified_pdf_report(date(2026, 10, 1), "999.00")
+    archive_calls.clear()
+    monkeypatch.setattr(
+        gme,
+        "fetch_monthly_report",
+        lambda month, **_kwargs: reports[month],
+    )
+    current = fetch_recent_market_history(comparison_date)
+    assert current.reports[-1].parsed.period.start == date(2026, 10, 1)
+    assert current.selection is not None
+    assert current.selection.publication_lag_months == 0
+    assert current.selection.reference_value_eur_per_kwh == Decimal("0.99900")
+    assert archive_calls == []
+
+
+def test_recent_history_fails_explicitly_when_publication_is_two_months_late(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2026, 12, 1)
+    report_months = tuple(
+        date(2025, month, 1) if month >= 11 else date(2026, month, 1)
+        for month in (*range(11, 13), *range(1, 11))
+    )
+    reports = {month: _verified_pdf_report(month) for month in report_months}
+
+    def fetch_pdf(month: date, **_kwargs: object) -> GmeMonthlyIndexSnapshot:
+        if month in {date(2026, 10, 1), date(2026, 11, 1)}:
+            raise GmeReportNotFound("month is not published")
+        return reports[month]
+
+    monkeypatch.setattr(gme, "fetch_monthly_report", fetch_pdf)
+    monkeypatch.setattr(
+        gme,
+        "_download_annual_archive",
+        lambda *_args, **_kwargs: (
+            _annual_zip(tuple(date(2026, month, 1) for month in range(1, 10))),
+            _RETRIEVED,
+        ),
+    )
+
+    from italian_energy.market.gme import GmePublicationLagExceeded
+
+    with pytest.raises(GmePublicationLagExceeded, match="gme_publication_lag_exceeded"):
+        fetch_recent_market_history(comparison_date)
+
+
+def test_two_missing_publications_and_missing_archive_fail_with_lag_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2026, 11, 1)
+    reports = {month: _verified_pdf_report(month) for month in recent_months(comparison_date)}
+
+    def fetch_pdf(month: date, **_kwargs: object) -> GmeMonthlyIndexSnapshot:
+        if month in {date(2026, 9, 1), date(2026, 10, 1)}:
+            raise GmeReportNotFound("monthly publication unavailable")
+        return reports[month]
+
+    monkeypatch.setattr(gme, "fetch_monthly_report", fetch_pdf)
+    monkeypatch.setattr(
+        gme,
+        "_download_annual_archive",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            gme.GmeArchiveNotFound("annual archive unavailable")
+        ),
+    )
+    with pytest.raises(gme.GmePublicationLagExceeded, match="gme_publication_lag_exceeded"):
+        fetch_recent_market_history(comparison_date)
+
+
+def test_annual_fallback_rejects_months_before_supported_archive_period(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2025, 10, 1)
+    first_month = recent_months(comparison_date)[0]
+    monkeypatch.setattr(
+        gme,
+        "fetch_monthly_report",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            GmeReportNotFound("monthly report not published")
+        ),
+    )
+    monkeypatch.setattr(
+        gme,
+        "_download_annual_archive",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("unsupported historical month must not use archive")
+        ),
+    )
+    with pytest.raises(GmeImportError, match=f"does not support {first_month:%Y-%m}"):
+        fetch_recent_market_history(comparison_date)
+
+
+def test_alternative_month_missing_pdf_uses_one_archive_per_year(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2026, 11, 1)
+    alternative_months = tuple(
+        date(2025, month, 1) if month >= 10 else date(2026, month, 1)
+        for month in (*range(10, 13), *range(1, 10))
+    )
+    reports = {month: _verified_pdf_report(month) for month in alternative_months}
+    archive_2026 = _annual_zip(tuple(date(2026, month, 1) for month in range(1, 10)))
+    archive_2025 = _annual_zip(tuple(date(2025, month, 1) for month in range(10, 13)))
+    archive_calls: list[int] = []
+
+    def fetch_pdf(month: date, **_kwargs: object) -> GmeMonthlyIndexSnapshot:
+        if month in {date(2025, 10, 1), date(2026, 10, 1)}:
+            raise GmeReportNotFound("monthly publication unavailable")
+        return reports[month]
+
+    def download(year: int, **_kwargs: object) -> tuple[bytes, datetime]:
+        archive_calls.append(year)
+        return (archive_2026 if year == 2026 else archive_2025), _RETRIEVED
+
+    monkeypatch.setattr(gme, "fetch_monthly_report", fetch_pdf)
+    monkeypatch.setattr(gme, "_download_annual_archive", download)
+    history = fetch_recent_market_history(comparison_date)
+
+    assert archive_calls == [2026, 2025]
+    assert history.reports[0].provenance.url == annual_archive_url(2025)
+    assert tuple(report.parsed.period.start for report in history.reports) == alternative_months
+
+
+def test_unavailable_archive_for_required_alternative_month_blocks_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2026, 11, 1)
+    reports = {month: _verified_pdf_report(month) for month in recent_months(comparison_date)}
+
+    def fetch_pdf(month: date, **_kwargs: object) -> GmeMonthlyIndexSnapshot:
+        if month in {date(2026, 8, 1), date(2026, 10, 1)}:
+            raise GmeReportNotFound("monthly publication unavailable")
+        if month == date(2025, 10, 1):
+            return _verified_pdf_report(month)
+        return reports[month]
+
+    monkeypatch.setattr(gme, "fetch_monthly_report", fetch_pdf)
+    monkeypatch.setattr(
+        gme,
+        "_download_annual_archive",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            gme.GmeArchiveNotFound("annual archive unavailable")
+        ),
+    )
+    with pytest.raises(GmeImportError, match="annual fallback is unavailable"):
+        fetch_recent_market_history(comparison_date)
+
+
+def test_404_for_annual_archive_needed_by_alternative_window_blocks_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2026, 11, 1)
+    alternative_months = tuple(
+        date(2025, month, 1) if month >= 10 else date(2026, month, 1)
+        for month in (*range(10, 13), *range(1, 10))
+    )
+    reports = {month: _verified_pdf_report(month) for month in alternative_months}
+    archive_2026 = _annual_zip(tuple(date(2026, month, 1) for month in range(1, 10)))
+
+    def fetch_pdf(month: date, **_kwargs: object) -> GmeMonthlyIndexSnapshot:
+        if month in {date(2025, 10, 1), date(2026, 10, 1)}:
+            raise GmeReportNotFound("monthly publication unavailable")
+        return reports[month]
+
+    def download(year: int, **_kwargs: object) -> tuple[bytes, datetime]:
+        if year == 2025:
+            raise gme.GmeArchiveNotFound("2025 archive unavailable")
+        return archive_2026, _RETRIEVED
+
+    monkeypatch.setattr(gme, "fetch_monthly_report", fetch_pdf)
+    monkeypatch.setattr(gme, "_download_annual_archive", download)
+    with pytest.raises(GmeImportError, match="HTTP 404 for required month in 2025"):
+        fetch_recent_market_history(comparison_date)
+
+
+def test_present_but_invalid_latest_pdf_does_not_fall_back_to_previous_month(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2026, 11, 1)
+    expected = date(2026, 10, 1)
+    reports = {month: _verified_pdf_report(month) for month in recent_months(comparison_date)}
+    archive_calls: list[int] = []
+
+    def fetch_pdf(month: date, **_kwargs: object) -> GmeMonthlyIndexSnapshot:
+        if month == expected:
+            raise GmeImportError("present October PDF failed its verification")
+        return reports[month]
+
+    monkeypatch.setattr(gme, "fetch_monthly_report", fetch_pdf)
+    monkeypatch.setattr(
+        gme,
+        "_download_annual_archive",
+        lambda year, **_kwargs: archive_calls.append(year),
+    )
+
+    with pytest.raises(GmeImportError, match="failed its verification"):
+        fetch_recent_market_history(comparison_date)
+    assert archive_calls == []
+
+
+def test_october_31_uses_september_as_latest_completed_calendar_month(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2026, 10, 31)
+    reports = {month: _verified_pdf_report(month) for month in recent_months(comparison_date)}
+    monkeypatch.setattr(gme, "fetch_monthly_report", lambda month, **_kwargs: reports[month])
+    monkeypatch.setattr(
+        gme,
+        "_download_annual_archive",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("no archive expected")),
+    )
+
+    history = fetch_recent_market_history(comparison_date)
+    assert history.selection is not None
+    assert history.selection.expected_latest_period == DatePeriod(
+        start=date(2026, 9, 1), end=date(2026, 10, 1)
+    )
+    assert history.selection.reference_period == history.selection.expected_latest_period
+    assert history.selection.publication_lag_months == 0
+
+
+def test_publication_delay_selection_crosses_calendar_year_with_verified_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2027, 2, 1)
+    alternative = tuple(date(2026, month, 1) for month in range(1, 13))
+    reports = {month: _verified_pdf_report(month) for month in alternative}
+
+    def fetch_pdf(month: date, **_kwargs: object) -> GmeMonthlyIndexSnapshot:
+        if month == date(2027, 1, 1):
+            raise GmeReportNotFound("January report not published")
+        return reports[month]
+
+    monkeypatch.setattr(gme, "fetch_monthly_report", fetch_pdf)
+
+    def missing_archive(year: int, **_kwargs: object) -> tuple[bytes, datetime]:
+        assert year == 2027
+        raise gme.GmeArchiveNotFound("annual archive not published")
+
+    monkeypatch.setattr(gme, "_download_annual_archive", missing_archive)
+    history = fetch_recent_market_history(comparison_date)
+    assert tuple(item.parsed.period.start for item in history.reports) == alternative
+    assert history.selection is not None
+    assert history.selection.reference_period == DatePeriod(
+        start=date(2026, 12, 1), end=date(2027, 1, 1)
+    )
+    assert history.selection.publication_evidence is not None
+    assert history.selection.publication_evidence.archive_http_status == 404
+
+
+def test_november_missing_october_archive_with_only_september_complete_uses_september(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    comparison_date = date(2026, 11, 1)
+    alternative_months = tuple(
+        date(2025, month, 1) if month >= 10 else date(2026, month, 1)
+        for month in (*range(10, 13), *range(1, 10))
+    )
+    reports = {month: _verified_pdf_report(month) for month in alternative_months}
+    archive = _annual_zip(tuple(date(2026, month, 1) for month in range(1, 10)))
+
+    def fetch_pdf(month: date, **_kwargs: object) -> GmeMonthlyIndexSnapshot:
+        if month == date(2026, 10, 1):
+            raise GmeReportNotFound("October PDF is not published")
+        return reports[month]
+
+    monkeypatch.setattr(gme, "fetch_monthly_report", fetch_pdf)
+    monkeypatch.setattr(
+        gme,
+        "_download_annual_archive",
+        lambda *_args, **_kwargs: (archive, _RETRIEVED),
+    )
+
+    history = fetch_recent_market_history(comparison_date)
+    assert tuple(report.parsed.period.start for report in history.reports) == alternative_months
+    assert history.status == VerificationStatus.VERIFIED
+    assert history.selection is not None
+    assert history.selection.reference_period == DatePeriod(
+        start=date(2026, 9, 1), end=date(2026, 10, 1)
+    )
+    assert history.selection.publication_evidence is not None
+    assert history.selection.publication_evidence.archive_http_status == 200
+    assert history.selection.publication_evidence.coverage_end == date(2026, 9, 30)
+
+
+def test_archive_partial_publication_is_evidence_only_and_requires_complete_days() -> None:
+    from italian_energy.domain.provenance import ProvenanceLocator
+    from italian_energy.market.gme import GmeArchiveCoverageEvidence, GmePublicationIncomplete
+
+    month = date(2026, 10, 1)
+    zip_bytes = _annual_zip(
+        (date(2026, 1, 1), *tuple(date(2026, value, 1) for value in range(2, 10)), month),
+        mutation="partial_final_month",
+    )
+
+    with pytest.raises(GmePublicationIncomplete) as incomplete:
+        parse_annual_market_archive(
+            zip_bytes,
+            year=2026,
+            period_starts=(month,),
+            retrieved_at=_RETRIEVED,
+            allow_incomplete_tail_period=month,
+        )
+
+    evidence = incomplete.value.evidence
+    assert evidence.expected_period == DatePeriod(start=month, end=date(2026, 11, 1))
+    assert evidence.archive_sha256 == sha256(zip_bytes).hexdigest()
+    assert evidence.coverage_start == month
+    assert evidence.coverage_end == date(2026, 10, 30)
+    assert evidence.locator is not None
+
+    base_locator = ProvenanceLocator(
+        document="Anno 2026_09_15.xlsx",
+        sheet="Prezzi-Prices",
+        cell="D2:D2881",
+    )
+    base_evidence: dict[str, object] = {
+        "archive_url": annual_archive_url(2026),
+        "archive_sha256": "a" * 64,
+        "retrieved_at": _RETRIEVED,
+        "workbook_name": "Anno 2026_09_15.xlsx",
+        "expected_period": DatePeriod(start=month, end=date(2026, 11, 1)),
+        "coverage_start": month,
+        "coverage_end": date(2026, 10, 30),
+        "locator": base_locator,
+    }
+    assert GmeArchiveCoverageEvidence.model_validate(base_evidence)
+    with pytest.raises(ValidationError, match="absent-month evidence"):
+        GmeArchiveCoverageEvidence.model_validate(
+            base_evidence | {"coverage_start": date(2026, 1, 1)}
+        )
+    with pytest.raises(ValidationError, match="match pattern"):
+        GmeArchiveCoverageEvidence.model_validate(base_evidence | {"archive_sha256": "bad"})
+    archive_invalid = (
+        ({"archive_url": "https://example.com/archive.zip"}, "official annual archive"),
+        ({"retrieved_at": datetime(2026, 10, 8)}, "timezone-aware"),
+        ({"coverage_start": date(2025, 12, 1)}, "supported year or expected month"),
+        ({"coverage_end": date(2026, 11, 1)}, "cannot cover the full month"),
+        ({"coverage_end": date(2026, 9, 30)}, "ordered date range"),
+        (
+            {"locator": base_locator.model_copy(update={"sheet": "wrong"})},
+            "worksheet row locator",
+        ),
+    )
+    for changes, message in archive_invalid:
+        with pytest.raises(ValidationError, match=message):
+            GmeArchiveCoverageEvidence.model_validate(base_evidence | changes)
+
+    truncated = _annual_zip((month,), mutation="partial_final_day")
+    with pytest.raises(GmeImportError):
+        parse_annual_market_archive(
+            truncated,
+            year=2026,
+            period_starts=(month,),
+            retrieved_at=_RETRIEVED,
+            allow_incomplete_tail_period=month,
+        )
+
+
+def test_publication_proof_models_reject_inconsistent_http_coverage_and_locators() -> None:
+    from italian_energy.domain.provenance import ProvenanceLocator
+    from italian_energy.market.gme import GmePublicationEvidence
+
+    expected = DatePeriod(start=date(2026, 10, 1), end=date(2026, 11, 1))
+    locator = ProvenanceLocator(
+        document="Anno 2026_09_15.xlsx",
+        sheet="Prezzi-Prices",
+        cell="A2:D50000",
+    )
+    base = {
+        "expected_period": expected,
+        "pdf_url": report_url(expected.start),
+        "archive_url": annual_archive_url(2026),
+        "archive_http_status": 404,
+        "pdf_checked_at": _RETRIEVED,
+        "retrieved_at": _RETRIEVED,
+    }
+    assert GmePublicationEvidence.model_validate(base)
+    invalid_404: tuple[tuple[dict[str, object], str], ...] = (
+        ({"pdf_url": "https://example.com/october.pdf"}, "exact monthly PDF URL"),
+        ({"archive_url": "https://example.com/archive.zip"}, "official annual archive URL"),
+        ({"pdf_checked_at": datetime(2026, 10, 8)}, "PDF check time must be timezone-aware"),
+        ({"retrieved_at": datetime(2026, 10, 8)}, "check time must be timezone-aware"),
+        ({"archive_sha256": "a" * 64}, "missing GME archive cannot claim"),
+    )
+    for changes, message in invalid_404:
+        with pytest.raises(ValidationError, match=message):
+            GmePublicationEvidence.model_validate(base | changes)
+
+    present_archive = base | {
+        "archive_http_status": 200,
+        "archive_sha256": "a" * 64,
+        "coverage_start": date(2026, 10, 1),
+        "coverage_end": date(2026, 10, 30),
+        "workbook_name": "Anno 2026_09_15.xlsx",
+        "locator": locator,
+    }
+    assert GmePublicationEvidence.model_validate(present_archive)
+    invalid_200: tuple[tuple[dict[str, object], str], ...] = (
+        ({"locator": None}, "requires digest and coverage locator"),
+        ({"coverage_end": date(2026, 11, 1)}, "must end before the expected month"),
+        ({"coverage_start": date(2026, 2, 1)}, "invalid archive coverage start"),
+        ({"coverage_start": date(2026, 1, 1)}, "prior calendar day"),
+        (
+            {"locator": locator.model_copy(update={"document": "different.xlsx"})},
+            "observed workbook rows",
+        ),
+    )
+    for changes, message in invalid_200:
+        with pytest.raises(ValidationError, match=message):
+            GmePublicationEvidence.model_validate(present_archive | changes)
+
+
+def test_market_selection_rejects_incoherent_period_delay_and_reference_provenance() -> None:
+    from italian_energy.market.gme import GmeMarketSelection, GmePublicationEvidence
+
+    expected = DatePeriod(start=date(2026, 10, 1), end=date(2026, 11, 1))
+    previous_report = _verified_pdf_report(date(2026, 9, 1))
+    evidence = GmePublicationEvidence(
+        expected_period=expected,
+        pdf_url=report_url(expected.start),
+        archive_url=annual_archive_url(2026),
+        archive_http_status=404,
+        pdf_checked_at=_RETRIEVED,
+        retrieved_at=_RETRIEVED,
+    )
+    base = GmeMarketSelection(
+        comparison_as_of=date(2026, 11, 1),
+        expected_latest_period=expected,
+        historical_market_period=DatePeriod(start=date(2025, 10, 1), end=date(2026, 10, 1)),
+        reference_period=previous_report.parsed.period,
+        reference_value_eur_per_kwh=previous_report.parsed.value_eur_per_kwh,
+        reference_provenance=previous_report.provenance,
+        publication_lag_months=1,
+        publication_status="incomplete",
+        publication_evidence=evidence,
+    )
+    payload = base.model_dump(mode="python")
+    invalid = (
+        (
+            {"expected_latest_period": DatePeriod(start=date(2026, 9, 1), end=date(2026, 10, 1))},
+            "month before the comparison month",
+        ),
+        (
+            {"reference_period": DatePeriod(start=date(2026, 8, 1), end=date(2026, 9, 1))},
+            "does not match its publication lag",
+        ),
+        (
+            {"historical_market_period": DatePeriod(start=date(2025, 9, 1), end=date(2026, 10, 1))},
+            "twelve consecutive months",
+        ),
+        ({"publication_status": "complete"}, "requires proof of the expected month gap"),
+        ({"publication_evidence": None}, "requires proof of the expected month gap"),
+        (
+            {
+                "reference_provenance": previous_report.provenance.model_copy(
+                    update={"url": "https://example.com/report.pdf"}
+                )
+            },
+            "official provenance",
+        ),
+        ({"reference_value_eur_per_kwh": Decimal("-0.01")}, "non-negative Decimal"),
+    )
+    for changes, message in invalid:
+        with pytest.raises(ValidationError, match=message):
+            GmeMarketSelection.model_validate(payload | changes)
 
 
 @pytest.mark.parametrize("mutation", ("missing_15", "unsafe_path", "malformed_xml"))

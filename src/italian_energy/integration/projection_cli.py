@@ -182,7 +182,9 @@ def summarize_projection_sources(
     source_preflight_reasons: tuple[str, ...] = (),
 ) -> dict[str, object]:
     """Build a source-focused report without claiming forecast values are verified."""
-    months = recent_months(as_of)
+    expected_months = recent_months(as_of)
+    months = tuple(report.parsed.period.start for report in history.reports)
+    market_selection = history.selection
     reports = [
         {
             "period": report.parsed.period.start.strftime("%Y-%m"),
@@ -213,7 +215,8 @@ def summarize_projection_sources(
     gme_complete = (
         history.status.value == "verified"
         and len(reports) == 12
-        and tuple(report.parsed.period.start for report in history.reports) == months
+        and len(months) == 12
+        and (market_selection is not None or months == expected_months)
         and gme_definition_check is not None
         and gme_definition_check.get("digest_matches") is True
     )
@@ -256,6 +259,25 @@ def summarize_projection_sources(
             "end": months[-1].strftime("%Y-%m"),
             "month_count": len(months),
             "complete_and_consecutive": gme_complete,
+            "expected_latest_month": (
+                market_selection.expected_latest_period.start.isoformat()
+                if market_selection is not None
+                else expected_months[-1].isoformat()
+            ),
+            "reference_month": (
+                market_selection.reference_period.start.isoformat()
+                if market_selection is not None
+                else months[-1].isoformat()
+            ),
+            "publication_lag_months": (
+                market_selection.publication_lag_months if market_selection is not None else 0
+            ),
+            "publication_evidence": (
+                market_selection.publication_evidence.model_dump(mode="json")
+                if market_selection is not None
+                and market_selection.publication_evidence is not None
+                else None
+            ),
         },
         "source_preflight": {
             "ready": source_preflight_ready,

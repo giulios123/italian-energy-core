@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Release Core `0.13.7` — riuso delle serializzazioni e delle componenti regolatorie lineari nel confronto.
+> Core `0.13.8` — riferimento PUN resiliente al ritardo di pubblicazione mensile.
 
 Il package installabile è disponibile come wheel e sdist. L'importer Portale
 Offerte opera solo su cataloghi open-data ufficiali, replay storici esatti e
@@ -24,7 +24,7 @@ uv run pytest
 Installazione del package dalla release pubblicata:
 
 ```bash
-pip install italian-energy==0.13.7
+pip install italian-energy==0.13.8
 ```
 
 La release `0.13.4` conserva provenienza e semantica delle voci `Dispacciamento`
@@ -52,6 +52,18 @@ Il replay integrato da 950 offerte, insieme alle ottimizzazioni di
 serializzazione della Platform, misura una mediana locale di 57,148 s contro
 169,943 s. La sola wheel Core non contiene le modifiche della Platform e
 queste misure non garantiscono una latenza massima su altri carichi.
+
+### Novità della 0.13.8
+
+Al cambio mese, se il PDF GME del mese appena concluso è assente e la fonte
+ufficiale prova che la pubblicazione è ancora incompleta, il Core può mantenere
+il PUN del mese precedente con dodici mesi GME completi, consecutivi e verificati.
+Il ritardo ammesso è al massimo un mese; il risultato espone mese atteso,
+riferimento effettivo, finestra GME, provenienza e prova del ritardo. Consumi e
+data del confronto mantengono il periodo originario. Il confronto resta offline
+su input congelati. I nuovi envelope versionati preservano i lettori storici.
+La preparazione e i limiti della verifica sono in
+[`docs/release-0.13.8-preparation.md`](docs/release-0.13.8-preparation.md).
 
 ### Novità della 0.13.6
 

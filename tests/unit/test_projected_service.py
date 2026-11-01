@@ -33,6 +33,7 @@ from italian_energy.domain.money import (
     UnitRate,
 )
 from italian_energy.domain.offer import Contract
+from italian_energy.domain.provenance import ProvenanceLocator
 from italian_energy.domain.regulatory import (
     BillingCategory,
     RegulatoryRuleSet,
@@ -46,7 +47,7 @@ from italian_energy.domain.tariff import (
     FixedTariff,
     IndexedTariff,
 )
-from italian_energy.domain.time import DatePeriod, Granularity
+from italian_energy.domain.time import DatePeriod, Granularity, TimeInterval
 from italian_energy.integration import (
     ProjectedDomesticComparisonRequest,
     ProjectedDomesticEnergyService,
@@ -65,8 +66,11 @@ from italian_energy.integration.projected import (
 from italian_energy.integration.service import CurrentDomesticEnergyService
 from italian_energy.market.gme import (
     GmeMarketHistory,
+    GmeMarketSelection,
     GmeMonthlyIndexSnapshot,
+    GmePublicationEvidence,
     ParsedGmeBaseload,
+    annual_archive_url,
     history_from_reports,
     make_report_provenance,
     recent_months,
@@ -82,9 +86,17 @@ from italian_energy.portal_offers.models import (
 from italian_energy.recommendation import Recommendation, RecommendationRequest
 
 
-def _history(as_of: date) -> GmeMarketHistory:
+def _shift_month(month: date, offset: int) -> date:
+    absolute = month.year * 12 + month.month - 1 + offset
+    year, month0 = divmod(absolute, 12)
+    return date(year, month0 + 1, 1)
+
+
+def _history(as_of: date, *, publication_lag: Literal[0, 1] = 0) -> GmeMarketHistory:
     reports = []
-    for month in recent_months(as_of):
+    expected_months = recent_months(as_of)
+    months = tuple(_shift_month(month, -publication_lag) for month in expected_months)
+    for month in months:
         period = DatePeriod(
             start=month,
             end=date(month.year + (month.month == 12), month.month % 12 + 1, 1),
@@ -107,7 +119,36 @@ def _history(as_of: date) -> GmeMarketHistory:
                 provenance=provenance,
             )
         )
-    return history_from_reports(as_of, tuple(reports))
+    latest = reports[-1]
+    expected = expected_months[-1]
+    reference = months[-1]
+    evidence = (
+        GmePublicationEvidence(
+            expected_period=DatePeriod(start=expected, end=_shift_month(expected, 1)),
+            pdf_url=report_url(expected),
+            archive_url=annual_archive_url(expected.year),
+            archive_http_status=404,
+            pdf_checked_at=datetime(2026, 9, 27, 11, 59, tzinfo=UTC),
+            retrieved_at=datetime(2026, 9, 27, 12, tzinfo=UTC),
+        )
+        if publication_lag
+        else None
+    )
+    selection = GmeMarketSelection(
+        comparison_as_of=as_of,
+        expected_latest_period=DatePeriod(start=expected, end=_shift_month(expected, 1)),
+        historical_market_period=DatePeriod(
+            start=months[0],
+            end=_shift_month(reference, 1),
+        ),
+        reference_period=latest.parsed.period,
+        reference_value_eur_per_kwh=latest.parsed.value_eur_per_kwh,
+        reference_provenance=latest.provenance,
+        publication_lag_months=publication_lag,
+        publication_status="incomplete" if publication_lag else "complete",
+        publication_evidence=evidence,
+    )
+    return history_from_reports(as_of, tuple(reports), selection=selection)
 
 
 def _catalog(as_of: date) -> CurrentCatalogSnapshot:
@@ -300,6 +341,24 @@ def _coverage(
         source_checks=source_checks,
         registry_reviews=reviews,
     )
+
+
+def test_acquisition_exposes_stable_publication_lag_error_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from italian_energy.market.gme import GmePublicationLagExceeded
+
+    monkeypatch.setattr(
+        projected_service,
+        "fetch_recent_market_history",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            GmePublicationLagExceeded("gme_publication_lag_exceeded")
+        ),
+    )
+    service = ProjectedDomesticEnergyService()
+    with pytest.raises(CoreContractError) as error:
+        service.acquire_market_history(AS_OF)
+    assert error.value.code == CoreErrorCode.GME_PUBLICATION_LAG_EXCEEDED
 
 
 def test_projected_comparison_bills_three_estimates_and_recommends_on_base_only() -> None:
@@ -596,6 +655,248 @@ def test_projected_comparison_rejects_relabelled_or_stale_market_history() -> No
         load_domestic_projection_anchor(),
         _coverage(load_domestic_projection_anchor(), AS_OF),
     ).checks["market_window_verified"]
+
+
+def test_preflight_and_compare_keep_consumption_window_when_gme_is_one_month_late(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from italian_energy.integration.serialization import dump_envelope, load_envelope
+
+    as_of = AS_OF
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC))
+    request = _indexed_request()
+    catalog = _catalog(as_of)
+    anchor = load_domestic_projection_anchor(as_of)
+    coverage = _coverage(anchor, as_of)
+    current_history = _history(as_of)
+    delayed_history = _history(as_of, publication_lag=1)
+
+    readiness = service.source_preflight(as_of, catalog, delayed_history, anchor, coverage)
+    assert readiness.ready is True
+    assert readiness.market_selection is not None
+    assert readiness.market_selection.reference_period == DatePeriod(
+        start=date(2026, 7, 1), end=date(2026, 8, 1)
+    )
+    customer_readiness = service.preflight(request, catalog, delayed_history, anchor, coverage)
+    assert customer_readiness.ready is True, (
+        customer_readiness.checks,
+        customer_readiness.reason_codes,
+    )
+    assert customer_readiness.market_selection == readiness.market_selection
+
+    monkeypatch.setattr(
+        projected_service,
+        "fetch_recent_market_history",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("compare acquired GME")),
+    )
+    current = service.compare(request, catalog, current_history, anchor, coverage)
+    legacy_shape_history = history_from_reports(as_of, current_history.reports)
+    legacy_shape_current = service.compare(request, catalog, legacy_shape_history, anchor, coverage)
+    delayed = service.compare(request, catalog, delayed_history, anchor, coverage)
+    delayed_again = service.compare(request, catalog, delayed_history, anchor, coverage)
+    delayed_selection = delayed_history.selection
+    assert delayed_selection is not None
+    delayed_evidence = delayed_selection.publication_evidence
+    assert delayed_evidence is not None
+    proof_variant = delayed_selection.model_copy(
+        update={
+            "publication_evidence": delayed_evidence.model_copy(
+                update={"pdf_checked_at": datetime(2026, 9, 27, 11, 58, tzinfo=UTC)}
+            )
+        }
+    )
+    proof_variant_history = history_from_reports(
+        as_of, delayed_history.reports, selection=proof_variant
+    )
+    proof_variant_result = service.compare(
+        request, catalog, proof_variant_history, anchor, coverage
+    )
+
+    assert delayed.assumptions.historical_consumption_period == DatePeriod(
+        start=date(2025, 9, 1), end=date(2026, 9, 1)
+    )
+    assert delayed.assumptions.historical_market_period == DatePeriod(
+        start=date(2025, 8, 1), end=date(2026, 8, 1)
+    )
+    assert delayed.assumptions.market_reference_period == DatePeriod(
+        start=date(2026, 7, 1), end=date(2026, 8, 1)
+    )
+    assert delayed.verified_inputs.market_selection is not None
+    assert delayed.verified_inputs.market_selection.publication_lag_months == 1
+    assert delayed.result_id != current.result_id
+    assert legacy_shape_current.result_id == current.result_id
+    assert legacy_shape_current.scenarios == current.scenarios
+    assert delayed.result_id == delayed_again.result_id
+    assert delayed.result_id != proof_variant_result.result_id
+    serialized = dump_envelope(delayed)
+    restored = load_envelope(serialized)
+    assert hashlib.sha256(dump_envelope(restored)).digest() == hashlib.sha256(serialized).digest()
+    for delayed_scenario, current_scenario in zip(
+        delayed.scenarios, current.scenarios, strict=True
+    ):
+        delayed_comparison = delayed_scenario.comparison.comparison_result
+        current_comparison = current_scenario.comparison.comparison_result
+        assert (
+            delayed_comparison.current_pricing.breakdown.total.amount
+            == current_comparison.current_pricing.breakdown.total.amount
+        )
+        assert delayed_comparison.current_billing is not None
+        assert current_comparison.current_billing is not None
+        assert (
+            delayed_comparison.current_billing.bill.breakdown.total.amount
+            == current_comparison.current_billing.bill.breakdown.total.amount
+        )
+        assert delayed_comparison.ranking == current_comparison.ranking
+        assert [item.savings for item in delayed_comparison.alternatives] == [
+            item.savings for item in current_comparison.alternatives
+        ]
+
+
+def test_november_preflight_keeps_october_consumption_and_september_gme_period() -> None:
+    as_of = date(2026, 11, 1)
+    history = _history(as_of, publication_lag=1)
+    shifted_profile = _profile()
+    shifted_buckets = []
+    for bucket in shifted_profile.buckets:
+        start = _shift_month(bucket.interval.start.date(), 2)
+        end = _shift_month(start, 1)
+        shifted_buckets.append(
+            bucket.model_copy(
+                update={
+                    "interval": TimeInterval(
+                        start=datetime(start.year, start.month, 1, tzinfo=UTC),
+                        end=datetime(end.year, end.month, 1, tzinfo=UTC),
+                    )
+                }
+            )
+        )
+    request = ProjectedDomesticComparisonRequest.model_validate(
+        _indexed_request().model_dump(mode="python")
+        | {
+            "as_of": as_of,
+            "consumption": shifted_profile.model_copy(update={"buckets": tuple(shifted_buckets)}),
+        }
+    )
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 11, 1, 12, tzinfo=UTC))
+    readiness = service.preflight(request, None, history, None)
+
+    assert readiness.checks["request_supported"] is True
+    assert readiness.checks["market_window_verified"] is True
+    assert readiness.market_selection is not None
+    assert readiness.market_selection.expected_latest_period == DatePeriod(
+        start=date(2026, 10, 1), end=date(2026, 11, 1)
+    )
+    assert readiness.market_selection.reference_period == DatePeriod(
+        start=date(2026, 9, 1), end=date(2026, 10, 1)
+    )
+    consumption_months = tuple(
+        bucket.interval.start.date() for bucket in request.consumption.buckets
+    )
+    assert consumption_months[0] == date(2025, 11, 1)
+    assert consumption_months[-1] == date(2026, 10, 1)
+
+
+def test_november_compare_keeps_october_consumption_and_september_gme_period(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    as_of = date(2026, 11, 1)
+    original_profile = _profile()
+    shifted_profile = original_profile.model_copy(
+        update={
+            "buckets": tuple(
+                bucket.model_copy(
+                    update={
+                        "interval": TimeInterval(
+                            start=datetime(
+                                (start := _shift_month(bucket.interval.start.date(), 2)).year,
+                                start.month,
+                                1,
+                                tzinfo=UTC,
+                            ),
+                            end=datetime(
+                                _shift_month(start, 1).year,
+                                _shift_month(start, 1).month,
+                                1,
+                                tzinfo=UTC,
+                            ),
+                        )
+                    }
+                )
+                for bucket in original_profile.buckets
+            )
+        }
+    )
+    request = _indexed_request().model_copy(
+        update={
+            "as_of": as_of,
+            "consumption": shifted_profile,
+            "continuation_assumption": True,
+        }
+    )
+    catalog = _catalog(as_of)
+    extended_validity = DatePeriod(start=date(2026, 9, 1), end=date(2028, 1, 1))
+    catalog = catalog.model_copy(
+        update={
+            "records": tuple(
+                record.model_copy(
+                    update={
+                        "subscription_period": extended_validity,
+                        "tariff_validity": extended_validity,
+                        "duration_months": 16,
+                    }
+                )
+                for record in catalog.records
+            )
+        }
+    )
+    history = _history(as_of, publication_lag=1)
+    selection = history.selection
+    assert selection is not None
+    assert selection.publication_evidence is not None
+    partial_archive_evidence = GmePublicationEvidence.model_validate(
+        {
+            **selection.publication_evidence.model_dump(mode="python"),
+            "archive_http_status": 200,
+            "archive_sha256": "a" * 64,
+            "pdf_checked_at": datetime(2026, 11, 1, 9, tzinfo=UTC),
+            "retrieved_at": datetime(2026, 11, 1, 10, tzinfo=UTC),
+            "coverage_start": date(2026, 10, 1),
+            "coverage_end": date(2026, 10, 30),
+            "workbook_name": "Anno 2026_10_31.xlsx",
+            "locator": ProvenanceLocator(
+                document="Anno 2026_10_31.xlsx",
+                sheet="Prezzi-Prices",
+                cell="A2:D50000",
+            ),
+        }
+    )
+    history = history_from_reports(
+        as_of,
+        history.reports,
+        selection=selection.model_copy(update={"publication_evidence": partial_archive_evidence}),
+    )
+    anchor = load_domestic_projection_anchor(as_of)
+    coverage = _coverage(anchor, as_of)
+    service = ProjectedDomesticEnergyService(clock=lambda: datetime(2026, 11, 1, 12, tzinfo=UTC))
+    monkeypatch.setattr(
+        projected_service,
+        "fetch_recent_market_history",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("compare acquired GME")),
+    )
+
+    result = service.compare(request, catalog, history, anchor, coverage)
+
+    assert result.assumptions.historical_consumption_period == DatePeriod(
+        start=date(2025, 11, 1), end=date(2026, 11, 1)
+    )
+    assert result.assumptions.historical_market_period == DatePeriod(
+        start=date(2025, 10, 1), end=date(2026, 10, 1)
+    )
+    assert result.assumptions.market_reference_period == DatePeriod(
+        start=date(2026, 9, 1), end=date(2026, 10, 1)
+    )
+    assert result.verified_inputs.market_selection is not None
+    assert result.verified_inputs.market_selection.publication_lag_months == 1
 
 
 def test_projected_comparison_fails_closed_for_each_unverified_input() -> None:
@@ -1173,6 +1474,53 @@ def test_market_history_matcher_rejects_status_index_points_and_provenance_mutat
     bad_digest = history.model_copy(update={"reports": (wrong_provenance, *history.reports[1:])})
     assert not service._market_history_matches(bad_digest, AS_OF)
 
+
+def test_project_market_data_requires_a_validated_frozen_gme_selection() -> None:
+    from italian_energy.integration.current import CurrentScenario, project_market_data
+
+    history = _history(AS_OF)
+    service = ProjectedDomesticEnergyService()
+    assert history.selection is not None
+    generic_projection = project_market_data(
+        history.market_data, AS_OF, CurrentScenario.BASE, Decimal("0.20")
+    )
+    validated_projection = project_market_data(
+        history.market_data,
+        AS_OF,
+        CurrentScenario.BASE,
+        Decimal("0.20"),
+        market_history=history,
+    )
+    assert validated_projection == generic_projection
+
+    invalid_selection = history.selection.model_copy(update={"publication_status": "incomplete"})
+    invalid_history = history.model_copy(update={"selection": invalid_selection})
+    with pytest.raises(CoreContractError) as error:
+        project_market_data(
+            history.market_data,
+            AS_OF,
+            CurrentScenario.BASE,
+            Decimal("0.20"),
+            market_history=invalid_history,
+        )
+    assert error.value.code == CoreErrorCode.SOURCE_VALIDATION_FAILED
+
+    changed_point = history.market_data.points[-1].model_copy(
+        update={"value": history.market_data.points[-1].value + Decimal("0.01")}
+    )
+    mismatched_market_data = history.market_data.model_copy(
+        update={"points": (*history.market_data.points[:-1], changed_point)}
+    )
+    with pytest.raises(CoreContractError) as error:
+        project_market_data(
+            mismatched_market_data,
+            AS_OF,
+            CurrentScenario.BASE,
+            Decimal("0.20"),
+            market_history=history,
+        )
+    assert error.value.code == CoreErrorCode.SOURCE_VALIDATION_FAILED
+
     wrong_index = history.market_data.model_copy(
         update={"indexes": (history.market_data.indexes[0].model_copy(update={"code": "PE"}),)}
     )
@@ -1194,6 +1542,62 @@ def test_market_history_matcher_rejects_status_index_points_and_provenance_mutat
     assert not service._market_history_matches(
         history.model_copy(update={"market_data": wrong_points}), AS_OF
     )
+
+
+def test_gme_history_rejects_selection_point_and_report_inconsistencies() -> None:
+    from pydantic import ValidationError
+
+    from italian_energy.market.gme import GmeMarketHistory
+
+    history = _history(AS_OF)
+    base = history.model_dump(mode="python")
+    selection = history.selection
+    assert selection is not None
+    invalid_payloads = (
+        (
+            base
+            | {"selection": selection.model_copy(update={"comparison_as_of": date(2026, 9, 28)})},
+            "selection must match the comparison date",
+        ),
+        (
+            base
+            | {
+                "selection": selection.model_copy(
+                    update={"reference_value_eur_per_kwh": Decimal("0.11")}
+                )
+            },
+            "reproduce the latest report",
+        ),
+        (
+            base
+            | {
+                "reports": (
+                    history.reports[0].model_copy(update={"status": VerificationStatus.UNVERIFIED}),
+                    *history.reports[1:],
+                )
+            },
+            "cannot be verified while one report is unverified",
+        ),
+        (
+            base
+            | {
+                "market_data": history.market_data.model_copy(
+                    update={
+                        "points": (
+                            history.market_data.points[0].model_copy(
+                                update={"value": Decimal("9.99")}
+                            ),
+                            *history.market_data.points[1:],
+                        )
+                    }
+                )
+            },
+            "reproduce its source-backed report value",
+        ),
+    )
+    for payload, message in invalid_payloads:
+        with pytest.raises(ValidationError, match=message):
+            GmeMarketHistory.model_validate(payload)
 
 
 def test_projected_month_and_aggregation_helpers_reject_invalid_empty_inputs() -> None:

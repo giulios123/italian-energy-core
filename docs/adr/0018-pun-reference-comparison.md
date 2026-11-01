@@ -37,3 +37,24 @@ entrambe le direzioni.
   fonte e proiezione espliciti; non è implicato da questa ADR.
 - Verifica locale: 903 test Core, branch coverage 95,02%, Ruff check/format,
   mypy e `git diff --check` passano. Nessuna pubblicazione o deployment.
+
+## Addendum 0.13.8 — ritardo di pubblicazione GME
+
+Il PDF mensile resta primario; l'archivio annuale resta accessibile soltanto
+dopo HTTP 404 esplicito. Se il mese appena concluso non è ancora pubblicato
+integralmente, il Core può usare al massimo una finestra alternativa di dodici
+mesi completi, consecutivi, verificati e con provenance GME ufficiale, che
+termina il mese precedente. Un archivio con una coda parziale prova soltanto
+la pubblicazione in corso quando i quarti d'ora sono continui dal primo giorno
+e l'ultimo giorno disponibile è completo in `Europe/Rome`. Questi dati parziali
+non diventano un'osservazione né ricevono `VERIFIED`.
+
+Un PDF presente ma invalido, errori di rete o HTTP diversi da 404, archivio
+corrotto, lacune interne e digest/provenance invalidi bloccano il refresh senza
+ripiego. Il ritardo maggiore di un mese e una finestra alternativa incompleta
+falliscono chiusi con motivo stabile. Ogni nuovo refresh riprova il mese
+atteso, selezionandolo appena completo. Il risultato JSON lega scelta e prova
+nel digest e mantiene distinti periodo dei consumi e finestra GME. Le
+operazioni di acquisizione aggiornano gli input; preflight e confronto li
+consumano offline. Nuovi envelope versionati affiancano i lettori legacy senza
+migrazione dei risultati salvati.

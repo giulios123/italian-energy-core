@@ -33,6 +33,7 @@ from italian_energy.integration.current import (
 )
 from italian_energy.market.gme import (
     GmeMarketHistory,
+    GmeMarketSelection,
     is_official_gme_monthly_provenance,
 )
 from italian_energy.portal_offers.models import (
@@ -229,11 +230,17 @@ class ProjectedSourcePreflightResult(DomainModel):
     as_of: date
     checks: dict[str, bool] = Field(default_factory=dict)
     reason_codes: tuple[str, ...] = ()
+    market_selection: GmeMarketSelection | None = None
 
     @model_validator(mode="after")
     def validate_ready(self) -> Self:
         if self.ready != all(self.checks.values()):
             raise ValueError("source preflight readiness must match all source checks")
+        if (
+            self.market_selection is not None
+            and self.market_selection.comparison_as_of != self.as_of
+        ):
+            raise ValueError("source preflight GME selection must match its comparison date")
         return self
 
 
@@ -375,6 +382,7 @@ class ProjectedVerifiedInputs(DomainModel):
     market_index_code: Literal["PUN"] = "PUN"
     market_period: DatePeriod
     market_report_provenance: tuple[Provenance, ...]
+    market_selection: GmeMarketSelection | None = None
     regulatory_anchor_id: str = Field(min_length=1)
     regulatory_status: VerificationStatus
     regulatory_anchor_date: date
@@ -404,7 +412,19 @@ class ProjectedVerifiedInputs(DomainModel):
             for item in self.market_report_provenance
         ):
             raise ValueError("market provenance requires GME source, digest and month")
-        recent = _recent_months(comparison_as_of)
+        recent = (
+            tuple(
+                _add_months(self.market_selection.historical_market_period.start, offset)
+                for offset in range(12)
+            )
+            if self.market_selection is not None
+            else _recent_months(comparison_as_of)
+        )
+        if self.market_selection is not None:
+            if self.market_selection.comparison_as_of != comparison_as_of:
+                raise ValueError("market selection must match the comparison date")
+            if self.market_selection.historical_market_period != self.market_period:
+                raise ValueError("market selection must match the verified market period")
         expected_periods = tuple(
             DatePeriod(start=month, end=_add_months(month, 1)) for month in recent
         )
@@ -414,12 +434,17 @@ class ProjectedVerifiedInputs(DomainModel):
         ):
             raise ValueError("market provenance must cover the exact recent twelve-month window")
         expected_market_period = DatePeriod(start=recent[0], end=comparison_as_of.replace(day=1))
-        if self.market_period != expected_market_period:
+        if self.market_selection is None and self.market_period != expected_market_period:
             raise ValueError("market period must match the exact recent twelve-month window")
         for item, month in zip(self.market_report_provenance, recent, strict=True):
             expected_period = DatePeriod(start=month, end=_add_months(month, 1))
             if not is_official_gme_monthly_provenance(item, expected_period):
                 raise ValueError("market provenance must identify the matching official GME report")
+        if self.market_selection is not None and (
+            self.market_selection.reference_period != expected_periods[-1]
+            or self.market_selection.reference_provenance != self.market_report_provenance[-1]
+        ):
+            raise ValueError("market selection must match the latest verified GME report")
         if self.regulatory_status != VerificationStatus.VERIFIED:
             raise ValueError("projected result requires a verified regulatory anchor")
         if not self.regulatory_provenance:
@@ -506,25 +531,41 @@ class ProjectedDomesticComparisonResult(DomainModel):
             != self.verified_inputs.regulatory_anchor_date
         ):
             raise ValueError("projected result must preserve separate anchor and comparison dates")
-        history = _recent_months(self.as_of)
-        expected_history = DatePeriod(start=history[0], end=self.as_of.replace(day=1))
-        if (
-            self.assumptions.historical_consumption_period != expected_history
-            or self.assumptions.historical_market_period != expected_history
-            or self.verified_inputs.market_period != expected_history
-        ):
-            raise ValueError("historical assumptions must preserve the exact source window")
-        if self.assumptions.market_reference_period is not None:
-            reference_month = history[-1]
-            expected_reference_period = DatePeriod(
-                start=reference_month, end=_add_months(reference_month, 1)
+        consumption_months = _recent_months(self.as_of)
+        expected_consumption = DatePeriod(
+            start=consumption_months[0], end=self.as_of.replace(day=1)
+        )
+        if self.assumptions.historical_consumption_period != expected_consumption:
+            raise ValueError(
+                "historical consumption assumptions must preserve the exact recent window"
             )
-            if self.assumptions.market_reference_period != expected_reference_period:
+        selection = self.verified_inputs.market_selection
+        if selection is None:
+            if (
+                self.assumptions.historical_market_period != expected_consumption
+                or self.verified_inputs.market_period != expected_consumption
+            ):
                 raise ValueError(
-                    "market reference must identify the latest complete historical month"
+                    "legacy historical assumptions must preserve the exact source window"
                 )
-            if self.assumptions.market_reference_method != "latest_complete_month_held_constant":
-                raise ValueError("projected PUN method must hold the latest month constant")
+            if self.assumptions.market_reference_period is not None:
+                reference_month = consumption_months[-1]
+                expected_reference_period = DatePeriod(
+                    start=reference_month, end=_add_months(reference_month, 1)
+                )
+                if self.assumptions.market_reference_period != expected_reference_period:
+                    raise ValueError(
+                        "market reference must identify the latest complete historical month"
+                    )
+        else:
+            if self.assumptions.historical_market_period != selection.historical_market_period:
+                raise ValueError("historical market assumptions must match the selected GME window")
+            if self.assumptions.market_reference_period != selection.reference_period:
+                raise ValueError("market reference period must match the verified GME selection")
+            if self.assumptions.market_reference_value_eur_per_kwh != (
+                selection.reference_value_eur_per_kwh
+            ):
+                raise ValueError("market reference value must match the verified GME selection")
         expected = (
             CurrentScenario.LOW_INDEX,
             CurrentScenario.BASE,
@@ -566,6 +607,7 @@ class ProjectedDomesticPreflightResult(DomainModel):
     normalized_offer_count: int = Field(default=0, ge=0)
     horizon_eligible_offer_count: int = Field(default=0, ge=0)
     excluded_offer_count: int = Field(default=0, ge=0)
+    market_selection: GmeMarketSelection | None = None
 
     @model_validator(mode="after")
     def validate_readiness(self) -> Self:
@@ -573,6 +615,11 @@ class ProjectedDomesticPreflightResult(DomainModel):
             raise ValueError("preflight readiness must distinguish source and calculation gates")
         if self.period != future_period(self.as_of):
             raise ValueError("preflight horizon must cover the next twelve complete months")
+        if (
+            self.market_selection is not None
+            and self.market_selection.comparison_as_of != self.as_of
+        ):
+            raise ValueError("preflight GME selection must match its comparison date")
         return self
 
 

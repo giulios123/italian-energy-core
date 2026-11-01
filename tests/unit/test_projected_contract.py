@@ -198,11 +198,25 @@ def test_archive_backed_gme_history_round_trips_without_contract_changes() -> No
         archive_report if item.parsed.period.start == archive_month else item
         for item in pdf_history.reports
     )
-    history = history_from_reports(AS_OF, reports)
+    assert pdf_history.selection is not None
+    history = history_from_reports(
+        AS_OF,
+        reports,
+        selection=pdf_history.selection.model_copy(
+            update={"reference_provenance": archive_provenance}
+        ),
+    )
     prior_check = _projected_result().verified_inputs
+    selection = prior_check.market_selection
+    assert selection is not None
     validated_inputs = type(prior_check).model_validate(
         prior_check.model_dump(mode="python")
-        | {"market_report_provenance": tuple(item.provenance for item in history.reports)}
+        | {
+            "market_report_provenance": tuple(item.provenance for item in history.reports),
+            "market_selection": selection.model_copy(
+                update={"reference_provenance": archive_provenance}
+            ),
+        }
     )
     definition_check = GmeDefinitionCheck(
         expected_sha256="b" * 64,
@@ -231,6 +245,21 @@ def test_archive_backed_gme_history_round_trips_without_contract_changes() -> No
     assert report.provenance.locator.sheet == "Prezzi-Prices"
     assert restored.gme_definition_check == definition_check
     assert validated_inputs.market_report_provenance[-1].url == annual_archive_url(2026)
+
+    from italian_energy.integration import CoreContractError
+
+    missing_selection = bundle.model_dump(mode="json")
+    missing_selection["market_history"]["selection"] = None
+    with pytest.raises(CoreContractError, match="failed schema validation"):
+        load_envelope(
+            json.dumps(
+                {
+                    "contract_version": CORE_CONTRACT_VERSION,
+                    "schema_id": CoreSchemaId.PROJECTED_SOURCE_BUNDLE_V2.value,
+                    "payload": missing_selection,
+                }
+            )
+        )
 
 
 def test_regulatory_anchor_refresh_envelope_round_trip() -> None:
@@ -359,6 +388,7 @@ def test_pun_reference_assumptions_are_optional_only_as_a_complete_group() -> No
             "market_reference_value_eur_per_kwh": None,
         }
     )
+    legacy_payload["verified_inputs"]["market_selection"] = None
 
     legacy_result = ProjectedDomesticComparisonResult.model_validate(legacy_payload)
     assert legacy_result.assumptions.market_reference_period is None
@@ -380,7 +410,7 @@ def test_projected_result_requires_latest_month_as_pun_reference() -> None:
         start=date(2026, 7, 1), end=date(2026, 8, 1)
     )
 
-    with pytest.raises(ValidationError, match="latest complete historical month"):
+    with pytest.raises(ValidationError, match="market reference period"):
         ProjectedDomesticComparisonResult.model_validate(payload)
 
 
@@ -393,6 +423,14 @@ def test_preflight_readiness_cannot_collapse_source_and_calculation_gates() -> N
             projection_calculable=True,
             as_of=AS_OF,
             period=period,
+        )
+    with pytest.raises(ValidationError, match="preflight horizon"):
+        ProjectedDomesticPreflightResult(
+            ready=True,
+            official_data_ready=True,
+            projection_calculable=True,
+            as_of=AS_OF,
+            period=DatePeriod(start=date(2026, 11, 1), end=date(2027, 11, 1)),
         )
 
 
@@ -558,15 +596,144 @@ def test_verified_inputs_fail_closed_for_status_digest_window_and_source_url() -
         with pytest.raises(ValidationError, match=message):
             type(evidence).model_validate(payload)
 
+    selection = evidence.market_selection
+    assert selection is not None
+    bad_selection_inputs = (
+        (
+            {
+                "market_selection": selection.model_copy(
+                    update={"comparison_as_of": date(2026, 9, 28)}
+                )
+            },
+            "market selection must match the comparison date",
+        ),
+        (
+            {
+                "market_selection": selection.model_copy(
+                    update={
+                        "reference_provenance": evidence.market_report_provenance[-1].model_copy(
+                            update={"sha256": "0" * 64}
+                        )
+                    }
+                )
+            },
+            "market selection must match the latest verified GME report",
+        ),
+        (
+            {"market_period": DatePeriod(start=date(2025, 8, 1), end=date(2026, 9, 1))},
+            "market selection must match the verified market period",
+        ),
+    )
+    for changes, message in bad_selection_inputs:
+        with pytest.raises(ValidationError, match=message):
+            type(evidence).model_validate(base | changes)
+
+
+def test_projected_result_binds_consumption_and_market_selection_fields() -> None:
+    result = _projected_result()
+    base = result.model_dump(mode="python")
+    bad_assumptions = (
+        (
+            {
+                "historical_consumption_period": DatePeriod(
+                    start=date(2025, 8, 1), end=date(2026, 9, 1)
+                )
+            },
+            "historical consumption assumptions",
+        ),
+        (
+            {"historical_market_period": DatePeriod(start=date(2025, 8, 1), end=date(2026, 9, 1))},
+            "selected GME window",
+        ),
+        (
+            {"market_reference_period": DatePeriod(start=date(2026, 7, 1), end=date(2026, 8, 1))},
+            "verified GME selection",
+        ),
+        ({"market_reference_value_eur_per_kwh": Decimal("0.11")}, "verified GME selection"),
+    )
+    for changes, message in bad_assumptions:
+        payload = deepcopy(base)
+        payload["assumptions"].update(changes)
+        with pytest.raises(ValidationError, match=message):
+            ProjectedDomesticComparisonResult.model_validate(payload)
+
+    selection = result.verified_inputs.market_selection
+    assert selection is not None
+    bad_selections = (
+        selection.model_copy(update={"comparison_as_of": date(2026, 9, 28)}),
+        selection.model_copy(
+            update={
+                "historical_market_period": DatePeriod(start=date(2025, 8, 1), end=date(2026, 9, 1))
+            }
+        ),
+    )
+    for changed_selection in bad_selections:
+        bad_inputs = deepcopy(base["verified_inputs"])
+        bad_inputs["market_selection"] = changed_selection
+        with pytest.raises(ValidationError):
+            ProjectedDomesticComparisonResult.model_validate(base | {"verified_inputs": bad_inputs})
+
+    legacy = deepcopy(base)
+    legacy["verified_inputs"]["market_selection"] = None
+    legacy["verified_inputs"]["market_period"] = DatePeriod(
+        start=date(2025, 8, 1), end=date(2026, 9, 1)
+    )
+    with pytest.raises(ValidationError, match="market period must match the exact recent"):
+        ProjectedDomesticComparisonResult.model_validate(legacy)
+
+    legacy = deepcopy(base)
+    legacy["verified_inputs"]["market_selection"] = None
+    legacy["assumptions"]["historical_market_period"] = DatePeriod(
+        start=date(2025, 8, 1), end=date(2026, 9, 1)
+    )
+    with pytest.raises(ValidationError, match="legacy historical assumptions"):
+        ProjectedDomesticComparisonResult.model_validate(legacy)
+    legacy = deepcopy(base)
+    legacy["verified_inputs"]["market_selection"] = None
+    legacy["assumptions"]["market_reference_period"] = DatePeriod(
+        start=date(2026, 7, 1), end=date(2026, 8, 1)
+    )
+    with pytest.raises(ValidationError, match="latest complete historical month"):
+        ProjectedDomesticComparisonResult.model_validate(legacy)
+
+
+def test_projected_preflights_reject_a_selection_for_another_comparison_date() -> None:
+    selection = _projected_result().verified_inputs.market_selection
+    assert selection is not None
+    changed_selection = selection.model_copy(update={"comparison_as_of": date(2026, 9, 28)})
+    with pytest.raises(ValidationError, match="source preflight GME selection"):
+        ProjectedSourcePreflightResult(
+            ready=True,
+            as_of=AS_OF,
+            checks={"gme": True},
+            market_selection=changed_selection,
+        )
+    with pytest.raises(ValidationError, match="preflight GME selection"):
+        ProjectedDomesticPreflightResult(
+            ready=True,
+            official_data_ready=True,
+            projection_calculable=True,
+            as_of=AS_OF,
+            period=DatePeriod(start=date(2026, 10, 1), end=date(2027, 10, 1)),
+            market_selection=changed_selection,
+        )
+
 
 def test_projected_result_rejects_wrong_anchor_period_multiplier_and_missing_billing() -> None:
     result = _projected_result()
 
     current_envelope = json.loads(dump_envelope(result))
-    assert current_envelope["schema_id"] == CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_RESULT_V2
+    assert current_envelope["schema_id"] == CoreSchemaId.PROJECTED_DOMESTIC_COMPARISON_RESULT_V3
     assert isinstance(load_envelope(dump_envelope(result)), ProjectedDomesticComparisonResult)
+    from italian_energy.integration import CoreContractError
+
+    without_selection = deepcopy(current_envelope)
+    without_selection["payload"]["verified_inputs"]["market_selection"] = None
+    with pytest.raises(CoreContractError, match="failed schema validation"):
+        load_envelope(json.dumps(without_selection))
 
     legacy_payload = result.model_dump(mode="json")
+    legacy_payload["verified_inputs"]["market_selection"] = None
     for field in (
         "comparison_as_of",
         "regulatory_anchor_validity",
@@ -623,7 +790,7 @@ def test_projected_result_rejects_wrong_anchor_period_multiplier_and_missing_bil
     payload["assumptions"]["historical_market_period"] = DatePeriod(
         start=date(2025, 8, 1), end=date(2026, 9, 1)
     )
-    with pytest.raises(ValidationError, match="exact source window"):
+    with pytest.raises(ValidationError, match="selected GME window"):
         ProjectedDomesticComparisonResult.model_validate(payload)
 
     legacy_payload = deepcopy(legacy_payload)

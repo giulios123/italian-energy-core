@@ -1,5 +1,20 @@
 # Progress
 
+## Preparazione Core 0.13.8 — verificata localmente, 2026-11-01
+
+- Spec 016 e ADR 0018 aggiornati prima dei test e del codice; Spec 013 e ADR
+  0016 allineati. Le regressioni test-first hanno fallito sul codice 0.13.7.
+- Acquisizione GME conserva PDF primario e fallback annuale solo dopo HTTP 404;
+  la selezione alternativa richiede incompletezza documentata, dodici mesi
+  consecutivi VERIFIED e provenance ufficiale. Ritardo massimo: un mese.
+  Errori di rete, integrità, copertura o provenance restano bloccanti.
+- 961 test passati, branch coverage 95,03%; Ruff check/format, mypy, lock,
+  pre-commit, due golden privati, build wheel/sdist e smoke isolato superati.
+  Hash e limiti: `docs/release-0.13.8-preparation.md`.
+- Nessuna acquisizione live GME, verifica CI remota, integrazione/modifica
+  Platform, commit, tag, push o pubblicazione. La preparazione locale è pronta
+  per revisione; rilascio Core e adozione Platform restano separati.
+
 ## Core 0.13.7 pubblicato — 2026-10-25
 
 - Release commit `53b1e94948b5b7910fde0c188b70cb7800907776`, tag annotato

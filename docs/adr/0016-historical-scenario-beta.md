@@ -16,8 +16,12 @@ imponibili risultanti.
 
 Gli indici derivano da dataset ufficiali con mapping e provenance. Il mapping
 esplicita definizione, unità, granularità e fascia; PUN, PE, picco/fuori-picco
-e prezzi F1/F2/F3 non sono equivalenti. Una finestra incompleta o arretrata non
-è sostituita in silenzio.
+e prezzi F1/F2/F3 non sono equivalenti. La finestra dei consumi resta quella
+dei dodici mesi immediatamente precedenti il mese di `as_of`. Per il solo PUN
+GME, Spec 016 consente di terminare un mese prima se il mese atteso non è
+pubblicato integralmente e i dodici mesi alternativi sono completi, consecutivi,
+verificati e ufficiali. Il ritardo massimo è un mese; prove e scelta sono
+esplicite e gli errori di acquisizione o integrità restano bloccanti.
 
 L’anchor regolatorio e fiscale conserva `as_of` come data del suo snapshot
 verificato e `validity` come intervallo di applicabilità half-open. Un confronto

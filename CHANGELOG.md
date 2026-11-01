@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.13.8] - 2026-11-01
+
+### Changed
+
+- Il riferimento PUN mensile accetta al massimo un mese di ritardo quando il
+  PDF corrente è assente e le prove ufficiali mostrano una pubblicazione
+  incompleta. L'alternativa mantiene dodici osservazioni consecutive complete,
+  verificate e con provenance ufficiale; il mese parziale non è valorizzato.
+- Risultati e preflight espongono selezione, mese atteso, mese di riferimento,
+  finestra GME, stato e prove del ritardo. I nuovi envelope sono versionati;
+  i payload storici restano leggibili e invariati.
+
+### Verification
+
+- 961 test superati; branch coverage 95,03%. Ruff check/format, mypy,
+  `git diff --check`, lock check, pre-commit all-files e due golden privati
+  disponibili superati. Test red iniziali sul codice 0.13.7.
+- Build locale wheel/sdist e smoke d'import isolato superati; hash e limiti
+  della verifica sono registrati in `docs/release-0.13.8-preparation.md`.
+- Nota d'integrazione: `docs/platform-integration-0.13.8.md`.
+
 ## [0.13.7] - 2026-10-25
 
 ### Changed

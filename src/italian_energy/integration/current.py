@@ -24,6 +24,7 @@ from italian_energy.domain.money import Money
 from italian_energy.domain.offer import Contract
 from italian_energy.domain.regulatory import BillingMeasure, SupplyClassification, VoltageLevel
 from italian_energy.domain.time import DatePeriod, Granularity, TimeInterval
+from italian_energy.market.gme import GmeMarketHistory
 from italian_energy.portal_offers.models import (
     PortalComparisonResult,
     PortalEligibilityProfile,
@@ -270,11 +271,41 @@ def project_market_data(
     as_of: date,
     scenario: CurrentScenario,
     stress_delta: Decimal,
+    *,
+    market_history: GmeMarketHistory | None = None,
 ) -> MarketData:
     """Hold the latest complete monthly observation across the estimate horizon."""
 
     cutoff = _first_of_month(as_of)
     horizon = future_period(as_of)
+    if market_history is None:
+        selected_starts = tuple(_add_months(cutoff, -offset) for offset in range(12, 0, -1))
+    else:
+        try:
+            checked_history = GmeMarketHistory.model_validate(
+                market_history.model_dump(mode="python")
+            )
+        except ValueError as exc:
+            raise CoreContractError(
+                CoreErrorCode.SOURCE_VALIDATION_FAILED,
+                "GME selection failed its source and window validation",
+            ) from exc
+        if (
+            checked_history.as_of != as_of
+            or checked_history.market_data != market_data
+            or checked_history.status.value != "verified"
+        ):
+            raise CoreContractError(
+                CoreErrorCode.SOURCE_VALIDATION_FAILED,
+                "projected market data must match the verified frozen GME history",
+            )
+        if checked_history.selection is None:
+            selected_starts = tuple(_add_months(cutoff, -offset) for offset in range(12, 0, -1))
+        else:
+            selected_starts = tuple(
+                _add_months(checked_history.selection.historical_market_period.start, offset)
+                for offset in range(12)
+            )
     points: list[MarketDataPoint] = []
     for index in market_data.indexes:
         history = sorted(
@@ -285,7 +316,7 @@ def project_market_data(
             ),
             key=lambda point: point.interval.start,
         )[-12:]
-        expected_starts = tuple(_add_months(cutoff, -offset) for offset in range(12, 0, -1))
+        expected_starts = selected_starts
         actual_starts = tuple(point.interval.start.date().replace(day=1) for point in history)
         if (
             index.granularity.value != "month"

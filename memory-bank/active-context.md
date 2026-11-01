@@ -1,5 +1,23 @@
 # Active context
 
+## Preparazione Core 0.13.8 — verificata localmente, 2026-11-01
+
+- Aggiornate prima dell'implementazione Spec 016 e ADR 0018; Spec 013 e ADR
+  0016 chiariscono che il solo storico PUN può arretrare di un mese, mentre
+  i consumi restano ancorati alla data del confronto.
+- Aggiunte regressioni test-first per coda GME con giorni completi/troncati,
+  selezione alternativa e recupero automatico quando il mese nuovo appare,
+  limite di ritardo, cambio anno, 31 ottobre, errori PDF e preflight offline.
+  La prima esecuzione ha riprodotto i fallimenti attesi sul codice originale.
+- Implementazione integrata in acquisizione, selezione tipizzata, input
+  congelati, preflight, confronto, digest, envelope e CLI. La suite completa
+  ha 961 test passati e 95,03% branch coverage; Ruff, mypy, lock, pre-commit,
+  golden privati, build e smoke wheel superati.
+- Wheel/sdist locali non pubblicati; hash e limiti in
+  `docs/release-0.13.8-preparation.md`. Acquisizione GME live, CI remota e
+  integrazione Platform non eseguite. Nessun commit/tag/push/pubblicazione e
+  nessuna modifica Platform.
+
 ## Core 0.13.7 pubblicato — 2026-10-25
 
 - Release commit `53b1e94948b5b7910fde0c188b70cb7800907776`, tag annotato

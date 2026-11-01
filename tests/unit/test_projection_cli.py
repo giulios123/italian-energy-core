@@ -532,7 +532,7 @@ def test_projection_cli_verifies_sources_and_runs_canonical_request(
     assert summary["status"] == "verified"
     assert summary["comparison_status"] == "estimated"
     assert summary["comparison_envelope"]["schema_id"] == (
-        "italian-energy/projected-domestic-comparison-result/v2"
+        "italian-energy/projected-domestic-comparison-result/v3"
     )
     assert summary["comparison_envelope"]["payload"]["status"] == "estimated"
     acquired_bundle = load_envelope(output_sources_path.read_bytes())
@@ -599,7 +599,7 @@ def test_projection_cli_uses_a_source_bundle_without_network(
     assert result["mode"] == "offline"
     assert result["status"] == "verified"
     assert result["comparison_status"] == "estimated"
-    assert result["comparison_envelope"]["schema_id"].endswith("comparison-result/v2")
+    assert result["comparison_envelope"]["schema_id"].endswith("comparison-result/v3")
 
     changed_bundle = bundle.model_copy(
         update={"coverage_evidence": _coverage(anchor, AS_OF, changed_source=True)}
