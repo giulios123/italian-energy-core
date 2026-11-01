@@ -1,6 +1,6 @@
 # Active context
 
-## Preparazione Core 0.13.8 — verificata localmente, 2026-11-01
+## Core 0.13.8 pubblicato — 2026-11-01
 
 - Aggiornate prima dell'implementazione Spec 016 e ADR 0018; Spec 013 e ADR
   0016 chiariscono che il solo storico PUN può arretrare di un mese, mentre
@@ -13,10 +13,16 @@
   congelati, preflight, confronto, digest, envelope e CLI. La suite completa
   ha 961 test passati e 95,03% branch coverage; Ruff, mypy, lock, pre-commit,
   golden privati, build e smoke wheel superati.
-- Wheel/sdist locali non pubblicati; hash e limiti in
-  `docs/release-0.13.8-preparation.md`. Acquisizione GME live, CI remota e
-  integrazione Platform non eseguite. Nessun commit/tag/push/pubblicazione e
-  nessuna modifica Platform.
+- Release commit `c11fe6cfe313c78e411c8284e33888e502bf739c`, tag annotato
+  `v0.13.8`. CI main/tag su Python 3.12–3.14 e Publish to PyPI #41314193152
+  riusciti; wheel/sdist pubblicate con attestazioni PyPI Trusted Publishing.
+- SHA-256 wheel `80712e6ae4674e1a68d60b64486cb30f360ab469de7d24ff286e470f65187411`;
+  sdist `1f396e53f6df6a3174379fe5d20d55d2727e9c88f0c0a50189141c268fe95228`;
+  digest PyPI e GitHub coincidenti.
+- Nessuna nuova acquisizione live GME né integrazione Platform. La Platform
+  non è stata modificata o aggiornata; la nota per l'adozione è in
+  `docs/platform-integration-0.13.8.md`. Prove della release:
+  `docs/release-0.13.8-publication.md`.
 
 ## Core 0.13.7 pubblicato — 2026-10-25
 

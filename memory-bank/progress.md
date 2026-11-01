@@ -1,6 +1,6 @@
 # Progress
 
-## Preparazione Core 0.13.8 — verificata localmente, 2026-11-01
+## Core 0.13.8 pubblicato — 2026-11-01
 
 - Spec 016 e ADR 0018 aggiornati prima dei test e del codice; Spec 013 e ADR
   0016 allineati. Le regressioni test-first hanno fallito sul codice 0.13.7.
@@ -11,9 +11,16 @@
 - 961 test passati, branch coverage 95,03%; Ruff check/format, mypy, lock,
   pre-commit, due golden privati, build wheel/sdist e smoke isolato superati.
   Hash e limiti: `docs/release-0.13.8-preparation.md`.
-- Nessuna acquisizione live GME, verifica CI remota, integrazione/modifica
-  Platform, commit, tag, push o pubblicazione. La preparazione locale è pronta
-  per revisione; rilascio Core e adozione Platform restano separati.
+- Commit/tag pubblicati: `c11fe6cfe313c78e411c8284e33888e502bf739c` /
+  `v0.13.8`. CI main/tag Python 3.12–3.14 e workflow Publish to PyPI
+  #41314193152 passati; wheel e sdist disponibili su GitHub e PyPI con
+  attestazioni verificate da PyPI. SHA-256 coincidenti tra i due registry.
+- Invariati i limiti di verifica: nessuna acquisizione GME live e nessuna
+  integrazione Platform. Platform non modificata né aggiornata. La Platform
+  dovrà modificare `_public_market_reference` per validare la selezione Core e
+  il ritardo ammesso, anziché imporre il mese immediatamente precedente.
+- Dettaglio release, hash, CI e prove: `docs/release-0.13.8-publication.md`.
+  Preparazione e copertura: `docs/release-0.13.8-preparation.md`.
 
 ## Core 0.13.7 pubblicato — 2026-10-25
 
