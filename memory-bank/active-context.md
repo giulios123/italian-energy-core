@@ -1,5 +1,17 @@
 # Active context
 
+## Core 0.13.9 pubblicato — 2026-11-04
+
+- Release commit a024eddedbbed7aed6511c80ee4095be663e703d, tag v0.13.9.
+- CI main/tag su Python 3.12–3.14 e Trusted Publishing 41855934897 riusciti.
+- Wheel PyPI/GitHub verificata anche dalla Platform con attestazione; SHA-256
+  fd574a9eb31c8fded6d0843633d7ef78312f81194a0ceda4a6332905e0f00a07.
+- Platform locale persistente: scansione completa rivaluta le decisioni
+  precedenti; catalogo 2026-11-04 verificato, confronti abilitati, reason_codes vuoti.
+- Lo stato nuovo conserva il blocco su una pagina IVA con hash diverso dal seed.
+  Nessun bypass, modifica agli storici o deploy Azure.
+- Evidenza: docs/release-0.13.9-publication.md.
+
 ## Core 0.13.9 — correzione locale pronta — 2026-11-04
 
 - Spec 021 e ADR 0017 D30 scritte prima della correzione. Cinque regressioni
