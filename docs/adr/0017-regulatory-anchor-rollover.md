@@ -832,3 +832,16 @@ La review generale continua a includere voci non correlate perché manca il
 grafo versionato dei campi Q4 verso le fonti primarie e gli atti modificanti.
 Questo è il prossimo lavoro Core; non è una richiesta che l'utente classifichi
 644 record. La promozione richiede di completare M23 e ripetere il replay live.
+
+## D30 — date di ricerca coerenti e atti sul gasolio ottobre 2026
+
+La Spec 021 corregge la discovery tariffaria: la data selezionata dall'indice
+ARERA è la decorrenza, distinta dalla pubblicazione. Il medesimo criterio è
+usato da scansione, filtro e confronto delle finestre sovrapposte. La decorrenza
+mancante resta bloccante, senza modificare gli schema o le date delle fonti.
+
+Il decreto Gazzetta `26A05715` e l'esatto aggiornamento Normattiva TUA collegato
+sono classificati da regole versionate sulla base dei due articoli ufficiali,
+relativi al solo gasolio usato come carburante e alla copertura finanziaria.
+Identità, date o collegamenti differenti mantengono la review. La matrice di
+ambito M23 resta invariata e richiede tutte le scansioni complete.

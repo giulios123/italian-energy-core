@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Core `0.13.8` — riferimento PUN resiliente al ritardo di pubblicazione mensile.
+> Core `0.13.9` — discovery tariffaria coerente con la decorrenza e verifica degli atti sul gasolio di ottobre.
 
 Il package installabile è disponibile come wheel e sdist. L'importer Portale
 Offerte opera solo su cataloghi open-data ufficiali, replay storici esatti e
@@ -24,7 +24,7 @@ uv run pytest
 Installazione del package dalla release pubblicata:
 
 ```bash
-pip install italian-energy==0.13.8
+pip install italian-energy==0.13.9
 ```
 
 La release `0.13.4` conserva provenienza e semantica delle voci `Dispacciamento`

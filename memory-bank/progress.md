@@ -1,5 +1,19 @@
 # Progress
 
+## Core 0.13.9 — correzione locale pronta — 2026-11-04
+
+- Spec 021 e ADR 0017 D30 scritte prima della correzione. Cinque regressioni
+  inizialmente falliscono; ora 989 test passati / 95,04% branch coverage.
+- Discovery coerente fra decorrenza tariffaria, pubblicazione anticipata,
+  filtro e finestre sovrapposte; decorrenza mancante e fonte mutata bloccano.
+- Regole esatte per decreto 26A05715 e aggiornamento TUA collegato; nessuna
+  variazione a tariffe, schema pubblici o policy generali di scope.
+- Ruff/mypy, lock offline, golden privati e build superati. Pubblicazione e
+  adozione Platform ancora da verificare. Prova fresh: 5 canali completi,
+  zero review; rimane un hash IVA Normattiva diverso dal seed incluso.
+- Dettagli: docs/release-0.13.9-preparation.md.
+
+
 ## Core 0.13.8 pubblicato — 2026-11-01
 
 - Spec 016 e ADR 0018 aggiornati prima dei test e del codice; Spec 013 e ADR

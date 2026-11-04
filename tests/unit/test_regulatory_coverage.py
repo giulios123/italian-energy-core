@@ -70,6 +70,9 @@ def _act_record(channel: RegulatoryRegistryChannel) -> OfficialRegistryRecord:
         act_id=ACT_ID,
         title="Synthetic regulatory act",
         published_at=AS_OF,
+        effective_from=(
+            VALIDITY.start if channel == RegulatoryRegistryChannel.ARERA_TARIFFS else None
+        ),
         url=f"{_index_url(channel).rsplit('/', 1)[0]}/acts/{ACT_ID}",
         document_id=f"{ACT_ID}.pdf",
     )

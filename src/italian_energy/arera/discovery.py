@@ -454,6 +454,17 @@ def incremental_search_period(
     return DatePeriod(start=start, end=as_of + timedelta(days=1))
 
 
+def _record_search_date(record: OfficialRegistryRecord, period: DatePeriod) -> date:
+    """Use the date selected by the channel, preserving original source dates."""
+
+    if record.channel == RegulatoryRegistryChannel.ARERA_TARIFFS:
+        if record.effective_from is None:
+            raise ValueError("ARERA tariff discovery requires an effective date")
+        if period.start <= record.effective_from < period.end:
+            return record.effective_from
+    return record.registry_date or record.published_at
+
+
 def scan_regulatory_registry(
     adapter: RegistryIndexAdapter,
     search_period: DatePeriod,
@@ -484,6 +495,8 @@ def scan_regulatory_registry(
     for page_number in range(1, max_pages + 1):
         try:
             page = adapter.fetch_page(search_period, page_number, expected_cursor)
+            for record in page.records:
+                _record_search_date(record, search_period)
         except DiscoveryFailure as exc:
             reason = exc.reason
             break
@@ -521,7 +534,7 @@ def scan_regulatory_registry(
             break
         if page.records_confined_to_search_period and any(
             not search_period.start
-            <= (record.registry_date or record.published_at)
+            <= _record_search_date(record, search_period)
             < search_period.end
             for record in page.records
         ):
@@ -577,10 +590,10 @@ def scan_regulatory_registry(
                     item
                     for item in records
                     if search_period.start
-                    <= (item.registry_date or item.published_at)
+                    <= _record_search_date(item, search_period)
                     < search_period.end
                 ),
-                key=lambda item: (item.registry_date or item.published_at, item.act_id),
+                key=lambda item: (_record_search_date(item, search_period), item.act_id),
             )
         ),
         page_evidence=tuple(
@@ -625,10 +638,11 @@ def compare_overlapping_discoveries(
     if overlap_start >= overlap_end:
         raise ValueError("discovery snapshots must have an overlapping search period")
 
+    overlap = DatePeriod(start=overlap_start, end=overlap_end)
     prior_records = {
         record.act_id: record
         for record in previous.records
-        if overlap_start <= (record.registry_date or record.published_at) < overlap_end
+        if overlap_start <= _record_search_date(record, overlap) < overlap_end
     }
     current_records = {record.act_id: record for record in current.records}
     changes: list[DiscoveryRecordChange] = []

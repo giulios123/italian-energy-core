@@ -182,6 +182,48 @@ def _is_known_normattiva_tua_petroleum_update(record: OfficialRegistryRecord) ->
     )
 
 
+def _is_known_october_diesel_decree(record: OfficialRegistryRecord) -> bool:
+    if (
+        record.channel != RegulatoryRegistryChannel.GAZZETTA_SERIE_GENERALE
+        or record.act_id != "26A05715"
+        or record.document_id != "26A05715"
+        or record.published_at != date(2026, 10, 27)
+        or record.registry_date != date(2026, 10, 27)
+        or record.effective_from is not None
+    ):
+        return False
+    parsed = urlsplit(record.url)
+    try:
+        query = parse_qs(parsed.query, strict_parsing=True)
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and parsed.hostname == "www.gazzettaufficiale.it"
+        and parsed.path == "/atto/serie_generale/caricaDettaglioAtto/originario"
+        and not parsed.fragment
+        and query
+        == {
+            "atto.codiceRedazionale": ["26A05715"],
+            "atto.dataPubblicazioneGazzetta": ["2026-10-27"],
+            "elenco30giorni": ["false"],
+        }
+    )
+
+
+def _is_known_october_tua_diesel_update(record: OfficialRegistryRecord) -> bool:
+    return (
+        record.channel == RegulatoryRegistryChannel.NORMATTIVA_UPDATES
+        and record.act_id == _NORMATTIVA_TUA_ID
+        and record.document_id == _NORMATTIVA_TUA_ID
+        and record.published_at == date(1995, 11, 29)
+        and record.registry_date == date(2026, 10, 27)
+        and record.effective_from is None
+        and record.url == _NORMATTIVA_UPDATES_URL
+        and record.latest_amending_act_ids == ("26A05715",)
+    )
+
+
 def classify_official_regulatory_record(
     record: OfficialRegistryRecord,
 ) -> DiscoveryActFinding:
@@ -263,6 +305,32 @@ def classify_official_regulatory_record(
                 "change the household electricity tax rates represented by this anchor"
             ),
             rule_id="gazzetta-dl148-domestic-electricity-rates-out-of-scope",
+            rule_version="1.0.0",
+        )
+    if _is_known_october_diesel_decree(record):
+        return DiscoveryActFinding(
+            channel=record.channel,
+            act_id=record.act_id,
+            disposition=DiscoveryActDisposition.IRRELEVANT_BY_VERSIONED_RULE,
+            rationale=(
+                "the exact decree's article 1 changes diesel used as motor fuel from "
+                "2026-10-28 through 2026-11-07; article 2 funds the measure, with no "
+                "change to household-electricity excise or VAT"
+            ),
+            rule_id="gazzetta-october-2026-diesel-only-out-of-scope",
+            rule_version="1.0.0",
+        )
+    if _is_known_october_tua_diesel_update(record):
+        return DiscoveryActFinding(
+            channel=record.channel,
+            act_id=record.act_id,
+            disposition=DiscoveryActDisposition.IRRELEVANT_BY_VERSIONED_RULE,
+            rationale=(
+                "the exact 2026-10-27 TUA update links only decree 26A05715, whose "
+                "two articles concern motor-fuel diesel and funding, with no change "
+                "to household-electricity excise or VAT"
+            ),
+            rule_id="normattiva-tua-updated-by-october-2026-diesel-decree",
             rule_version="1.0.0",
         )
     if _is_known_september_diesel_decree(record):

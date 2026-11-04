@@ -60,6 +60,9 @@ def _record(
         title="Fixture record",
         published_at=date(2026, 9, 25),
         registry_date=date(2026, 9, 25),
+        effective_from=(
+            date(2026, 10, 1) if channel == RegulatoryRegistryChannel.ARERA_TARIFFS else None
+        ),
         url=f"https://{hosts[channel]}/official/{act_id}",
         document_id=document_id or act_id,
         latest_amending_act_ids=amending_ids,

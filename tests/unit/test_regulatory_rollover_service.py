@@ -349,6 +349,9 @@ def _official_record(
         act_id=act_id,
         title=f"Synthetic {act_id}",
         published_at=date(2026, 9, 25),
+        effective_from=(
+            date(2026, 10, 1) if channel == RegulatoryRegistryChannel.ARERA_TARIFFS else None
+        ),
         url=f"https://{host}/synthetic/{path}",
         document_id=document_id,
     )

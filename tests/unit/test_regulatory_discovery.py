@@ -734,6 +734,7 @@ def test_default_official_classifier_does_not_match_known_act_by_id_alone() -> N
 
 
 def test_discovery_uses_builtin_classifier_only_when_no_override_is_supplied() -> None:
+    period = DatePeriod(start=PERIOD.start, end=date(2026, 10, 2))
     act = OfficialRegistryRecord(
         channel=RegulatoryRegistryChannel.ARERA_TARIFFS,
         act_id="343/2026/R/com",
@@ -754,10 +755,14 @@ def test_discovery_uses_builtin_classifier_only_when_no_override_is_supplied() -
         for channel in DISCOVERY_CHANNELS
     )
 
-    default_report = discover_regulatory_sources(adapters, PERIOD, NOW)
+    for adapter in adapters:
+        adapter.pages = tuple(
+            page.model_copy(update={"search_period": period}) for page in adapter.pages
+        )
+    default_report = discover_regulatory_sources(adapters, period, NOW)
     override_report = discover_regulatory_sources(
         adapters,
-        PERIOD,
+        period,
         NOW,
         classifier=lambda record: DiscoveryActFinding(
             channel=record.channel,
