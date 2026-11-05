@@ -67,9 +67,10 @@ coda o decidere. Identità e timestamp provengono dalla sessione e dal server.
 
 La decisione richiede un nuovo controllo delle fonti e un nuovo catalogo. Fino a
 quel controllo nessuna vecchia snapshot precedente alla decisione può essere
-usata per un confronto nuovo. Il job programmato controlla entro cinque minuti
-se esiste lavoro nuovo; senza decisioni nuove e con controllo giornaliero già
-eseguito non interroga le fonti. L'approvazione non implica `ready=true`.
+usata per un confronto nuovo. La Platform richiede l'avvio dopo la decisione e
+permette un ricontrollo manuale; il job periodico ogni sei ore funge anche da
+recupero. La pianificazione è una responsabilità dell'host.
+L'approvazione non implica `ready=true`.
 
 ## Accettazione
 

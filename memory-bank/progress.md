@@ -7,7 +7,10 @@
   coverage normativa valida. Regressione riprodotta prima della correzione.
 - Completezza V2 delegata allo stesso validatore digest/decisione, senza
   cambiare i confronti legacy o accettare una versione successiva non approvata.
-- Gate, pubblicazione e adozione sono da registrare dopo verifica.
+- 1.027 test / 95,03%, Ruff/mypy, golden e build passati. Core v0.13.11
+  pubblicato su GitHub/PyPI (CI 42117160944, Trusted Publishing 42117515098).
+  Wheel 5bcd44780496fe1aadc08dff1c08e592e5ecce6929cb1f6045cba8170fb4603e
+  verificata dalla Platform. Adozione Azure documentata separatamente.
 
 
 ## Core 0.13.10 pubblicato — 2026-11-05
