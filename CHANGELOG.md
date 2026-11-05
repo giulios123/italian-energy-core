@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.13.11] - 2026-11-05
+
+- Il preflight proiettato riconosce la versione ufficiale approvata anche nel
+  controllo di completezza dei digest, usando le stesse regole di anchor,
+  periodo, osservazione corrente e decisione della verifica normativa.
+- Regressione riprodotta: l’IVA approvata superava la coverage ma lasciava
+  `regulatory_source_digests_match=false` senza reason code. Il confronto
+  rimaneva bloccato. Una nuova versione non approvata continua a bloccare.
+- Schemi, valori economici e dati storici invariati.
+
+
 ## [0.13.10] - 2026-11-05
 
 - Richieste e decisioni di revisione delle fonti ufficiali, vincolate a anchor,

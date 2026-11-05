@@ -301,6 +301,30 @@ def test_daily_rollover_exposes_request_then_reuses_exact_admin_decision_offline
     )
     approved = service.refresh_regulatory_state(AS_OF, source_revision_decisions=(decision,))
     assert service.source_preflight(AS_OF, approved.current_coverage).ready
+    from italian_energy.integration.projected_service import ProjectedDomesticEnergyService
+
+    assert ProjectedDomesticEnergyService._source_digests_complete(
+        anchor, approved.current_coverage
+    )
+    from test_projected_service import _catalog, _history
+
+    projected = ProjectedDomesticEnergyService(clock=lambda: port.now)
+    assert projected.source_preflight(
+        AS_OF, _catalog(AS_OF), _history(AS_OF), anchor, approved.current_coverage
+    ).ready
+    changed_again = approved.current_coverage.model_copy(
+        update={
+            "source_checks": tuple(
+                check.model_copy(update={"observed_sha256": "f" * 64})
+                if check.source_id == source.source_id
+                else check
+                for check in approved.current_coverage.source_checks
+            )
+        }
+    )
+    assert not projected.source_preflight(
+        AS_OF, _catalog(AS_OF), _history(AS_OF), anchor, changed_again
+    ).ready
     assert repository.read_current_anchor().model_dump_json() == original
     encoded = dump_envelope(approved)
     assert json.loads(encoded)["schema_id"] == "italian-energy/regulatory-rollover-report/v3"

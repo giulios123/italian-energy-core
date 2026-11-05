@@ -1,5 +1,15 @@
 # Active context
 
+## Core 0.13.11 — correzione preflight approvazioni — 2026-11-05
+
+- Individuato sul runtime Azure il secondo confronto dei digest che ignorava
+  decisioni V2 approvate; source gate falso senza reason code nonostante
+  coverage normativa valida. Regressione riprodotta prima della correzione.
+- Completezza V2 delegata allo stesso validatore digest/decisione, senza
+  cambiare i confronti legacy o accettare una versione successiva non approvata.
+- Gate, pubblicazione e adozione sono da registrare dopo verifica.
+
+
 ## Core 0.13.10 pubblicato — 2026-11-05
 
 - Commit 0d68f6662234909fc57320096570b70e4a990619, tag v0.13.10.

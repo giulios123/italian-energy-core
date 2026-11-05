@@ -18,6 +18,7 @@ from italian_energy.arera.projection import (
 )
 from italian_energy.arera.rollover_coverage import (
     RegulatoryAnchorCoverageEvidence,
+    RegulatoryAnchorCoverageEvidenceV2,
     source_observation_is_accepted,
 )
 from italian_energy.arera.rollover_models import RegulatoryRolloverReason
@@ -660,6 +661,11 @@ class ProjectedDomesticEnergyService:
         evidence: RegulatoryCoverageEvidence | RegulatoryAnchorCoverageEvidence,
     ) -> bool:
         checks_by_id = {item.source_id: item for item in evidence.source_checks}
+        if isinstance(evidence, RegulatoryAnchorCoverageEvidenceV2):
+            return set(checks_by_id) == {item.source_id for item in anchor.sources} and all(
+                source_observation_is_accepted(anchor, check, evidence)
+                for check in evidence.source_checks
+            )
         return set(checks_by_id) == {item.source_id for item in anchor.sources} and all(
             source.sha256 is not None
             and checks_by_id[source.source_id].expected_sha256 == source.sha256

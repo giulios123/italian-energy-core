@@ -88,3 +88,11 @@ eseguito non interroga le fonti. L'approvazione non implica `ready=true`.
 9. Browser: richiesta pendente, anteprima, approvazione motivata, rifiuto, errore
    e stato di controllo in corso; nessuna approvazione del documento live da
    parte dell'agente al posto dell'admin.
+
+## Regressione di integrazione — 2026-11-05
+
+La verifica di completezza dei digest nel preflight proiettato deve usare la
+stessa valutazione digest/versione/decisione della verifica normativa. Una
+versione approvata, ancora osservata e valida, non può lasciare un check falso
+senza reason code. La copertura completa delle fonti resta obbligatoria; envelope
+legacy senza approvazioni mantengono il confronto esatto del digest originale.

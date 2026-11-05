@@ -855,3 +855,11 @@ gli anchor storici e non approva valori economici differenti. La coverage nuova
 conserva la decisione come evidenza verificabile offline. La Platform autentica
 l'admin e presenta la coda, mentre il Core decide se la versione approvata può
 essere usata. Decisioni e revoche richiedono un nuovo controllo delle fonti.
+
+## D32 — Completeness del digest dopo approvazione — 2026-11-05
+
+Il controllo proiettato di completezza deve usare la stessa accettazione di
+osservazioni e decisioni della coverage V2. Il confronto byte-per-byte legacy
+resta attivo per le evidenze prive del contratto di revisione. Una nuova versione,
+una revoca o un vincolo errato non possono essere accettati. Regressione positiva
+e negativa riprodotta prima del fix, inclusa la source_preflight completa.

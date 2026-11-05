@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Core `0.13.10` — revisione amministrativa delle nuove versioni dei documenti ufficiali, vincolata a digest e periodo.
+> Core `0.13.11` — revisione amministrativa delle nuove versioni dei documenti ufficiali, vincolata a digest e periodo.
 
 Il package installabile è disponibile come wheel e sdist. L'importer Portale
 Offerte opera solo su cataloghi open-data ufficiali, replay storici esatti e
@@ -24,7 +24,7 @@ uv run pytest
 Installazione del package dalla release pubblicata:
 
 ```bash
-pip install italian-energy==0.13.10
+pip install italian-energy==0.13.11
 ```
 
 La release `0.13.4` conserva provenienza e semantica delle voci `Dispacciamento`
