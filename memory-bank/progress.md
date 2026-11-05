@@ -1,5 +1,16 @@
 # Progress
 
+## Core 0.13.10 — revisione fonti pronta — 2026-11-05
+
+- Spec 022 e ADR 0017 D31: richiesta e decisione canoniche per una nuova
+  versione di fonte nota; nessuna mutazione degli anchor o dei confronti salvati.
+- Test-first delle regole economiche e regressioni su decisioni errate,
+  valori diversi rilevati successivamente e coverage offline falsificata.
+- 1.027 test passati, coverage con rami 95,03%; Ruff e mypy superati.
+- Nuove capability/schema additive; pubblicazione e adozione Platform ancora
+  da verificare. Nessuna approvazione amministrativa del documento IVA live.
+
+
 ## Core 0.13.9 pubblicato — 2026-11-04
 
 - Release commit a024eddedbbed7aed6511c80ee4095be663e703d, tag v0.13.9.

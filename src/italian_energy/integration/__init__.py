@@ -2,11 +2,19 @@
 
 from italian_energy.arera.rollover_coverage import (
     RegulatoryAnchorCoverageEvidence,
+    RegulatoryAnchorCoverageEvidenceV2,
     RegulatoryCandidateCoverageResult,
     RegulatoryManualReview,
 )
 from italian_energy.arera.rollover_models import RegulatoryEffect, RegulatoryRolloverReason
 from italian_energy.arera.rollover_repository import regulatory_candidate_semantic_digest
+from italian_energy.arera.source_revision import (
+    RegulatorySourceRevisionDecision,
+    RegulatorySourceRevisionRequest,
+    SourceRevisionAssessment,
+    SourceRevisionOutcome,
+    create_source_revision_decision,
+)
 from italian_energy.domain.consumption import ConsumptionProfile
 from italian_energy.domain.offer import Contract
 from italian_energy.domain.supply import SupplyPoint
@@ -65,6 +73,7 @@ from .projected_service import ProjectedDomesticEnergyService
 from .regulatory_rollover_service import (
     RegulatoryRolloverAction,
     RegulatoryRolloverReport,
+    RegulatoryRolloverReportV3,
     RegulatoryRolloverService,
     RegulatoryRolloverSourcePort,
     RegulatorySourcePreflightResult,
@@ -128,6 +137,7 @@ __all__ = [
     "RecommendationPreferences",
     "RegulatoryActFinding",
     "RegulatoryAnchorCoverageEvidence",
+    "RegulatoryAnchorCoverageEvidenceV2",
     "RegulatoryAnchorRefreshResult",
     "RegulatoryCandidateCoverageResult",
     "RegulatoryCoverageEvidence",
@@ -137,13 +147,19 @@ __all__ = [
     "RegulatoryRolloverAction",
     "RegulatoryRolloverReason",
     "RegulatoryRolloverReport",
+    "RegulatoryRolloverReportV3",
     "RegulatoryRolloverService",
     "RegulatoryRolloverSourcePort",
     "RegulatorySourceDigestCheck",
     "RegulatorySourcePreflightResult",
+    "RegulatorySourceRevisionDecision",
+    "RegulatorySourceRevisionRequest",
+    "SourceRevisionAssessment",
+    "SourceRevisionOutcome",
     "SupplyPoint",
     "VerifiedMarketData",
     "create_official_regulatory_service",
+    "create_source_revision_decision",
     "dump_envelope",
     "future_period",
     "load_envelope",

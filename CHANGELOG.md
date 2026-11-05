@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.13.10] - 2026-11-05
+
+- Richieste e decisioni di revisione delle fonti ufficiali, vincolate a anchor,
+  URL, digest precedente/nuovo e periodo. Il framework host autentica l’admin.
+- Approvazione esplicita solo per equivalenza economica, rifiuto e revoca con
+  revisore, motivazione, timestamp e riferimento alla decisione precedente.
+- Il parser IVA certificato confronta la disposizione domestica; layout non
+  supportati restano in revisione manuale. Valori/applicabilità diversi non sono
+  approvabili come equivalenti. Una verifica corrente rimane obbligatoria.
+- Nuovi schemi additivi request/decision v1, coverage v2, report v3; compatibilità
+  degli envelope precedenti e degli anchor immutabili conservata.
+- Verifica locale: 1.027 test, coverage con rami 95,03%, Ruff e mypy superati.
+- Nessun documento live approvato automaticamente; l’approvazione è un’azione
+  amministrativa della Platform, distinta dalla pubblicazione della libreria.
+
+
 ## [0.13.8] - 2026-11-01
 
 ### Changed

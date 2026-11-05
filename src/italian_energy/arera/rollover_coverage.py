@@ -27,6 +27,11 @@ from italian_energy.arera.rollover_models import (
     RolloverPolicy,
     regulatory_anchor_artifact_digest,
 )
+from italian_energy.arera.source_revision import (
+    RegulatorySourceRevisionDecision,
+    RegulatorySourceRevisionRequest,
+    source_revision_approval_matches,
+)
 from italian_energy.domain.base import DomainModel
 from italian_energy.domain.regulatory import VerificationStatus
 from italian_energy.domain.time import DatePeriod
@@ -202,6 +207,60 @@ class RegulatoryAnchorCoverageEvidence(DomainModel):
             separators=(",", ":"),
         ).encode("utf-8")
         return f"regulatory-anchor-coverage:{hashlib.sha256(encoded).hexdigest()}"
+
+
+class RegulatoryAnchorCoverageEvidenceV2(RegulatoryAnchorCoverageEvidence):
+    """Coverage retaining exact document revision requests and human decisions."""
+
+    source_revisions: tuple[RegulatorySourceRevisionRequest, ...]
+    source_revision_decisions: tuple[RegulatorySourceRevisionDecision, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_source_revisions(self) -> RegulatoryAnchorCoverageEvidenceV2:
+        requests = tuple(item.request_id for item in self.source_revisions)
+        decisions = tuple(item.request.request_id for item in self.source_revision_decisions)
+        if len(set(requests)) != len(requests) or len(set(decisions)) != len(decisions):
+            raise ValueError("source revision requests and current decisions must be unique")
+        if not set(decisions).issubset(requests):
+            raise ValueError("source revision decisions must reference recorded requests")
+        return self
+
+
+def source_observation_is_accepted(
+    anchor: DomesticProjectionAnchor,
+    check: RegulatoryAnchorSourceCheck,
+    evidence: RegulatoryAnchorCoverageEvidence,
+) -> bool:
+    """Offline validation shared by rollover and projected comparison gates."""
+
+    source = next((item for item in anchor.sources if item.source_id == check.source_id), None)
+    if source is None or source.sha256 is None or check.expected_sha256 != source.sha256:
+        return False
+    if check.observed_sha256 == source.sha256:
+        return True
+    if not isinstance(evidence, RegulatoryAnchorCoverageEvidenceV2):
+        return False
+    matches = tuple(
+        item
+        for item in evidence.source_revision_decisions
+        if source_revision_approval_matches(
+            anchor,
+            check,
+            item,
+            as_of=evidence.as_of,
+            checked_at=evidence.checked_at,
+            current_request=next(
+                (
+                    request
+                    for request in evidence.source_revisions
+                    if request.source_id == check.source_id
+                    and request.observed_sha256 == check.observed_sha256
+                ),
+                None,
+            ),
+        )
+    )
+    return len(matches) == 1
 
 
 class RegulatoryCandidateCoverageResult(DomainModel):
@@ -495,6 +554,8 @@ def verify_regulatory_anchor_coverage(
     reviews: tuple[RegulatoryManualReview, ...] = (),
     review_source_checks: tuple[RegulatoryReviewSourceCheck, ...] = (),
     policy: RolloverPolicy | None = None,
+    source_revisions: tuple[RegulatorySourceRevisionRequest, ...] = (),
+    source_revision_decisions: tuple[RegulatorySourceRevisionDecision, ...] = (),
 ) -> RegulatoryAnchorCoverageEvidence:
     """Verify that known sources and later-act discovery still cover current.
 
@@ -543,7 +604,28 @@ def verify_regulatory_anchor_coverage(
         if check.observed_sha256 is None:
             reasons.append(RegulatoryRolloverReason.SOURCE_UNAVAILABLE)
         elif check.observed_sha256 != source.sha256:
-            reasons.append(RegulatoryRolloverReason.SOURCE_CHANGED_UNEXPECTEDLY)
+            matching = tuple(
+                item
+                for item in source_revision_decisions
+                if source_revision_approval_matches(
+                    anchor,
+                    check,
+                    item,
+                    as_of=as_of,
+                    checked_at=checked_at,
+                    current_request=next(
+                        (
+                            request
+                            for request in source_revisions
+                            if request.source_id == check.source_id
+                            and request.observed_sha256 == check.observed_sha256
+                        ),
+                        None,
+                    ),
+                )
+            )
+            if len(matching) != 1:
+                reasons.append(RegulatoryRolloverReason.SOURCE_CHANGED_UNEXPECTEDLY)
         if (
             check.checked_at > checked_at
             or (_civil_date(checked_at) - _civil_date(check.checked_at)).days
@@ -661,7 +743,7 @@ def verify_regulatory_anchor_coverage(
             reasons.append(RegulatoryRolloverReason.SOURCE_CHANGED_UNEXPECTEDLY)
 
     canonical_reasons = tuple(dict.fromkeys(reasons))
-    return RegulatoryAnchorCoverageEvidence(
+    evidence = RegulatoryAnchorCoverageEvidence(
         anchor_id=anchor.anchor_id,
         anchor_sha256=regulatory_anchor_artifact_digest(anchor),
         as_of=as_of,
@@ -672,16 +754,28 @@ def verify_regulatory_anchor_coverage(
         ready=not canonical_reasons,
         reason_codes=canonical_reasons,
     )
+    if not source_revisions:
+        return evidence
+    request_ids = {item.request_id for item in source_revisions}
+    return RegulatoryAnchorCoverageEvidenceV2(
+        **evidence.model_dump(mode="python"),
+        source_revisions=source_revisions,
+        source_revision_decisions=tuple(
+            item for item in source_revision_decisions if item.request.request_id in request_ids
+        ),
+    )
 
 
 __all__ = [
     "RegulatoryAnchorCoverageEvidence",
+    "RegulatoryAnchorCoverageEvidenceV2",
     "RegulatoryAnchorSourceCheck",
     "RegulatoryCandidateCoverageResult",
     "RegulatoryCandidateSourceCheck",
     "RegulatoryManualReview",
     "RegulatoryReviewOutcome",
     "RegulatoryReviewSourceCheck",
+    "source_observation_is_accepted",
     "verify_regulatory_anchor_coverage",
     "verify_regulatory_candidate_coverage",
 ]

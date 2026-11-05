@@ -16,7 +16,10 @@ from italian_energy.arera.projection import (
     DomesticProjectionAnchor,
     load_domestic_projection_anchor,
 )
-from italian_energy.arera.rollover_coverage import RegulatoryAnchorCoverageEvidence
+from italian_energy.arera.rollover_coverage import (
+    RegulatoryAnchorCoverageEvidence,
+    source_observation_is_accepted,
+)
 from italian_energy.arera.rollover_models import RegulatoryRolloverReason
 from italian_energy.billing.engine import BillingRequest
 from italian_energy.billing.regulatory import (
@@ -615,7 +618,7 @@ class ProjectedDomesticEnergyService:
                     or anchor_check.observed_sha256 is None
                 ):
                     reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
-                elif anchor_check.observed_sha256 != source.sha256:
+                elif not source_observation_is_accepted(anchor, anchor_check, evidence):
                     reasons.append(CoreErrorCode.REGULATORY_SOURCE_CHANGED.value)
                 if anchor_check.checked_at > self._clock():
                     reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)

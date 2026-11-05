@@ -109,6 +109,7 @@ class RegulatorySourceDocument:
     document_kind: str
     layout_version: str
     record_url: str | None = None
+    reference_as_of: date | None = None
 
     def __post_init__(self) -> None:
         if not all(
@@ -377,15 +378,21 @@ def _validate_normattiva_vat_source(
         )
 
     fetched_on = source.acquired.fetched_at.astimezone(_CIVIL_TIMEZONE).date()
+    requested_on = source.reference_as_of or fetched_on
+    if requested_on > fetched_on:
+        raise _ParserFailure(
+            RegulatoryRolloverReason.SOURCE_CHANGED_UNEXPECTEDLY,
+            "Normattiva reference date cannot follow the actual acquisition date",
+        )
     expected_url = (
-        f"https://www.normattiva.it/uri-res/N2Ls?{expected_urn}!vig={fetched_on.isoformat()}"
+        f"https://www.normattiva.it/uri-res/N2Ls?{expected_urn}!vig={requested_on.isoformat()}"
     )
     if source.acquired.url != expected_url or source.acquired.final_url != expected_url:
         raise _ParserFailure(
             RegulatoryRolloverReason.SOURCE_CHANGED_UNEXPECTEDLY,
             "Normattiva URN or date-specific vig query does not match the acquired document",
         )
-    return fetched_on
+    return requested_on
 
 
 def _parse_normattiva_vat_html(source: RegulatorySourceDocument) -> _NormattivaVatHtmlCapture:

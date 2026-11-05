@@ -20,6 +20,7 @@ from italian_energy.arera.projection import (
 )
 from italian_energy.arera.rollover_coverage import (
     RegulatoryAnchorCoverageEvidence,
+    RegulatoryAnchorCoverageEvidenceV2,
     RegulatoryCandidateCoverageResult,
     RegulatoryManualReview,
 )
@@ -28,6 +29,10 @@ from italian_energy.arera.rollover_state import (
     RegulatoryRolloverAttempt,
     RegulatoryRolloverEvent,
     RegulatoryRolloverState,
+)
+from italian_energy.arera.source_revision import (
+    RegulatorySourceRevisionDecision,
+    RegulatorySourceRevisionRequest,
 )
 from italian_energy.domain.base import DomainModel
 from italian_energy.domain.consumption import ConsumptionProfile
@@ -60,6 +65,7 @@ from .projected import (
 )
 from .regulatory_rollover_service import (
     RegulatoryRolloverReport,
+    RegulatoryRolloverReportV3,
     RegulatorySourcePreflightResult,
 )
 
@@ -90,6 +96,8 @@ type IntegrationPayload = (
     | RegulatoryAnchorCandidate
     | RegulatoryEffect
     | RegulatoryAnchorCoverageEvidence
+    | RegulatorySourceRevisionDecision
+    | RegulatorySourceRevisionRequest
     | RegulatoryCandidateCoverageResult
     | RegulatoryManualReview
     | RegulatoryDiscoveryReport
@@ -142,6 +150,9 @@ _SCHEMA_TO_MODEL: dict[CoreSchemaId, type[DomainModel]] = {
     CoreSchemaId.REGULATORY_EFFECT_V1: RegulatoryEffect,
     CoreSchemaId.REGULATORY_CANDIDATE_COVERAGE_RESULT: RegulatoryCandidateCoverageResult,
     CoreSchemaId.REGULATORY_ANCHOR_COVERAGE_EVIDENCE: RegulatoryAnchorCoverageEvidence,
+    CoreSchemaId.REGULATORY_ANCHOR_COVERAGE_EVIDENCE_V2: RegulatoryAnchorCoverageEvidenceV2,
+    CoreSchemaId.REGULATORY_SOURCE_REVISION_REQUEST: RegulatorySourceRevisionRequest,
+    CoreSchemaId.REGULATORY_SOURCE_REVISION_DECISION: RegulatorySourceRevisionDecision,
     CoreSchemaId.REGULATORY_MANUAL_REVIEW: RegulatoryManualReview,
     CoreSchemaId.REGULATORY_DISCOVERY_REPORT: RegulatoryDiscoveryReport,
     CoreSchemaId.REGULATORY_DISCOVERY_REPORT_V2: RegulatoryDiscoveryReport,
@@ -153,6 +164,7 @@ _SCHEMA_TO_MODEL: dict[CoreSchemaId, type[DomainModel]] = {
     CoreSchemaId.REGULATORY_ROLLOVER_EVENT: RegulatoryRolloverEvent,
     CoreSchemaId.REGULATORY_ROLLOVER_REPORT: RegulatoryRolloverReport,
     CoreSchemaId.REGULATORY_ROLLOVER_REPORT_V2: RegulatoryRolloverReport,
+    CoreSchemaId.REGULATORY_ROLLOVER_REPORT_V3: RegulatoryRolloverReportV3,
     CoreSchemaId.REGULATORY_SOURCE_PREFLIGHT_RESULT: RegulatorySourcePreflightResult,
     CoreSchemaId.PROJECTED_SOURCE_BUNDLE: ProjectedSourceBundle,
     CoreSchemaId.PROJECTED_SOURCE_PREFLIGHT_RESULT: ProjectedSourcePreflightResult,

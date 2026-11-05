@@ -2,7 +2,7 @@
 
 Libreria Python open source, domain-first e deterministica per modellare, simulare e confrontare offerte di energia elettrica in Italia.
 
-> Core `0.13.9` — discovery tariffaria coerente con la decorrenza e verifica degli atti sul gasolio di ottobre.
+> Core `0.13.10` — revisione amministrativa delle nuove versioni dei documenti ufficiali, vincolata a digest e periodo.
 
 Il package installabile è disponibile come wheel e sdist. L'importer Portale
 Offerte opera solo su cataloghi open-data ufficiali, replay storici esatti e
@@ -24,7 +24,7 @@ uv run pytest
 Installazione del package dalla release pubblicata:
 
 ```bash
-pip install italian-energy==0.13.9
+pip install italian-energy==0.13.10
 ```
 
 La release `0.13.4` conserva provenienza e semantica delle voci `Dispacciamento`
@@ -52,6 +52,18 @@ Il replay integrato da 950 offerte, insieme alle ottimizzazioni di
 serializzazione della Platform, misura una mediana locale di 57,148 s contro
 169,943 s. La sola wheel Core non contiene le modifiche della Platform e
 queste misure non garantiscono una latenza massima su altri carichi.
+
+### Novità della 0.13.10
+
+Quando cambia una fonte dell’anchor, Core genera una richiesta di revisione con
+versione esatta, valori correnti/estratti e anteprima. L’applicazione autentica
+l’admin e conserva una decisione Core: approvazione di equivalenza, rifiuto o
+revoca. L’approvazione non modifica l’anchor e non vale per altre versioni,
+periodi estesi, nuovi valori o confronti storici.
+
+Capability `regulatory_source_revision_review`; nuovi envelope request/decision
+v1, coverage v2 e rollover report v3. I vecchi envelope restano compatibili.
+Vedi [integrazione](docs/platform-integration-0.13.10.md).
 
 ### Novità della 0.13.8
 

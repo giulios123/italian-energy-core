@@ -845,3 +845,13 @@ sono classificati da regole versionate sulla base dei due articoli ufficiali,
 relativi al solo gasolio usato come carburante e alla copertura finanziaria.
 Identità, date o collegamenti differenti mantengono la review. La matrice di
 ambito M23 resta invariata e richiede tutte le scansioni complete.
+
+## D31 — revisione amministrativa delle versioni di documento — 2026-11-04
+
+La Spec 022 introduce richieste e decisioni limitate a un documento esatto per
+evitare una release per ogni cambiamento dei bytes. La revisione di equivalenza
+lega vecchio e nuovo digest all'anchor, all'URL e alla validità; non sostituisce
+gli anchor storici e non approva valori economici differenti. La coverage nuova
+conserva la decisione come evidenza verificabile offline. La Platform autentica
+l'admin e presenta la coda, mentre il Core decide se la versione approvata può
+essere usata. Decisioni e revoche richiedono un nuovo controllo delle fonti.

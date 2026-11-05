@@ -41,11 +41,13 @@ from italian_energy.arera.official_registry_adapters import (
 from italian_energy.arera.projection import DomesticProjectionAnchor
 from italian_energy.arera.rollover_coverage import (
     RegulatoryAnchorCoverageEvidence,
+    RegulatoryAnchorCoverageEvidenceV2,
     RegulatoryAnchorSourceCheck,
     RegulatoryCandidateCoverageResult,
     RegulatoryCandidateSourceCheck,
     RegulatoryManualReview,
     RegulatoryReviewSourceCheck,
+    source_observation_is_accepted,
     verify_regulatory_anchor_coverage,
     verify_regulatory_candidate_coverage,
 )
@@ -74,6 +76,11 @@ from italian_energy.arera.rollover_state import (
     PromotionOutcome,
     RegulatoryRolloverAttempt,
     RolloverAttemptStatus,
+)
+from italian_energy.arera.source_revision import (
+    RegulatorySourceRevisionDecision,
+    RegulatorySourceRevisionRequest,
+    observe_source_revision,
 )
 from italian_energy.domain.base import DomainModel
 from italian_energy.domain.regulatory import VerificationStatus
@@ -158,6 +165,12 @@ class RegulatoryRolloverReport(DomainModel):
         return self
 
 
+class RegulatoryRolloverReportV3(RegulatoryRolloverReport):
+    """Report retaining versioned document-review evidence without changing v1/v2."""
+
+    current_coverage: RegulatoryAnchorCoverageEvidenceV2 | RegulatoryAnchorCoverageEvidence
+
+
 def _discovery_digest(report: RegulatoryDiscoveryReport) -> str:
     encoded = json.dumps(
         report.model_dump(mode="json"),
@@ -239,6 +252,7 @@ class RegulatoryRolloverService:
         previous_cursors: tuple[RegistryCursor, ...] | None = None,
         previous_snapshots: tuple[DiscoverySnapshot, ...] | None = None,
         reviews: tuple[RegulatoryManualReview, ...] | None = None,
+        source_revision_decisions: tuple[RegulatorySourceRevisionDecision, ...] = (),
     ) -> RegulatoryRolloverReport:
         """Refresh current coverage, prepare/stage a successor, or promote it.
 
@@ -265,6 +279,7 @@ class RegulatoryRolloverService:
             else previous_snapshots
         )
         active_reviews = self._repository.read_manual_reviews() if reviews is None else reviews
+        source_revisions: list[RegulatorySourceRevisionRequest] = []
         search_start = self._search_start(current, active_cursors)
         search_period = incremental_search_period(
             as_of=as_of,
@@ -301,7 +316,9 @@ class RegulatoryRolloverService:
         )
         now = self._clock_after(now)
         review_checks = self._review_source_checks(active_reviews, now)
-        current_source_checks = self._anchor_source_checks(current, now)
+        current_source_checks = self._anchor_source_checks(
+            current, now, source_revisions=source_revisions
+        )
         now = self._clock_after(
             max(
                 (
@@ -322,6 +339,8 @@ class RegulatoryRolloverService:
             reviews=active_reviews,
             review_source_checks=review_checks,
             policy=self._policy,
+            source_revisions=tuple(source_revisions),
+            source_revision_decisions=source_revision_decisions,
         )
 
         days_to_expiry = (current.validity.end - as_of).days
@@ -451,7 +470,9 @@ class RegulatoryRolloverService:
                     reason_codes=(),
                     updated_at=now,
                 )
-                current_source_checks = self._anchor_source_checks(current, now)
+                current_source_checks = self._anchor_source_checks(
+                    current, now, source_revisions=source_revisions
+                )
                 current_coverage = verify_regulatory_anchor_coverage(
                     anchor=current,
                     discovery=discovery,
@@ -463,6 +484,8 @@ class RegulatoryRolloverService:
                     reviews=active_reviews,
                     review_source_checks=review_checks,
                     policy=self._policy,
+                    source_revisions=tuple(source_revisions),
+                    source_revision_decisions=source_revision_decisions,
                 )
             action = {
                 PromotionOutcome.PROMOTED: RegulatoryRolloverAction.PROMOTED,
@@ -720,6 +743,7 @@ class RegulatoryRolloverService:
                 reason_codes=(),
                 updated_at=now,
             )
+            source_revisions.clear()
             current_source_checks = tuple(
                 RegulatoryAnchorSourceCheck(
                     source_id=item.source_id,
@@ -740,6 +764,8 @@ class RegulatoryRolloverService:
                 reviews=active_reviews,
                 review_source_checks=review_checks,
                 policy=self._policy,
+                source_revisions=tuple(source_revisions),
+                source_revision_decisions=source_revision_decisions,
             )
             return self._report(
                 as_of,
@@ -819,6 +845,15 @@ class RegulatoryRolloverService:
                 if as_of >= current.validity.end
                 else RegulatoryRolloverReason.STALE_COVERAGE_EVIDENCE
             )
+        if isinstance(coverage, RegulatoryAnchorCoverageEvidenceV2):
+            checks["source_revision_evidence_verified"] = {
+                check.source_id for check in coverage.source_checks
+            } == {source.source_id for source in current.sources} and all(
+                source_observation_is_accepted(current, check, coverage)
+                for check in coverage.source_checks
+            )
+            if not checks["source_revision_evidence_verified"]:
+                reasons.append(RegulatoryRolloverReason.SOURCE_CHANGED_UNEXPECTEDLY)
         if coverage is None:
             reasons.append(RegulatoryRolloverReason.STALE_COVERAGE_EVIDENCE)
         else:
@@ -1035,14 +1070,29 @@ class RegulatoryRolloverService:
         )
 
     def _anchor_source_checks(
-        self, anchor: DomesticProjectionAnchor, checked_at: datetime
+        self,
+        anchor: DomesticProjectionAnchor,
+        checked_at: datetime,
+        *,
+        source_revisions: list[RegulatorySourceRevisionRequest] | None = None,
     ) -> tuple[RegulatoryAnchorSourceCheck, ...]:
-        observed: list[tuple[str, str, str | None]] = []
+        observed: list[tuple[str, str, str | None, bytes | None]] = []
         for source in anchor.sources:
             if source.sha256 is None:
                 continue
-            observed.append((source.source_id, source.sha256, self._fetch_digest(source.url)))
+            body = self._fetch_body(source.url)
+            digest = hashlib.sha256(body).hexdigest() if body is not None else None
+            observed.append((source.source_id, source.sha256, digest, body))
         completed_at = self._clock_after(checked_at)
+        if source_revisions is not None:
+            source_revisions.clear()
+            for source_id, expected, actual, body in observed:
+                if body is not None and actual != expected:
+                    request = observe_source_revision(
+                        anchor, source_id, body, observed_at=completed_at
+                    )
+                    if request is not None:
+                        source_revisions.append(request)
         return tuple(
             RegulatoryAnchorSourceCheck(
                 source_id=source_id,
@@ -1050,7 +1100,7 @@ class RegulatoryRolloverService:
                 observed_sha256=observed_sha256,
                 checked_at=completed_at,
             )
-            for source_id, expected_sha256, observed_sha256 in observed
+            for source_id, expected_sha256, observed_sha256, _ in observed
         )
 
     def _review_source_checks(
@@ -1077,6 +1127,10 @@ class RegulatoryRolloverService:
         )
 
     def _fetch_digest(self, url: str) -> str | None:
+        body = self._fetch_body(url)
+        return hashlib.sha256(body).hexdigest() if body is not None else None
+
+    def _fetch_body(self, url: str) -> bytes | None:
         if self._source_port is None:
             return None
         try:
@@ -1085,7 +1139,7 @@ class RegulatoryRolloverService:
             return None
         except (OSError, TypeError, ValueError):
             return None
-        return hashlib.sha256(body).hexdigest()
+        return body if isinstance(body, bytes) and body else None
 
     def _verify_candidate(
         self,
@@ -1242,7 +1296,12 @@ class RegulatoryRolloverService:
         reason_codes: tuple[RegulatoryRolloverReason, ...] = (),
         promotion_outcome: PromotionOutcome | None = None,
     ) -> RegulatoryRolloverReport:
-        return RegulatoryRolloverReport(
+        report_type = (
+            RegulatoryRolloverReportV3
+            if isinstance(current_coverage, RegulatoryAnchorCoverageEvidenceV2)
+            else RegulatoryRolloverReport
+        )
+        return report_type(
             as_of=as_of,
             action=action,
             current_anchor_id=current.anchor_id,
