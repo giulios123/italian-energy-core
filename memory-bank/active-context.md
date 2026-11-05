@@ -1,5 +1,16 @@
 # Active context
 
+## Core 0.13.10 pubblicato — 2026-11-05
+
+- Commit 0d68f6662234909fc57320096570b70e4a990619, tag v0.13.10.
+- CI main/tag Python 3.12–3.14 e Trusted Publishing 42027581962 riusciti.
+- Wheel PyPI/GitHub SHA-256
+  437f6c126c01bff47d3c6539429813c0b45f2460dc189c08f0021259466c5603,
+  attestazione verificata dalla Platform. 382 test Platform sulla wheel passati.
+- Nessuna approvazione admin della fonte IVA live; deploy Platform separato.
+- Evidenza: docs/release-0.13.10-publication.md.
+
+
 ## Core 0.13.10 — revisione fonti pronta — 2026-11-05
 
 - Spec 022 e ADR 0017 D31: richiesta e decisione canoniche per una nuova
