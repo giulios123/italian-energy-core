@@ -1,7 +1,14 @@
 # Active context
 
-## Core 0.13.13 — prezzo fisso monorario — 2026-11-21
+## Core 0.13.13 pubblicato — 2026-11-21
 
+- Commit `31f34b811348cda0381febf66da7f60e2a72f123`, tag `v0.13.13`. CI
+  Python 3.12–3.14 riuscita su main e sul tag. Trusted Publishing
+  [44955777923](https://github.com/giulios123/italian-energy-core/actions/runs/44955777923)
+  riuscito su [PyPI](https://pypi.org/project/italian-energy/0.13.13/).
+- Wheel SHA-256 `fee68a39d7ff169450ec774a2db9598b802a3aefd610a551ed08444e1a85fbca`,
+  verificata con attestazione dalla Platform. Localmente 1.050 test con
+  copertura 95,08%, Ruff, mypy e build wheel/sdist riusciti.
 - Il normalizzatore applica al consumo totale il singolo prezzo energia in
   fascia `01` quando il Mercato Libero dichiara esplicitamente lo schema
   monorario `01`. La provenance conserva il record originale.
