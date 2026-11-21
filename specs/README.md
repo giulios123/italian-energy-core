@@ -68,3 +68,5 @@ i limiti sono in Spec 014 §26–27.
 - [Spec 019 — Riuso delle serializzazioni nel confronto](019-comparison-serialization-reuse.md)
 
 - [Spec 020 — Riuso delle componenti lineari proiettate](020-projected-linear-component-reuse.md)
+
+- [Spec 023 — Revisione amministrativa degli atti](023-regulatory-act-admin-review.md): implementata e verificata nei sorgenti; pubblicazione separata.

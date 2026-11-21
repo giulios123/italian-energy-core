@@ -17,6 +17,11 @@ from zoneinfo import ZoneInfo
 
 from pydantic import Field, model_validator
 
+from italian_energy.arera.act_review import (
+    RegulatoryActReviewDecision,
+    act_document_url,
+    observe_act_review,
+)
 from italian_energy.arera.discovery import (
     DiscoveryActDisposition,
     DiscoveryActFinding,
@@ -42,11 +47,13 @@ from italian_energy.arera.projection import DomesticProjectionAnchor
 from italian_energy.arera.rollover_coverage import (
     RegulatoryAnchorCoverageEvidence,
     RegulatoryAnchorCoverageEvidenceV2,
+    RegulatoryAnchorCoverageEvidenceV3,
     RegulatoryAnchorSourceCheck,
     RegulatoryCandidateCoverageResult,
     RegulatoryCandidateSourceCheck,
     RegulatoryManualReview,
     RegulatoryReviewSourceCheck,
+    act_review_evidence_is_accepted,
     source_observation_is_accepted,
     verify_regulatory_anchor_coverage,
     verify_regulatory_candidate_coverage,
@@ -171,6 +178,14 @@ class RegulatoryRolloverReportV3(RegulatoryRolloverReport):
     current_coverage: RegulatoryAnchorCoverageEvidenceV2 | RegulatoryAnchorCoverageEvidence
 
 
+class RegulatoryRolloverReportV4(RegulatoryRolloverReportV3):
+    current_coverage: (
+        RegulatoryAnchorCoverageEvidenceV3
+        | RegulatoryAnchorCoverageEvidenceV2
+        | RegulatoryAnchorCoverageEvidence
+    )
+
+
 def _discovery_digest(report: RegulatoryDiscoveryReport) -> str:
     encoded = json.dumps(
         report.model_dump(mode="json"),
@@ -253,6 +268,7 @@ class RegulatoryRolloverService:
         previous_snapshots: tuple[DiscoverySnapshot, ...] | None = None,
         reviews: tuple[RegulatoryManualReview, ...] | None = None,
         source_revision_decisions: tuple[RegulatorySourceRevisionDecision, ...] = (),
+        act_review_decisions: tuple[RegulatoryActReviewDecision, ...] = (),
     ) -> RegulatoryRolloverReport:
         """Refresh current coverage, prepare/stage a successor, or promote it.
 
@@ -314,6 +330,21 @@ class RegulatoryRolloverService:
         facts, effect_assertions, parse_reasons = self._parse_supported_records(
             discovery, records_by_key, known_records=known_records
         )
+        act_reviews = tuple(
+            observe_act_review(
+                current,
+                record,
+                self._fetch_body(act_document_url(record)),
+                observed_at=self._clock_after(now),
+            )
+            for finding in discovery.findings
+            if finding.disposition == DiscoveryActDisposition.REVIEW_REQUIRED
+            if (
+                record := records_by_key.get((finding.channel, finding.act_id))
+                or finding.source_record
+            )
+            is not None
+        )
         now = self._clock_after(now)
         review_checks = self._review_source_checks(active_reviews, now)
         current_source_checks = self._anchor_source_checks(
@@ -341,6 +372,8 @@ class RegulatoryRolloverService:
             policy=self._policy,
             source_revisions=tuple(source_revisions),
             source_revision_decisions=source_revision_decisions,
+            act_reviews=act_reviews,
+            act_review_decisions=act_review_decisions,
         )
 
         days_to_expiry = (current.validity.end - as_of).days
@@ -845,6 +878,12 @@ class RegulatoryRolloverService:
                 if as_of >= current.validity.end
                 else RegulatoryRolloverReason.STALE_COVERAGE_EVIDENCE
             )
+        if isinstance(coverage, RegulatoryAnchorCoverageEvidenceV3):
+            checks["act_review_evidence_verified"] = act_review_evidence_is_accepted(
+                current, coverage
+            )
+            if not checks["act_review_evidence_verified"]:
+                reasons.append(RegulatoryRolloverReason.UNSUPPORTED_REGULATORY_SOURCE)
         if isinstance(coverage, RegulatoryAnchorCoverageEvidenceV2):
             checks["source_revision_evidence_verified"] = {
                 check.source_id for check in coverage.source_checks
@@ -1297,7 +1336,9 @@ class RegulatoryRolloverService:
         promotion_outcome: PromotionOutcome | None = None,
     ) -> RegulatoryRolloverReport:
         report_type = (
-            RegulatoryRolloverReportV3
+            RegulatoryRolloverReportV4
+            if isinstance(current_coverage, RegulatoryAnchorCoverageEvidenceV3)
+            else RegulatoryRolloverReportV3
             if isinstance(current_coverage, RegulatoryAnchorCoverageEvidenceV2)
             else RegulatoryRolloverReport
         )

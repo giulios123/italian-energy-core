@@ -1,8 +1,14 @@
 """Stable typed and JSON integration contract for application consumers."""
 
+from italian_energy.arera.act_review import (
+    RegulatoryActReviewDecision,
+    RegulatoryActReviewRequest,
+    create_act_review_decision,
+)
 from italian_energy.arera.rollover_coverage import (
     RegulatoryAnchorCoverageEvidence,
     RegulatoryAnchorCoverageEvidenceV2,
+    RegulatoryAnchorCoverageEvidenceV3,
     RegulatoryCandidateCoverageResult,
     RegulatoryManualReview,
 )
@@ -74,6 +80,7 @@ from .regulatory_rollover_service import (
     RegulatoryRolloverAction,
     RegulatoryRolloverReport,
     RegulatoryRolloverReportV3,
+    RegulatoryRolloverReportV4,
     RegulatoryRolloverService,
     RegulatoryRolloverSourcePort,
     RegulatorySourcePreflightResult,
@@ -136,8 +143,11 @@ __all__ = [
     "Recommendation",
     "RecommendationPreferences",
     "RegulatoryActFinding",
+    "RegulatoryActReviewDecision",
+    "RegulatoryActReviewRequest",
     "RegulatoryAnchorCoverageEvidence",
     "RegulatoryAnchorCoverageEvidenceV2",
+    "RegulatoryAnchorCoverageEvidenceV3",
     "RegulatoryAnchorRefreshResult",
     "RegulatoryCandidateCoverageResult",
     "RegulatoryCoverageEvidence",
@@ -148,6 +158,7 @@ __all__ = [
     "RegulatoryRolloverReason",
     "RegulatoryRolloverReport",
     "RegulatoryRolloverReportV3",
+    "RegulatoryRolloverReportV4",
     "RegulatoryRolloverService",
     "RegulatoryRolloverSourcePort",
     "RegulatorySourceDigestCheck",
@@ -158,6 +169,7 @@ __all__ = [
     "SourceRevisionOutcome",
     "SupplyPoint",
     "VerifiedMarketData",
+    "create_act_review_decision",
     "create_official_regulatory_service",
     "create_source_revision_decision",
     "dump_envelope",

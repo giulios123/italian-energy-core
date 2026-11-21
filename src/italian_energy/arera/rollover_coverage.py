@@ -11,6 +11,12 @@ from zoneinfo import ZoneInfo
 
 from pydantic import Field, field_validator, model_validator
 
+from italian_energy.arera.act_review import (
+    RegulatoryActReviewDecision,
+    RegulatoryActReviewRequest,
+    act_decision_matches,
+    act_review_is_accepted,
+)
 from italian_energy.arera.discovery import (
     DiscoveryActDisposition,
     DiscoveryChangeKind,
@@ -224,6 +230,61 @@ class RegulatoryAnchorCoverageEvidenceV2(RegulatoryAnchorCoverageEvidence):
         if not set(decisions).issubset(requests):
             raise ValueError("source revision decisions must reference recorded requests")
         return self
+
+
+class RegulatoryAnchorCoverageEvidenceV3(RegulatoryAnchorCoverageEvidenceV2):
+    """Exact act observations and admin decisions, with offline integrity checks."""
+
+    act_reviews: tuple[RegulatoryActReviewRequest, ...] = Field(min_length=1)
+    act_review_decisions: tuple[RegulatoryActReviewDecision, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_act_reviews(self) -> RegulatoryAnchorCoverageEvidenceV3:
+        ids = [r.request_id for r in self.act_reviews]
+        decisions = {d.request.request_id: d for d in self.act_review_decisions}
+        if (
+            len(set(r.source_id for r in self.act_reviews)) != len(ids)
+            or len(set(ids)) != len(ids)
+            or len(decisions) != len(self.act_review_decisions)
+        ):
+            raise ValueError("act reviews and current decisions must be unique")
+        if not set(decisions).issubset(ids):
+            raise ValueError("act decisions must reference current requests")
+        for request in self.act_reviews:
+            if request.anchor_id != self.anchor_id or request.anchor_sha256 != self.anchor_sha256:
+                raise ValueError("act reviews must match the coverage anchor")
+            if self.ready and (
+                request.request_id not in decisions
+                or not act_decision_matches(
+                    request, decisions[request.request_id], self.as_of, self.checked_at
+                )
+            ):
+                raise ValueError("ready coverage requires valid approval of every act")
+        return self
+
+
+def act_review_evidence_is_accepted(
+    anchor: DomesticProjectionAnchor, evidence: RegulatoryAnchorCoverageEvidence
+) -> bool:
+    if not isinstance(evidence, RegulatoryAnchorCoverageEvidenceV3):
+        return True
+    try:
+        evidence = RegulatoryAnchorCoverageEvidenceV3.model_validate(
+            evidence.model_dump(mode="python")
+        )
+    except ValueError:
+        return False
+    decisions = {d.request.request_id: d for d in evidence.act_review_decisions}
+    return bool(
+        len(decisions) == len(evidence.act_review_decisions)
+        and all(
+            r.request_id in decisions
+            and act_review_is_accepted(
+                anchor, r, decisions[r.request_id], evidence.as_of, evidence.checked_at
+            )
+            for r in evidence.act_reviews
+        )
+    )
 
 
 def source_observation_is_accepted(
@@ -556,6 +617,8 @@ def verify_regulatory_anchor_coverage(
     policy: RolloverPolicy | None = None,
     source_revisions: tuple[RegulatorySourceRevisionRequest, ...] = (),
     source_revision_decisions: tuple[RegulatorySourceRevisionDecision, ...] = (),
+    act_reviews: tuple[RegulatoryActReviewRequest, ...] = (),
+    act_review_decisions: tuple[RegulatoryActReviewDecision, ...] = (),
 ) -> RegulatoryAnchorCoverageEvidence:
     """Verify that known sources and later-act discovery still cover current.
 
@@ -657,6 +720,20 @@ def verify_regulatory_anchor_coverage(
         ):
             reasons.append(RegulatoryRolloverReason.STALE_COVERAGE_EVIDENCE)
 
+    def approved_act(channel: RegulatoryRegistryChannel, act_id: str, record: object) -> bool:
+        matching = [
+            r
+            for r in act_reviews
+            if r.record.channel == channel and r.record.act_id == act_id and r.record == record
+        ]
+        if len(matching) != 1:
+            return False
+        request = matching[0]
+        decisions = [d for d in act_review_decisions if d.request.request_id == request.request_id]
+        return len(decisions) == 1 and act_review_is_accepted(
+            anchor, request, decisions[0], as_of, checked_at
+        )
+
     for finding in discovery.findings:
         if finding.disposition == DiscoveryActDisposition.IRRELEVANT_BY_VERSIONED_RULE:
             continue
@@ -708,7 +785,9 @@ def verify_regulatory_anchor_coverage(
                 reasons.append(RegulatoryRolloverReason.AMBIGUOUS_APPLICABILITY)
             continue
         finding_review = review_by_key.get((finding.channel, finding.act_id))
-        if not _review_clears_current_finding(
+        if not approved_act(
+            finding.channel, finding.act_id, record
+        ) and not _review_clears_current_finding(
             review=finding_review,
             channel=finding.channel,
             act_id=finding.act_id,
@@ -722,7 +801,18 @@ def verify_regulatory_anchor_coverage(
 
     for change in discovery.changes:
         change_review = review_by_key.get((change.channel, change.act_id))
-        if not _review_clears_current_finding(
+        current_record = next(
+            (
+                r
+                for s in discovery.snapshots
+                for r in s.records
+                if r.channel == change.channel and r.act_id == change.act_id
+            ),
+            None,
+        )
+        if not approved_act(
+            change.channel, change.act_id, current_record
+        ) and not _review_clears_current_finding(
             review=change_review,
             channel=change.channel,
             act_id=change.act_id,
@@ -754,6 +844,20 @@ def verify_regulatory_anchor_coverage(
         ready=not canonical_reasons,
         reason_codes=canonical_reasons,
     )
+    if act_reviews:
+        request_ids = {r.request_id for r in source_revisions}
+        act_ids = {r.request_id for r in act_reviews}
+        return RegulatoryAnchorCoverageEvidenceV3(
+            **evidence.model_dump(mode="python"),
+            source_revisions=source_revisions,
+            source_revision_decisions=tuple(
+                d for d in source_revision_decisions if d.request.request_id in request_ids
+            ),
+            act_reviews=act_reviews,
+            act_review_decisions=tuple(
+                d for d in act_review_decisions if d.request.request_id in act_ids
+            ),
+        )
     if not source_revisions:
         return evidence
     request_ids = {item.request_id for item in source_revisions}

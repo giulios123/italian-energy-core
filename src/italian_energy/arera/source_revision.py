@@ -46,6 +46,7 @@ class SourceRevisionAssessment(StrEnum):
 class SourceRevisionOutcome(StrEnum):
     APPROVE_EQUIVALENT = "approve_equivalent"
     REJECT = "reject"
+    REQUIRES_UPDATE = "requires_update"
     REVOKE = "revoke"
 
 

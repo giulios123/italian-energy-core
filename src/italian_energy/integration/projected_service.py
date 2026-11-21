@@ -19,6 +19,7 @@ from italian_energy.arera.projection import (
 from italian_energy.arera.rollover_coverage import (
     RegulatoryAnchorCoverageEvidence,
     RegulatoryAnchorCoverageEvidenceV2,
+    act_review_evidence_is_accepted,
     source_observation_is_accepted,
 )
 from italian_energy.arera.rollover_models import RegulatoryRolloverReason
@@ -579,6 +580,8 @@ class ProjectedDomesticEnergyService:
         if evidence.checked_at > self._clock():
             reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
         if isinstance(evidence, RegulatoryAnchorCoverageEvidence):
+            if not act_review_evidence_is_accepted(anchor, evidence):
+                reasons.append(CoreErrorCode.REGULATORY_COVERAGE_UNCONFIRMED.value)
             reason_map = {
                 RegulatoryRolloverReason.SOURCE_CHANGED_UNEXPECTEDLY: (
                     CoreErrorCode.REGULATORY_SOURCE_CHANGED.value

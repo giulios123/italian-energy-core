@@ -39,6 +39,7 @@ class CoreCapability(StrEnum):
     REGULATORY_ANCHOR_REFRESH = "regulatory_anchor_refresh"
     REGULATORY_ANCHOR_ROLLOVER = "regulatory_anchor_rollover"
     REGULATORY_SOURCE_REVISION_REVIEW = "regulatory_source_revision_review"
+    REGULATORY_ACT_REVIEW = "regulatory_act_review"
     PROJECTED_DOMESTIC_RECOMMENDATION = "projected_domestic_recommendation"
     DETERMINISTIC_RECOMMENDATION = "deterministic_recommendation"
 
@@ -92,6 +93,10 @@ class CoreSchemaId(StrEnum):
     REGULATORY_CANDIDATE_COVERAGE_RESULT = "italian-energy/regulatory-candidate-coverage-result/v1"
     REGULATORY_ANCHOR_COVERAGE_EVIDENCE = "italian-energy/regulatory-anchor-coverage-evidence/v1"
     REGULATORY_ANCHOR_COVERAGE_EVIDENCE_V2 = "italian-energy/regulatory-anchor-coverage-evidence/v2"
+    REGULATORY_ACT_REVIEW_REQUEST = "italian-energy/regulatory-act-review-request/v1"
+    REGULATORY_ACT_REVIEW_DECISION = "italian-energy/regulatory-act-review-decision/v1"
+    REGULATORY_ANCHOR_COVERAGE_EVIDENCE_V3 = "italian-energy/regulatory-anchor-coverage-evidence/v3"
+    REGULATORY_ROLLOVER_REPORT_V4 = "italian-energy/regulatory-rollover-report/v4"
     REGULATORY_SOURCE_REVISION_REQUEST = "italian-energy/regulatory-source-revision-request/v1"
     REGULATORY_SOURCE_REVISION_DECISION = "italian-energy/regulatory-source-revision-decision/v1"
     REGULATORY_MANUAL_REVIEW = "italian-energy/regulatory-manual-review/v1"

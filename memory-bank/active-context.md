@@ -850,3 +850,33 @@ manuale ha pubblicato il tag già esistente `v0.11.0` su PyPI.
 
 Conferma finale nel worker senza suite parallele: 57,148 s; mediana
 57,148 s su tre prove finali (57,121 / 60,189 / 57,148), -66,37%.
+
+
+## Revisione amministrativa degli atti — 2026-11-21, sorgenti locali
+
+- Spec 023 e ADR 0017 D33: richieste e decisioni generiche per i finding
+  discovery non supportati. Il record ufficiale completo, i bytes acquisiti,
+  l'anchor e il periodo identificano la versione; timestamp diversi non
+  generano nuove richieste, nuove versioni riaprono la revisione.
+- Conferma amministrativa di non incidenza, aggiornamento economico richiesto,
+  rifiuto e revoca. Senza bytes non si approva. Coverage v3/report v4 conservano
+  evidenze verificabili nei preflight normativo e proiettato; i gate indipendenti
+  restano chiusi e i successori non sono promossi da queste decisioni.
+- Test-first: 1.048 test passati, coverage con rami 95,08%, Ruff/format, mypy
+  e diff check passano. Test sintetico refresh→richiesta→decisione→preflight
+  corrente pronto→nuovi bytes bloccati; storico anchor invariato.
+- Platform integra la coda esistente e ha superato 410 test backend / 90,20%,
+  50 Vitest e controlli browser desktop/mobile. Nessuna decisione su fonti live.
+- Lavoro non pubblicato: versione/wheel accettata rimane 0.13.11. Nessun
+  commit/push/release PyPI o deployment Azure. Serve una release e la successiva
+  adozione Platform per usare la capability in produzione.
+
+
+## Preparazione release 0.13.12 — 2026-11-21
+
+Commit, push e nuova release autorizzati dall’utente. Versione package/lock/default
+workflow e changelog aggiornati; branch allineato alle sole modifiche remote
+del lockfile. Gate, CI e pubblicazione da confermare sui rispettivi esiti.
+
+Gate release locali conclusi: 1.048 test / 95,08%, statici, lock, due golden
+privati, build e smoke wheel isolato passati. Pubblicazione remota da verificare.

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.12] - 2026-11-21
+
+- Revisione amministrativa generica degli atti discovery non riconosciuti, con
+  richieste e decisioni legate a record ufficiale, copia acquisita, anchor e periodo.
+- Esiti di non incidenza esplicitamente confermata, aggiornamento economico
+  richiesto, rifiuto e revoca; una nuova versione riapre la revisione.
+- Capability `regulatory_act_review`, request/decision v1, coverage v3 e report v4;
+  verifica offline nei preflight normativo e proiettato, senza modificare gli
+  envelope storici o le formule economiche.
+- Permalink Normattiva ELI consolidato datato, verificato con il trasporto reale.
+  I parametri della pagina di dettaglio ignoravano la data richiesta.
+- Nessuna approvazione automatica di norme live o promozione di successori.
+
 ## [0.13.11] - 2026-11-05
 
 - Il preflight proiettato riconosce la versione ufficiale approvata anche nel

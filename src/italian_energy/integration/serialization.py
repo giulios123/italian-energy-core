@@ -8,6 +8,10 @@ from typing import Never, cast
 
 from pydantic import ValidationError
 
+from italian_energy.arera.act_review import (
+    RegulatoryActReviewDecision,
+    RegulatoryActReviewRequest,
+)
 from italian_energy.arera.cdispd_reference import CdispDReferenceSnapshot
 from italian_energy.arera.discovery import (
     DiscoverySnapshot,
@@ -21,6 +25,7 @@ from italian_energy.arera.projection import (
 from italian_energy.arera.rollover_coverage import (
     RegulatoryAnchorCoverageEvidence,
     RegulatoryAnchorCoverageEvidenceV2,
+    RegulatoryAnchorCoverageEvidenceV3,
     RegulatoryCandidateCoverageResult,
     RegulatoryManualReview,
 )
@@ -66,6 +71,7 @@ from .projected import (
 from .regulatory_rollover_service import (
     RegulatoryRolloverReport,
     RegulatoryRolloverReportV3,
+    RegulatoryRolloverReportV4,
     RegulatorySourcePreflightResult,
 )
 
@@ -96,6 +102,8 @@ type IntegrationPayload = (
     | RegulatoryAnchorCandidate
     | RegulatoryEffect
     | RegulatoryAnchorCoverageEvidence
+    | RegulatoryActReviewRequest
+    | RegulatoryActReviewDecision
     | RegulatorySourceRevisionDecision
     | RegulatorySourceRevisionRequest
     | RegulatoryCandidateCoverageResult
@@ -151,6 +159,10 @@ _SCHEMA_TO_MODEL: dict[CoreSchemaId, type[DomainModel]] = {
     CoreSchemaId.REGULATORY_CANDIDATE_COVERAGE_RESULT: RegulatoryCandidateCoverageResult,
     CoreSchemaId.REGULATORY_ANCHOR_COVERAGE_EVIDENCE: RegulatoryAnchorCoverageEvidence,
     CoreSchemaId.REGULATORY_ANCHOR_COVERAGE_EVIDENCE_V2: RegulatoryAnchorCoverageEvidenceV2,
+    CoreSchemaId.REGULATORY_ACT_REVIEW_REQUEST: RegulatoryActReviewRequest,
+    CoreSchemaId.REGULATORY_ACT_REVIEW_DECISION: RegulatoryActReviewDecision,
+    CoreSchemaId.REGULATORY_ANCHOR_COVERAGE_EVIDENCE_V3: RegulatoryAnchorCoverageEvidenceV3,
+    CoreSchemaId.REGULATORY_ROLLOVER_REPORT_V4: RegulatoryRolloverReportV4,
     CoreSchemaId.REGULATORY_SOURCE_REVISION_REQUEST: RegulatorySourceRevisionRequest,
     CoreSchemaId.REGULATORY_SOURCE_REVISION_DECISION: RegulatorySourceRevisionDecision,
     CoreSchemaId.REGULATORY_MANUAL_REVIEW: RegulatoryManualReview,

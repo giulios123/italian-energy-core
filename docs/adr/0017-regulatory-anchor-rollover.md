@@ -863,3 +863,18 @@ osservazioni e decisioni della coverage V2. Il confronto byte-per-byte legacy
 resta attivo per le evidenze prive del contratto di revisione. Una nuova versione,
 una revoca o un vincolo errato non possono essere accettati. Regressione positiva
 e negativa riprodotta prima del fix, inclusa la source_preflight completa.
+
+
+## D33 — Decisioni amministrabili sugli atti — 2026-11-21
+
+La Spec 023 estende la revisione agli atti discovery senza interpretazione
+automatica registrata. Una decisione umana limitata a record, copia acquisita,
+anchor e periodo può attestare la non incidenza sui dati correnti. Le decisioni
+sono dati canonici persistiti dalla Platform, non eccezioni di codice per atto.
+Il Core verifica le relazioni, le date, l'esito e la conferma nei controlli
+online e offline. Nuovi bytes o metadata riaprono la revisione.
+
+Il browser non assegna prezzi o formule e una decisione non sostituisce parser,
+mapping o controlli su valori economici cambiati. Nessun successore è promosso
+con l'approvazione dell'anchor corrente. Schema coverage v3 e report v4 sono
+additivi; i contratti storici restano leggibili e immutabili.
