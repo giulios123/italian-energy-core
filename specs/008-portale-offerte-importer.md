@@ -349,6 +349,17 @@ componenti necessarie in unità modellabili (`per_kWh`, `per_day`, `per_month`,
 bande coerenti e validità non ambigua. Componenti non riconducibili a una
 `ChargeRule` restano non rappresentabili.
 
+Per una fixed del Mercato Libero con `TIPOLOGIA_FASCE=01` dichiarato senza
+ambiguità e un unico prezzo energia rappresentato con
+`FASCIA_COMPONENTE=01`, il prezzo si applica al consumo totale (`ALL`).
+Il record originale conserva fascia, importo, unità e provenance.
+In assenza della dichiarazione monoraria, il codice componente `01` resta
+`F1`. Prezzi discordanti e offerte biorarie o triorarie mantengono i propri
+controlli di copertura. Il riferimento è la fascia F0 delle
+[Regole per il calcolo della spesa annua del Portale Offerte, v4.2](https://www.ilportaleofferte.it/portaleOfferte/resources/cms/documents/6bc502553cb0ea45958840b2de20078d.pdf#page=11).
+
+Il digest di import include la versione della normalizzazione economica.
+
 ### Indexed
 
 Un'offerta indexed può essere convertita solo se il dataset identifica

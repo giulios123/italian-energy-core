@@ -438,6 +438,63 @@ def test_projected_comparison_uses_latest_pun_and_applies_declared_spread() -> N
     assert result.assumptions.market_reference_value_eur_per_kwh == Decimal("0.20")
 
 
+@pytest.mark.parametrize("by_band", (False, True))
+def test_projected_comparison_prices_single_component_declared_monoraria(
+    by_band: bool,
+) -> None:
+    request = _trioraria_request() if by_band else _request()
+    original_catalog = _catalog(AS_OF)
+    source_offer = original_catalog.records[0]
+    offer = source_offer.model_copy(
+        update={
+            "offer_type": PortalOfferType.FIXED,
+            "index_code": None,
+            "index_codes": (),
+            "index_granularity": None,
+            "components": (
+                PortalEconomicComponent(
+                    code="Corrispettivo Energia",
+                    description="Corrispettivo Energia fisso e invariabile",
+                    amount=Decimal("0.1822"),
+                    unit="EUR/kWh",
+                    band="01",
+                    macroarea="06",
+                    price_validity=PortalComponentPriceValidity(
+                        kind=PortalPriceValidityKind.DEFAULT
+                    ),
+                ),
+                PortalEconomicComponent(
+                    code="Commercializzazione FISSA",
+                    description="Corrispettivo di commercializzazione fisso",
+                    amount=Decimal("72"),
+                    unit="EUR/year",
+                    macroarea="01",
+                    price_validity=PortalComponentPriceValidity(
+                        kind=PortalPriceValidityKind.DEFAULT
+                    ),
+                ),
+            ),
+            "raw_fields": (("TIPOLOGIA_FASCE:26", "01"), ("FASCIA_COMPONENTE:36", "01")),
+        }
+    )
+    catalog = original_catalog.model_copy(update={"records": (offer,)})
+    anchor = load_domestic_projection_anchor()
+
+    result = ProjectedDomesticEnergyService(
+        clock=lambda: datetime(2026, 9, 27, 12, tzinfo=UTC)
+    ).compare(request, catalog, _history(AS_OF), anchor, _coverage(anchor, AS_OF))
+
+    for scenario in result.scenarios:
+        comparison = scenario.comparison
+        assert not comparison.comparison_result.excluded_offers
+        (alternative,) = comparison.comparison_result.alternatives
+        assert alternative.pricing.breakdown.total.amount == Decimal("290.64")
+        (normalized,) = comparison.import_result.normalized
+        assert isinstance(normalized.offer.tariff, FixedTariff)
+        assert normalized.offer.tariff.prices[0].band == "ALL"
+        assert normalized.source_record.components[0].band == "01"
+
+
 def test_projected_comparison_prices_bioraria_offer_against_trioraria_current() -> None:
     request = _trioraria_request()
     original_catalog = _catalog(AS_OF)

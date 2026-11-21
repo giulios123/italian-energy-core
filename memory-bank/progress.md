@@ -1,5 +1,16 @@
 # Progress
 
+## Core 0.13.13 — prezzo fisso monorario — 2026-11-21
+
+- Il normalizzatore applica al consumo totale il singolo prezzo energia in
+  fascia `01` quando il Mercato Libero dichiara esplicitamente lo schema
+  monorario `01`. La provenance conserva il record originale.
+- La regressione sul tracciato Dolomiti Fisso Luce 36 Web verifica il confronto
+  con consumo totale e F1/F2/F3. Replay del record ufficiale del 21 novembre
+  riuscito per entrambi i profili.
+- La versione della normalizzazione entra nel digest di import. Il tracciato
+  e gli schemi pubblici restano gli stessi.
+
 ## Core 0.13.12 pubblicato — 2026-11-21
 
 - Commit 69c03e8a007f255d4564dc260d1384591834681d, tag v0.13.12; CI main/tag

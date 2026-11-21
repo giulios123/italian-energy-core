@@ -54,6 +54,8 @@ from italian_energy.portal_offers.models import (
 )
 from italian_energy.portal_offers.parameters import projection_matches_snapshot
 
+PORTAL_NORMALIZER_VERSION = "008-portal-normalization-v2"
+
 _INDEX_CODES = {"01": "PUN", "05": "PUN", "08": "PE", "12": "PUN", "PUN": "PUN", "PE": "PE"}
 _BANDS = {"01": "F1", "02": "F2", "03": "F3", "07": "BF1", "08": "BF23", "91": "ALL"}
 _UNIT_MAP = {
@@ -473,8 +475,19 @@ def _fixed_tariff(
         if previous is not None and previous.amount != price.rate.amount:
             raise ValueError(f"fixed offer has conflicting price for band {price.band}")
         grouped[price.band] = price.rate
-    # The XML repeats the same value for all three bands for a monoraria offer.
-    if len(grouped) > 1 and len({rate.amount for rate in grouped.values()}) == 1:
+    # A declared monoraria XML offer can encode its only energy price as band 01.
+    single_monoraria_price = (
+        record.catalog == PortalCatalog.MARKET_FREE
+        and grouped.keys() == {"F1"}
+        and {
+            value for tag, value in record.raw_fields if tag.partition(":")[0] == "TIPOLOGIA_FASCE"
+        }
+        == {"01"}
+    )
+    repeated_uniform_price = (
+        len(grouped) > 1 and len({rate.amount for rate in grouped.values()}) == 1
+    )
+    if single_monoraria_price or repeated_uniform_price:
         grouped = {"ALL": next(iter(grouped.values()))}
     fixed, additional, discounts = _charge_rules(
         record,
@@ -827,6 +840,7 @@ def normalize_offers(
     payload = {
         "snapshot": snapshot.snapshot_id,
         "parser": snapshot.parser_version,
+        "normalizer": PORTAL_NORMALIZER_VERSION,
         "records": [record.model_dump(mode="json") for record in ordered_records],
         "eligibility": eligibility.model_dump(mode="json"),
         "period_start": str(period_start),

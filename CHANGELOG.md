@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.13] - 2026-11-21
+
+- Le offerte fisse del Mercato Libero dichiarate monorarie con un unico prezzo
+  energia codificato nella fascia `01` valorizzano l’intero consumo, anche con
+  un profilo F1/F2/F3. Regressione sul tracciato Dolomiti Fisso Luce 36 Web.
+- L’identificativo di import distingue la versione della normalizzazione
+  economica e il record sorgente conserva i codici originali.
+
 ## [0.13.12] - 2026-11-21
 
 - Revisione amministrativa generica degli atti discovery non riconosciuti, con
