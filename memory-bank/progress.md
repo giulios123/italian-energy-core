@@ -1,5 +1,17 @@
 # Progress
 
+## Core 0.13.12 pubblicato — 2026-11-21
+
+- Commit 69c03e8a007f255d4564dc260d1384591834681d, tag v0.13.12; CI main/tag
+  Python 3.12–3.14 e Trusted Publishing 44902102003 riusciti.
+- Wheel SHA-256 7e80736d3c9b5d141bf9bea9e08f77815d854801f03aa98a8c742b8be1b8db6d;
+  digest e attestazione verificati dalla Platform. 1.048 test / 95,08%, statici,
+  due golden privati, build e import isolato passati.
+- Capability generica `regulatory_act_review`, coverage v3/report v4; nessuna
+  approvazione normativa live. Adozione/deploy Platform distinti dalla release.
+- Evidenza: docs/release-0.13.12-publication.md.
+
+
 ## Core 0.13.11 — correzione preflight approvazioni — 2026-11-05
 
 - Individuato sul runtime Azure il secondo confronto dei digest che ignorava
