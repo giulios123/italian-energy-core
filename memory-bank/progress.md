@@ -1,5 +1,14 @@
 # Progress
 
+## Filtro territoriale Mercato Libero corretto — 2026-11-23
+
+- Spec 008 aggiornata con il mapping SII v5.0 e il recupero dei codici per
+  cataloghi XML già acquisiti.
+- Il parser v7 importa `ZoneOfferta` e il normalizzatore v3 esclude con
+  `territory_not_covered` quando nessuna zona dichiarata copre la fornitura.
+- Aggiunte otto regressioni per cataloghi nuovi e persistiti. La modifica
+  richiede una release Core e l'adozione nella Platform per arrivare alla beta.
+
 ## Core 0.13.13 pubblicato — 2026-11-21
 
 - Commit `31f34b811348cda0381febf66da7f60e2a72f123`, tag `v0.13.13`. CI

@@ -54,7 +54,8 @@ from italian_energy.portal_offers.models import (
 )
 from italian_energy.portal_offers.parameters import projection_matches_snapshot
 
-PORTAL_NORMALIZER_VERSION = "008-portal-normalization-v2"
+PORTAL_NORMALIZER_VERSION = "008-portal-normalization-v3"
+_LEGACY_ZONE_PARSERS = frozenset(f"008-portal-offers-v{version}" for version in range(1, 7))
 
 _INDEX_CODES = {"01": "PUN", "05": "PUN", "08": "PE", "12": "PUN", "PUN": "PUN", "PE": "PE"}
 _BANDS = {"01": "F1", "02": "F2", "03": "F3", "07": "BF1", "08": "BF23", "91": "ALL"}
@@ -590,6 +591,32 @@ def _indexed_tariff(
     )
 
 
+def _recover_legacy_territory(record: PortalOfferRecord) -> PortalOfferRecord:
+    if (
+        record.catalog != PortalCatalog.MARKET_FREE
+        or record.region_codes
+        or record.province_codes
+        or record.municipality_codes
+    ):
+        return record
+    # These XML tags are reserved for offer zones. Older parsers retained
+    # them as tag:position entries even when snapshot bytes were discarded.
+    zones: dict[str, list[str]] = {"REGIONE": [], "PROVINCIA": [], "COMUNE": []}
+    for field, value in record.raw_fields:
+        tag = field.partition(":")[0]
+        if tag in zones:
+            zones[tag].append(value)
+    if not any(zones.values()):
+        return record
+    return record.model_copy(
+        update={
+            "region_codes": tuple(zones["REGIONE"]),
+            "province_codes": tuple(zones["PROVINCIA"]),
+            "municipality_codes": tuple(zones["COMUNE"]),
+        }
+    )
+
+
 def _record_applicability(
     record: PortalOfferRecord,
     eligibility: PortalEligibilityProfile,
@@ -617,18 +644,28 @@ def _record_applicability(
                 "tariff validity does not cover the requested period",
             )
     territory = eligibility.territory
-    if record.region_codes and territory.region_code not in record.region_codes:
-        return _exclude(
-            record, PortalOfferExclusionCode.TERRITORY_NOT_COVERED, "region is not covered"
-        )
-    if record.province_codes and territory.province_code not in record.province_codes:
-        return _exclude(
-            record, PortalOfferExclusionCode.TERRITORY_NOT_COVERED, "province is not covered"
-        )
-    if record.municipality_codes and territory.municipality_code not in record.municipality_codes:
-        return _exclude(
-            record, PortalOfferExclusionCode.TERRITORY_NOT_COVERED, "municipality is not covered"
-        )
+    declared_zones = (
+        ("region", territory.region_code, record.region_codes),
+        ("province", territory.province_code, record.province_codes),
+        ("municipality", territory.municipality_code, record.municipality_codes),
+    )
+    if record.catalog == PortalCatalog.MARKET_FREE:
+        if any(codes for _, _, codes in declared_zones) and not any(
+            code in codes for _, code, codes in declared_zones
+        ):
+            return _exclude(
+                record,
+                PortalOfferExclusionCode.TERRITORY_NOT_COVERED,
+                "supply is outside the declared offer zones",
+            )
+    else:
+        for level, code, codes in declared_zones:
+            if codes and code not in codes:
+                return _exclude(
+                    record,
+                    PortalOfferExclusionCode.TERRITORY_NOT_COVERED,
+                    f"{level} is not covered",
+                )
     if eligibility.activation_method != "ALL" and not _contains(
         record.activation_methods, eligibility.activation_method
     ):
@@ -681,6 +718,8 @@ def normalize_offers(
         raise ValueError("activation_date and economic_period must be supplied together")
     if economic_period is not None and activation_date != economic_period.start:
         raise ValueError("activation_date must equal economic_period.start")
+    if snapshot.parser_version in _LEGACY_ZONE_PARSERS:
+        records = tuple(_recover_legacy_territory(record) for record in records)
     ordered_records = tuple(
         sorted(
             records,

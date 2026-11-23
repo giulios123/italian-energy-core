@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.14] - 2026-11-23
+
+- Il filtro territoriale delle offerte XML del Mercato Libero usa i codici
+  ISTAT di regioni, province e comuni dichiarati nel catalogo ufficiale.
+- Il Core recupera i codici anche dagli snapshot già importati. Replay sulle
+  offerte CVA 7 e Alperia Direct Alto Adige per Torino, Aosta, Bolzano e Trento.
+
 ## [0.13.13] - 2026-11-21
 
 - Le offerte fisse del Mercato Libero dichiarate monorarie con un unico prezzo

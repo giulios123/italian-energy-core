@@ -260,7 +260,7 @@ wheels = [
 
 [[package]]
 name = "italian-energy"
-version = "0.13.13"
+version = "0.13.14"
 source = { editable = "." }
 dependencies = [
     { name = "defusedxml" },

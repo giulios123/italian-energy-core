@@ -1,5 +1,15 @@
 # Active context
 
+## Copertura territoriale XML Mercato Libero — 2026-11-23
+
+- Il parser v7 legge i codici ISTAT dichiarati in `ZoneOfferta`. Il
+  normalizzatore v3 ammette una corrispondenza in regione, provincia o comune.
+- Gli snapshot XML dei parser precedenti recuperano la copertura dai campi
+  originali già persistiti, anche senza i byte sorgente. Le offerte prive di
+  zone dichiarate hanno copertura nazionale.
+- La regressione verifica CVA 7 e Alperia Direct Alto Adige per Torino,
+  i territori ammessi e una lista mista di regioni, province e comuni.
+
 ## Core 0.13.13 pubblicato — 2026-11-21
 
 - Commit `31f34b811348cda0381febf66da7f60e2a72f123`, tag `v0.13.13`. CI

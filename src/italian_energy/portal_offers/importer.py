@@ -45,7 +45,7 @@ PORTAL_HOST = "www.ilportaleofferte.it"
 PORTAL_BASE = "https://www.ilportaleofferte.it"
 PORTAL_SCHEMA_VERSION = "OffertaRetail/01"
 PORTAL_XML_NAMESPACE = "http://www.acquirenteunico.it/schemas/SII_AU/OffertaRetail/01"
-PORTAL_PARSER_VERSION = "008-portal-offers-v6"
+PORTAL_PARSER_VERSION = "008-portal-offers-v7"
 PORTAL_INDEX_URL = (
     f"{PORTAL_BASE}/portaleOfferte/resources/cms/documents/5d6f1085b4d5f20821af55764e647671.csv"
 )
@@ -828,6 +828,16 @@ def _parse_market_free_xml(file: PortalFileSnapshot) -> tuple[PortalOfferRecord,
                     source_provenance=(component_provenance,),
                 )
             )
+        zones = _direct_children(offer, "ZoneOfferta")
+        territory_codes = {
+            tag: tuple(
+                code
+                for zone in zones
+                for node in _direct_children(zone, tag)
+                if (code := str(node.text or "").strip())
+            )
+            for tag in ("REGIONE", "PROVINCIA", "COMUNE")
+        }
         records.append(
             PortalOfferRecord(
                 catalog=PortalCatalog.MARKET_FREE,
@@ -845,6 +855,9 @@ def _parse_market_free_xml(file: PortalFileSnapshot) -> tuple[PortalOfferRecord,
                 customer_type=_text(offer, "TIPO_CLIENTE") or "",
                 activation_methods=_all_text(offer, "MODALITA"),
                 payment_methods=_all_text(offer, "MODALITA_PAGAMENTO"),
+                region_codes=territory_codes["REGIONE"],
+                province_codes=territory_codes["PROVINCIA"],
+                municipality_codes=territory_codes["COMUNE"],
                 index_code=_text(offer, "IDX_PREZZO_ENERGIA")
                 if offer_type == PortalOfferType.INDEXED
                 else None,

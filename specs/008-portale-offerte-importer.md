@@ -396,6 +396,16 @@ Il filtro di eleggibilità deve usare solo dati strutturati e mapping versionati
 7. compatibilità del tariff type con il Pricing Engine;
 8. provenance e stato di verifica.
 
+Nel catalogo XML Mercato Libero, `ZoneOfferta` elenca aree alternative in
+cui il venditore propone l'offerta. I nodi `REGIONE`, `PROVINCIA` e
+`COMUNE` contengono codici ISTAT distinti, rispettivamente di due, tre e
+sei cifre. L'offerta copre la fornitura se corrisponde almeno un codice
+del suo livello territoriale. Una zona assente o priva di codici
+indica copertura nazionale. Il mapping segue le [Specifiche SII v5.0](https://siiportale.acquirenteunico.it/documents/11387888/11426817/Funzionamento%2Be%2BSpecifiche%2Bdel%2BProcesso%2Bdi%2BTrasmissione%2BOfferte%2BMercato%2BRetail_v5.0.pdf/c7fb0256-ce8d-0977-3356-227cfaa91443?download=true),
+pp. 22 e 60. Per gli snapshot XML precedenti alla versione 7 del parser,
+il normalizzatore recupera i tre codici dai campi originali conservati
+quando il record non li espone già in forma strutturata.
+
 L'importer non amplia la `BillingCoverageMatrix`. Prima del download, il
 servizio deve eseguire il preflight globale della 007: contratto corrente,
 ruleset, classificazione, matrice, misure e rounding. Un errore globale deve

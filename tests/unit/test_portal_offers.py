@@ -151,6 +151,70 @@ def test_fetch_snapshot_is_allowlisted_and_parses_both_catalogues() -> None:
     assert market.points[0].value == Decimal("0.10")
 
 
+@pytest.mark.parametrize("reuse_legacy_catalog", [False, True])
+@pytest.mark.parametrize(
+    ("zone", "codes", "eligible_locations"),
+    [
+        (b"<ZoneOfferta/>", ((), (), ()), {"Torino", "Aosta", "Bolzano", "Trento"}),
+        (b"<ZoneOfferta><REGIONE>02</REGIONE></ZoneOfferta>", (("02",), (), ()), {"Aosta"}),
+        (
+            b"<ZoneOfferta><REGIONE>04</REGIONE></ZoneOfferta>",
+            (("04",), (), ()),
+            {"Bolzano", "Trento"},
+        ),
+        (
+            b"<ZoneOfferta><REGIONE>02</REGIONE><REGIONE>06</REGIONE>"
+            b"<PROVINCIA>001</PROVINCIA><COMUNE>021008</COMUNE></ZoneOfferta>",
+            (("02", "06"), ("001",), ("021008",)),
+            {"Torino", "Aosta", "Bolzano"},
+        ),
+    ],
+)
+def test_market_free_territory_is_enforced_for_fresh_and_persisted_catalogs(
+    zone: bytes,
+    codes: tuple[tuple[str, ...], ...],
+    eligible_locations: set[str],
+    reuse_legacy_catalog: bool,
+) -> None:
+    xml = XML.replace(b"</offerta>", zone + b"</offerta>")
+    transport = FakeTransport({**_transport().contents, "offerteML": (xml, "application/xml")})
+    snapshot = PortalOffersImporter(transport=transport).fetch(DATE, include_indexes=False).offers
+    record = next(
+        item
+        for item in PortalOffersImporter.parse_offers(snapshot)
+        if item.catalog == PortalCatalog.MARKET_FREE
+    )
+    if reuse_legacy_catalog:
+        snapshot = snapshot.model_copy(update={"parser_version": "008-portal-offers-v6"})
+        record = record.model_copy(
+            update={"region_codes": (), "province_codes": (), "municipality_codes": ()}
+        )
+    else:
+        assert (record.region_codes, record.province_codes, record.municipality_codes) == codes
+
+    locations = {
+        "Torino": ("01", "001", "001272"),
+        "Aosta": ("02", "007", "007003"),
+        "Bolzano": ("04", "021", "021008"),
+        "Trento": ("04", "022", "022205"),
+    }
+    for city, (region, province, municipality) in locations.items():
+        profile = PortalEligibilityProfile(
+            territory=PortalTerritory(
+                region_code=region, province_code=province, municipality_code=municipality
+            ),
+            activation_method="02",
+            payment_method="01",
+        )
+        result = normalize_offers(snapshot, (record,), profile, DATE, date(2026, 2, 1))
+        if city in eligible_locations:
+            assert result.eligible_count == 1, city
+        else:
+            assert [item.code for item in result.exclusions] == [
+                PortalOfferExclusionCode.TERRITORY_NOT_COVERED
+            ], city
+
+
 def test_parser_rejects_schema_and_transport_drift() -> None:
     transport = FakeTransport(
         {
