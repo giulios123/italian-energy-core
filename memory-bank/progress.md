@@ -1,5 +1,13 @@
 # Progress
 
+## Core 0.13.14 pubblicato — 2026-11-23
+
+- Commit `e91e50a3a19bc9a110db75fa6c15b218924eb36f`, tag `v0.13.14`.
+  1.058 test locali, coverage 95,07%, CI main e tag verde.
+- La Platform ha verificato digest e attestazione PyPI della wheel.
+  Il replay con il catalogo ufficiale del 22 novembre è passato per Torino,
+  Aosta, Bolzano e Trento su snapshot nuovi e già acquisiti.
+
 ## Filtro territoriale Mercato Libero corretto — 2026-11-23
 
 - Spec 008 aggiornata con il mapping SII v5.0 e il recupero dei codici per

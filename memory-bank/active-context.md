@@ -1,5 +1,14 @@
 # Active context
 
+## Core 0.13.14 pubblicato — 2026-11-23
+
+- Tag `v0.13.14` sul commit `e91e50a3a19bc9a110db75fa6c15b218924eb36f`.
+  CI Python 3.12–3.14 riuscita su main e sul tag. Il
+  [Trusted Publishing](https://github.com/giulios123/italian-energy-core/actions/runs/45139682475)
+  ha pubblicato la release [su PyPI](https://pypi.org/project/italian-energy/0.13.14/).
+- Wheel SHA-256 `39ec6dcf8b304a299cf75d9837e2d8e3184eec15db46d750cedb57933c96db7b`.
+  Attestazione verificata e replay territoriale passato con la wheel pubblicata.
+
 ## Copertura territoriale XML Mercato Libero — 2026-11-23
 
 - Il parser v7 legge i codici ISTAT dichiarati in `ZoneOfferta`. Il
